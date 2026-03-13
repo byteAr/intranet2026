@@ -32,6 +32,33 @@ export class User {
   @Column({ nullable: true })
   adDn: string;
 
+  @Column({ nullable: true })
+  upn: string; // userPrincipalName
+
+  @Column({ nullable: true })
+  title: string; // cargo
+
+  @Column({ nullable: true })
+  department: string;
+
+  @Column({ nullable: true })
+  company: string;
+
+  @Column({ nullable: true })
+  phone: string; // telephoneNumber
+
+  @Column({ nullable: true })
+  mobile: string;
+
+  @Column({ nullable: true })
+  office: string; // physicalDeliveryOfficeName
+
+  @Column({ nullable: true })
+  manager: string; // CN del manager extraído del DN
+
+  @Column({ nullable: true })
+  employeeId: string;
+
   @Column({ default: true })
   isActive: boolean;
 

@@ -8,11 +8,21 @@ interface LdapEntry {
   dn?: string;
   uid?: string;
   sAMAccountName?: string;
+  userPrincipalName?: string;
   mail?: string;
   displayName?: string;
   givenName?: string;
   sn?: string;
   memberOf?: string | string[];
+  title?: string;
+  department?: string;
+  company?: string;
+  telephoneNumber?: string;
+  mobile?: string;
+  physicalDeliveryOfficeName?: string;
+  manager?: string;
+  employeeID?: string;
+  employeeNumber?: string;
   [key: string]: unknown;
 }
 
@@ -44,12 +54,28 @@ export class AuthService {
       lastName,
       roles,
       adDn,
+      upn: ldapEntry.userPrincipalName,
+      title: ldapEntry.title,
+      department: ldapEntry.department,
+      company: ldapEntry.company,
+      phone: ldapEntry.telephoneNumber,
+      mobile: ldapEntry.mobile,
+      office: ldapEntry.physicalDeliveryOfficeName,
+      manager: this.extractCn(ldapEntry.manager),
+      employeeId: ldapEntry.employeeID ?? ldapEntry.employeeNumber,
     });
 
     const payload = { sub: user.id, username: user.username, roles: user.roles };
     const access_token = this.jwtService.sign(payload);
 
     return { access_token, user };
+  }
+
+  /** Extract CN from a DN string (e.g. manager field) */
+  private extractCn(dn?: string): string | undefined {
+    if (!dn) return undefined;
+    const match = /^CN=([^,]+)/i.exec(dn);
+    return match ? match[1] : dn;
   }
 
   /** Extract role names from CN=GroupName,... strings */

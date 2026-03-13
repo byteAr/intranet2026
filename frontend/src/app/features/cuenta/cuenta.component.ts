@@ -1,5 +1,5 @@
 import { Component, inject, signal, ElementRef, ViewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 
@@ -8,7 +8,7 @@ type Panel = 'info' | 'password' | 'recovery';
 @Component({
   selector: 'app-cuenta',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, DatePipe],
   template: `
     <div class="space-y-6 max-w-3xl mx-auto">
 
@@ -42,17 +42,11 @@ type Panel = 'info' | 'password' | 'recovery';
           <div class="flex-1 min-w-0">
             <h2 class="text-2xl font-bold text-gray-900 truncate">{{ user()?.displayName }}</h2>
             <p class="text-sm text-gray-500 truncate">{{ user()?.username }} — {{ user()?.email }}</p>
-            <div class="mt-2 flex flex-wrap gap-1.5">
-              @for (role of user()?.roles?.slice(0, 3); track role) {
-                <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                      style="background: linear-gradient(to right, #14B8A5, #22C562)">{{ role }}</span>
-              }
-              @if ((user()?.roles?.length ?? 0) > 3) {
-                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                  +{{ (user()?.roles?.length ?? 0) - 3 }} más
-                </span>
-              }
-            </div>
+            @if (user()?.lastLoginAt) {
+              <p class="mt-2 text-xs text-gray-400">
+                Último acceso: {{ user()!.lastLoginAt | date:'dd/MM/yyyy HH:mm' }}
+              </p>
+            }
           </div>
 
           <!-- Avatar save btn -->
@@ -241,14 +235,18 @@ export class CuentaComponent {
     const u = this.user();
     return [
       { label: 'Usuario', value: u?.username },
-      { label: 'Nombre completo', value: u?.displayName },
       { label: 'Correo corporativo', value: u?.email },
       { label: 'Correo de recuperación', value: u?.recoveryEmail },
-      { label: 'Nombre', value: u?.firstName },
-      { label: 'Apellido', value: u?.lastName },
-      { label: 'Último acceso', value: u?.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('es-AR') : null },
+      { label: 'Cargo', value: u?.title },
+      { label: 'Departamento', value: u?.department },
+      { label: 'Empresa', value: u?.company },
+      { label: 'Oficina', value: u?.office },
+      { label: 'Teléfono', value: u?.phone },
+      { label: 'Móvil', value: u?.mobile },
+      { label: 'Jefe directo', value: u?.manager },
+      { label: 'Legajo', value: u?.employeeId },
       { label: 'Estado', value: u?.isActive ? 'Activo' : 'Inactivo' },
-    ];
+    ].filter(f => f.value);
   }
 
   isInvalid(form: FormGroup, field: string): boolean {

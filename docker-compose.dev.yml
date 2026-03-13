@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: pac_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  openldap:
+    image: osixia/openldap:latest
+    container_name: pac_openldap
+    environment:
+      LDAP_ORGANISATION: 'Example Corp'
+      LDAP_DOMAIN: example.com
+      LDAP_ADMIN_PASSWORD: admin_password
+      LDAP_CONFIG_PASSWORD: config_password
+      LDAP_READONLY_USER: 'false'
+      LDAP_TLS: 'false'
+    ports:
+      - '389:389'
+      - '636:636'
+    volumes:
+      - openldap_data:/var/lib/ldap
+      - openldap_config:/etc/ldap/slapd.d
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: pac_backend
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: 'true'
+    ports:
+      - '${APP_PORT:-3000}:${APP_PORT:-3000}'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      openldap:
+        condition: service_started
+    volumes:
+      - ./backend/src:/app/src
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: pac_frontend
+    ports:
+      - '4200:4200'
+    depends_on:
+      - backend
+    command: >
+      npm start --
+      --host 0.0.0.0
+      --poll 2000
+      --proxy-config proxy.conf.docker.json
+    volumes:
+      - ./frontend/src:/app/src
+
+volumes:
+  postgres_data:
+  openldap_data:
+  openldap_config:

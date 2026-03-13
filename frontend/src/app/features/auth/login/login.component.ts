@@ -387,7 +387,7 @@ export class LoginComponent {
     const { username, password } = this.loginForm.value as { username: string; password: string };
 
     this.authService.login(username, password).subscribe({
-      next: () => void this.router.navigate(['/dashboard']),
+      next: () => void this.router.navigate(['/cuenta']),
       error: () => {
         this.loading.set(false);
         this.errorMessage.set('Credenciales incorrectas. Verifica tu usuario y contraseña de dominio.');

@@ -11,6 +11,15 @@ export interface UpsertUserDto {
   lastName?: string;
   roles?: string[];
   adDn?: string;
+  upn?: string;
+  title?: string;
+  department?: string;
+  company?: string;
+  phone?: string;
+  mobile?: string;
+  office?: string;
+  manager?: string;
+  employeeId?: string;
 }
 
 @Injectable()
@@ -32,6 +41,15 @@ export class UsersService {
       user.lastName = dto.lastName ?? user.lastName;
       user.roles = dto.roles ?? user.roles;
       user.adDn = dto.adDn ?? user.adDn;
+      user.upn = dto.upn ?? user.upn;
+      user.title = dto.title ?? user.title;
+      user.department = dto.department ?? user.department;
+      user.company = dto.company ?? user.company;
+      user.phone = dto.phone ?? user.phone;
+      user.mobile = dto.mobile ?? user.mobile;
+      user.office = dto.office ?? user.office;
+      user.manager = dto.manager ?? user.manager;
+      user.employeeId = dto.employeeId ?? user.employeeId;
       user.lastLoginAt = new Date();
     } else {
       user = this.userRepo.create({

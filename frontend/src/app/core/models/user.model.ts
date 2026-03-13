@@ -12,6 +12,15 @@ export interface User {
   updatedAt: string;
   recoveryEmail?: string;
   avatar?: string;
+  upn?: string;
+  title?: string;
+  department?: string;
+  company?: string;
+  phone?: string;
+  mobile?: string;
+  office?: string;
+  manager?: string;
+  employeeId?: string;
 }
 
 export interface LoginResponse {

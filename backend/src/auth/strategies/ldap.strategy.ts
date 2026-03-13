@@ -22,7 +22,14 @@ export class LdapStrategy extends PassportStrategy(Strategy, 'ldapauth') {
         bindCredentials,
         searchBase,
         searchFilter,
-        searchAttributes: ['uid', 'sAMAccountName', 'mail', 'displayName', 'givenName', 'sn', 'memberOf'],
+        searchAttributes: [
+          'uid', 'sAMAccountName', 'userPrincipalName',
+          'mail', 'displayName', 'givenName', 'sn', 'memberOf',
+          'title', 'department', 'company',
+          'telephoneNumber', 'mobile',
+          'physicalDeliveryOfficeName',
+          'manager', 'employeeID', 'employeeNumber',
+        ],
         tlsOptions: {
           rejectUnauthorized: tlsRejectUnauthorized,
         },

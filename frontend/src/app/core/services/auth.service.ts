@@ -36,7 +36,15 @@ export class AuthService {
       );
   }
 
+  private readonly _logoutCallbacks = new Set<() => void>();
+
+  /** Register a callback to be called synchronously before logout clears state. */
+  onBeforeLogout(cb: () => void): void {
+    this._logoutCallbacks.add(cb);
+  }
+
   logout(): void {
+    this._logoutCallbacks.forEach((cb) => cb());
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     this._token.set(null);

@@ -42,6 +42,13 @@ export const routes: Routes = [
             (m) => m.CuentaComponent,
           ),
       },
+      {
+        path: 'chat',
+        loadComponent: () =>
+          import('./features/chat/chat.component').then(
+            (m) => m.ChatComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: 'cuenta' },

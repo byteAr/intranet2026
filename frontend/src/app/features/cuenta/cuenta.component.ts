@@ -235,7 +235,7 @@ export class CuentaComponent {
     const u = this.user();
     return [
       { label: 'Usuario', value: u?.username },
-      { label: 'Correo corporativo', value: u?.email },
+      { label: 'Correo educativo', value: u?.email },
       { label: 'Correo de recuperación', value: u?.recoveryEmail },
       { label: 'Cargo', value: u?.title },
       { label: 'Departamento', value: u?.department },

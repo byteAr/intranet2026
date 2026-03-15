@@ -8,6 +8,6 @@ export class UpdateProfileDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(2_000_000, { message: 'La imagen es demasiado grande' })
+  @MaxLength(5_000_000, { message: 'La imagen es demasiado grande' })
   avatar?: string;
 }

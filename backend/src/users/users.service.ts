@@ -70,6 +70,38 @@ export class UsersService {
     return this.userRepo.findOne({ where: { username } });
   }
 
+  async createStub(data: {
+    username: string;
+    displayName: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }): Promise<User> {
+    const user = this.userRepo.create({
+      username: data.username,
+      email: data.email ?? `${data.username}@ldap.local`,
+      displayName: data.displayName,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      roles: [],
+    });
+    return this.userRepo.save(user);
+  }
+
+  async search(query: string, excludeId: string): Promise<User[]> {
+    const q = `%${query}%`;
+    return this.userRepo
+      .createQueryBuilder('u')
+      .where('u.id != :excludeId', { excludeId })
+      .andWhere(
+        '(u.firstName ILIKE :q OR u.lastName ILIKE :q OR u.displayName ILIKE :q OR u.username ILIKE :q)',
+        { q },
+      )
+      .orderBy('u.firstName', 'ASC')
+      .take(10)
+      .getMany();
+  }
+
   async updateProfile(id: string, data: { recoveryEmail?: string; avatar?: string }): Promise<User> {
     await this.userRepo.update(id, data);
     return this.userRepo.findOne({ where: { id } }) as Promise<User>;

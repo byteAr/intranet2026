@@ -171,7 +171,11 @@ export class PasswordResetService {
           if (err) { client.destroy(); resolve(null); return; }
 
           let email: string | null = null;
-          res.on('searchEntry', (e) => { email = e.object['mail'] as string; });
+          res.on('searchEntry', (e: any) => {
+            const attrs: Array<{ type: string; values: string[] }> = e.pojo?.attributes ?? [];
+            const mailAttr = attrs.find((a) => a.type === 'mail');
+            if (mailAttr?.values?.[0]) email = mailAttr.values[0];
+          });
           res.on('end', () => { client.destroy(); resolve(email); });
           res.on('error', () => { client.destroy(); resolve(null); });
         });

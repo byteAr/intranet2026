@@ -34,7 +34,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
           } @else if (step() === 'forgot-username') {
             <p class="mt-2 text-sm text-gray-600">Paso 1 de 3 — Ingresa tu usuario</p>
           } @else if (step() === 'forgot-otp') {
-            <p class="mt-2 text-sm text-gray-600">Paso 2 de 3 — Código enviado a tu correo corporativo</p>
+            <p class="mt-2 text-sm text-gray-600">Paso 2 de 3 — Código enviado a tu correo educativo</p>
           } @else {
             <p class="mt-2 text-sm text-gray-600">Paso 3 de 3 — Establece tu nueva contraseña</p>
           }
@@ -175,7 +175,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                 <p class="mt-1 text-xs text-red-600">El usuario es requerido.</p>
               }
               <p class="mt-2 text-xs text-gray-500">
-                Se enviará un código de 4 dígitos al correo corporativo asociado a este usuario.
+                Se enviará un código de 4 dígitos al correo educativo asociado a este usuario.
               </p>
             </div>
 
@@ -222,7 +222,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                 <p class="mt-1 text-xs text-red-600">Ingresa el código de 4 dígitos.</p>
               }
               <p class="mt-2 text-xs text-gray-500">
-                Revisa el correo corporativo del usuario <strong>{{ forgotUsername() }}</strong>.
+                Revisa el correo educativo del usuario <strong>{{ forgotUsername() }}</strong>.
                 El código expira en 10 minutos.
               </p>
             </div>

@@ -5,7 +5,13 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  // Increase body size limit for base64 avatar uploads (default is 1mb)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const express = require('express');
+  app.use(express.json({ limit: '6mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '6mb' }));
 
   // Security
   app.use(helmet());

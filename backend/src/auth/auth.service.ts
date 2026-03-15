@@ -65,7 +65,17 @@ export class AuthService {
       employeeId: ldapEntry.employeeID ?? ldapEntry.employeeNumber,
     });
 
-    const payload = { sub: user.id, username: user.username, roles: user.roles };
+    const fullName =
+      [user.firstName, user.lastName].filter(Boolean).join(' ') ||
+      user.displayName ||
+      user.username;
+
+    const payload = {
+      sub: user.id,
+      username: user.username,
+      displayName: fullName,
+      roles: user.roles,
+    };
     const access_token = this.jwtService.sign(payload);
 
     return { access_token, user };

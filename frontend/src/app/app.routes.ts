@@ -56,6 +56,13 @@ export const routes: Routes = [
             (m) => m.IncidentsComponent,
           ),
       },
+      {
+        path: 'reservas',
+        loadComponent: () =>
+          import('./features/reservations/reservations.component').then(
+            (m) => m.ReservationsComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: 'cuenta' },

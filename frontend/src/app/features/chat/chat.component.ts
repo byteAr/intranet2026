@@ -17,11 +17,12 @@ import { Subject, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ChatService, ChatMessage, UserSearchResult } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
+import { AttachmentPreviewComponent } from './attachment-preview.component';
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AttachmentPreviewComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] bg-white rounded-xl shadow overflow-hidden">
 
@@ -113,11 +114,17 @@ import { AuthService } from '../../core/services/auth.service';
                     [class.bg-green-500]="contact.isOnline"
                     [class.bg-red-400]="!contact.isOnline"></span>
                 </span>
-                <!-- Name + status label -->
+                <!-- Name + last message preview -->
                 <span class="flex-1 text-left min-w-0">
                   <span class="block truncate leading-tight">{{ contact.name }}</span>
-                  @if (contact.isOnline) {
-                    <span class="block text-xs text-gray-300 leading-tight">En línea</span>
+                  @if (contact.lastMessage) {
+                    <span class="block text-xs leading-tight truncate"
+                      [class.text-gray-400]="chatService.activeRecipientId() !== contact.id"
+                      [class.text-teal-500]="chatService.activeRecipientId() === contact.id">
+                      {{ lastMsgPreview(contact) }}
+                    </span>
+                  } @else if (contact.isOnline) {
+                    <span class="block text-xs text-gray-400 leading-tight">En línea</span>
                   }
                 </span>
                 @if ((chatService.unreadCounts()[contact.id] ?? 0) > 0) {
@@ -163,14 +170,53 @@ import { AuthService } from '../../core/services/auth.service';
                 @if (!isOwn(msg)) {
                   <p class="text-xs text-gray-500 mb-1 ml-1">{{ msg.senderName }}</p>
                 }
-                <div class="px-4 py-2.5 rounded-2xl text-sm break-words"
+                <div class="rounded-2xl text-sm overflow-hidden shadow-sm"
                   [class.bg-teal-600]="isOwn(msg)"
                   [class.text-white]="isOwn(msg)"
                   [class.rounded-br-sm]="isOwn(msg)"
-                  [class.bg-gray-100]="!isOwn(msg)"
-                  [class.text-gray-800]="!isOwn(msg)"
+                  [class.bg-gray-300]="!isOwn(msg)"
+                  [class.text-gray-900]="!isOwn(msg)"
                   [class.rounded-bl-sm]="!isOwn(msg)">
-                  {{ msg.content }}
+                  <!-- Attachment -->
+                  @if (msg.attachmentUrl) {
+                    @if (isImage(msg.attachmentMimeType)) {
+                      <!-- Image preview: cropped, WhatsApp style -->
+                      <a [href]="downloadUrl(msg)" class="block">
+                        <div style="height:180px; overflow:hidden;">
+                          <img [src]="msg.attachmentUrl" [alt]="msg.attachmentName"
+                            style="width:100%; height:100%; object-fit:cover; display:block;" />
+                        </div>
+                      </a>
+                    } @else {
+                      <!-- Document preview -->
+                      <a [href]="downloadUrl(msg)"
+                        class="block hover:opacity-90 transition-opacity"
+                        [class.border-b]="msg.content"
+                        [class.border-teal-500]="isOwn(msg)"
+                        [class.border-gray-200]="!isOwn(msg)">
+                        <app-attachment-preview
+                          [url]="msg.attachmentUrl!"
+                          [mimeType]="msg.attachmentMimeType ?? ''" />
+                        <!-- Filename + size + download -->
+                        <div class="flex items-center gap-2 px-3 py-2.5"
+                          [class.bg-teal-700]="isOwn(msg)"
+                          [class.bg-gray-200]="!isOwn(msg)">
+                          <span class="flex flex-col min-w-0 flex-1">
+                            <span class="truncate text-xs font-semibold leading-tight">{{ msg.attachmentName }}</span>
+                            <span class="text-xs opacity-60 leading-tight mt-0.5">{{ formatSize(msg.attachmentSize) }}</span>
+                          </span>
+                          <svg class="h-4 w-4 flex-shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                        </div>
+                      </a>
+                    }
+                  }
+                  <!-- Text content -->
+                  @if (msg.content) {
+                    <p class="px-4 py-2.5 break-words">{{ msg.content }}</p>
+                  }
                 </div>
                 <p class="text-xs text-gray-400 mt-1" [class.text-right]="isOwn(msg)" [class.ml-1]="!isOwn(msg)">
                   {{ formatTime(msg.createdAt) }}
@@ -186,6 +232,13 @@ import { AuthService } from '../../core/services/auth.service';
               </svg>
               <p class="text-sm text-gray-400">Selecciona un usuario de la lista para iniciar una conversación.</p>
             </div>
+          } @else if (chatService.loadingHistory()) {
+            <div class="flex items-center justify-center h-full">
+              <svg class="animate-spin h-6 w-6 text-teal-500" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            </div>
           } @else if (chatService.messages().length === 0) {
             <div class="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
               <p class="text-sm text-gray-400">No hay mensajes aún. ¡Empieza la conversación!</p>
@@ -194,23 +247,59 @@ import { AuthService } from '../../core/services/auth.service';
         </div>
 
         <!-- Input -->
-        <div class="px-5 py-3 border-t border-gray-200 flex items-center space-x-3 flex-shrink-0"
+        <div class="border-t border-gray-200 flex-shrink-0"
              [class.invisible]="chatService.activeRecipientId() === null">
-          <input
-            [(ngModel)]="newMessage"
-            (keydown.enter)="send()"
-            type="text"
-            [placeholder]="'Escribe un mensaje a ' + activeContactName() + '...'"
-            class="flex-1 px-4 py-2.5 rounded-full border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-          />
-          <button
-            (click)="send()"
-            [disabled]="!newMessage.trim()"
-            class="h-10 w-10 rounded-full bg-teal-600 flex items-center justify-center text-white transition-colors hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed">
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
-          </button>
+          <!-- Selected file chip -->
+          @if (selectedFile()) {
+            <div class="px-5 pt-2 pb-1 flex items-center gap-2">
+              <span class="flex items-center gap-2 px-3 py-1.5 bg-teal-50 border border-teal-200 rounded-full text-xs text-teal-700 max-w-xs">
+                <span>{{ fileIcon(selectedFile()!.type) }}</span>
+                <span class="truncate max-w-[180px]">{{ selectedFile()!.name }}</span>
+                <span class="text-teal-400">{{ formatSize(selectedFile()!.size) }}</span>
+                <button (click)="clearFile()" class="ml-1 text-teal-400 hover:text-teal-700">
+                  <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </span>
+            </div>
+          }
+          <div class="px-5 py-3 flex items-center space-x-2">
+            <!-- Hidden file input -->
+            <input #fileInput type="file"
+              class="hidden"
+              (change)="onFileSelected($event)" />
+            <!-- Paperclip button -->
+            <button (click)="fileInput.click()" [disabled]="uploading()"
+              class="h-9 w-9 rounded-full flex items-center justify-center text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors flex-shrink-0 disabled:opacity-40">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+            </button>
+            <input
+              [(ngModel)]="newMessage"
+              (keydown.enter)="send()"
+              type="text"
+              [placeholder]="'Escribe un mensaje a ' + activeContactName() + '...'"
+              class="flex-1 px-4 py-2.5 rounded-full border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+            />
+            <button
+              (click)="send()"
+              [disabled]="(!newMessage.trim() && !selectedFile()) || uploading()"
+              class="h-10 w-10 rounded-full bg-teal-600 flex items-center justify-center text-white transition-colors hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0">
+              @if (uploading()) {
+                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+              } @else {
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              }
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -225,6 +314,9 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   newMessage = '';
   private shouldScroll = false;
+
+  readonly selectedFile = signal<File | null>(null);
+  readonly uploading = signal(false);
 
   // Nueva conversación
   readonly newConvOpen = signal(false);
@@ -256,13 +348,14 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     });
   }
 
-  /** All known contacts (from userNames cache), online ones first */
+  /** All known contacts sorted by last message time (most recent first) */
   readonly allContacts = computed(() => {
     const currentId = this.authService.currentUser()?.id;
     const onlineIds = new Set(this.chatService.onlineUsers().map((u) => u.id));
     const names = this.chatService.userNames();
     const avatars = this.chatService.userAvatars();
     const conversationIds = this.chatService.conversationContactIds();
+    const lastMessages = this.chatService.lastMessages();
 
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -273,12 +366,26 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
         name,
         avatar: avatars[id] ?? null,
         isOnline: onlineIds.has(id),
+        lastMessage: lastMessages[id] ?? null,
       }))
       .sort((a, b) => {
-        if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+        const ta = a.lastMessage?.createdAt ?? '';
+        const tb = b.lastMessage?.createdAt ?? '';
+        if (ta && tb) return tb.localeCompare(ta);
+        if (ta) return -1;
+        if (tb) return 1;
         return a.name.localeCompare(b.name, 'es');
       });
   });
+
+  lastMsgPreview(contact: { lastMessage: ChatMessage | null }): string {
+    const msg = contact.lastMessage;
+    if (!msg) return '';
+    const isOwn = msg.senderId === this.authService.currentUser()?.id;
+    const prefix = isOwn ? 'Tú: ' : '';
+    if (msg.attachmentName) return `${prefix}📎 ${msg.attachmentName}`;
+    return `${prefix}${msg.content}`;
+  }
 
   ngOnInit(): void {
     if (!this.chatService.isConnected()) {
@@ -307,11 +414,85 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   send(): void {
     const content = this.newMessage.trim();
-    if (!content) return;
-    this.chatService.sendMessage(content, this.chatService.activeRecipientId() ?? undefined);
-    this.newMessage = '';
-    this.shouldScroll = true;
+    const file = this.selectedFile();
+    if (!content && !file) return;
+    if (this.uploading()) return;
+
+    const recipientId = this.chatService.activeRecipientId() ?? undefined;
+
+    if (file) {
+      this.uploading.set(true);
+      this.chatService.uploadFile(file).subscribe({
+        next: (attachment) => {
+          this.chatService.sendMessage(content, recipientId, attachment);
+          this.newMessage = '';
+          this.selectedFile.set(null);
+          this.uploading.set(false);
+          this.shouldScroll = true;
+        },
+        error: (err) => {
+          this.uploading.set(false);
+          const msg = err?.error?.message ?? 'Error al subir el archivo. Intentá de nuevo.';
+          alert(msg);
+        },
+      });
+    } else {
+      this.chatService.sendMessage(content, recipientId);
+      this.newMessage = '';
+      this.shouldScroll = true;
+    }
   }
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) return;
+    const allowed = ['image/jpeg','image/png','image/gif','image/webp','application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/msword','application/vnd.ms-excel'];
+    if (!allowed.includes(file.type)) {
+      alert('Formato no permitido. Podés adjuntar imágenes (JPG, PNG, GIF), PDF, Word o Excel.');
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      alert(`El archivo supera el límite de 50 MB (tamaño: ${this.formatSize(file.size)}).`);
+      return;
+    }
+    this.selectedFile.set(file);
+  }
+
+  clearFile(): void {
+    this.selectedFile.set(null);
+  }
+
+  downloadUrl(msg: ChatMessage): string {
+    if (!msg.attachmentUrl) return '';
+    const name = msg.attachmentName ? encodeURIComponent(msg.attachmentName) : '';
+    return name ? `${msg.attachmentUrl}?name=${name}` : msg.attachmentUrl;
+  }
+
+  isImage(mimeType?: string): boolean {
+    return !!mimeType?.startsWith('image/');
+  }
+
+  fileIcon(mimeType?: string): string {
+    if (!mimeType) return '📄';
+    if (mimeType.startsWith('image/')) return '🖼️';
+    if (mimeType === 'application/pdf') return '📕';
+    if (mimeType.includes('word')) return '📝';
+    if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '📊';
+    return '📄';
+  }
+
+  formatSize(bytes?: number): string {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
 
   isOwn(msg: ChatMessage): boolean {
     return msg.senderId === this.authService.currentUser()?.id;

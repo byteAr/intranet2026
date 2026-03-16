@@ -22,6 +22,10 @@ export interface ChatMessage {
   senderAvatar?: string;
   recipientId?: string | null;
   content: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentSize?: number;
+  attachmentMimeType?: string;
   readBy: string[];
   createdAt: string;
 }
@@ -58,6 +62,11 @@ export class ChatService {
 
   readonly activeRecipientId = signal<string | null>(null);
   readonly isChatOpen = signal<boolean>(false);
+
+  /** Last message per conversation key (userId for DMs) */
+  readonly lastMessages = signal<Record<string, ChatMessage>>({});
+
+  readonly loadingHistory = signal<boolean>(false);
 
   constructor() {
     // Disconnect synchronously when the user logs out
@@ -108,6 +117,10 @@ export class ChatService {
       });
     });
 
+    this.socket.on('conversations:lastMessages', (data: Record<string, ChatMessage>) => {
+      this.lastMessages.update((lm) => ({ ...data, ...lm }));
+    });
+
     this.socket.on('unread:summary', (summary: Record<string, number>) => {
       console.log('[ChatService] unread:summary received', summary);
       this.unreadCounts.update((counts) => ({ ...counts, ...summary }));
@@ -116,6 +129,12 @@ export class ChatService {
     this.socket.on('message:new', (msg: ChatMessage) => {
       const recipientId = this.activeRecipientId();
       const currentUserId = this.authService.currentUser()?.id;
+
+      // Track last message per conversation
+      if (msg.recipientId) {
+        const key = msg.senderId === currentUserId ? msg.recipientId : msg.senderId;
+        this.lastMessages.update((lm) => ({ ...lm, [key]: msg }));
+      }
 
       // Cache sender name/avatar from incoming messages
       if (msg.senderId !== currentUserId) {
@@ -162,7 +181,10 @@ export class ChatService {
       }
     });
 
-    this.socket.on('messages:history', (msgs: ChatMessage[]) => {
+    this.socket.on('messages:history', (payload: any) => {
+      // Support both old (array) and new ({ recipientId, messages }) format
+      const msgs: ChatMessage[] = Array.isArray(payload) ? payload : (payload?.messages ?? []);
+      const recipientId: string | null = Array.isArray(payload) ? null : (payload?.recipientId ?? null);
       const currentUserId = this.authService.currentUser()?.id;
 
       // Populate userNames/userAvatars from history so offline contacts stay visible
@@ -184,9 +206,19 @@ export class ChatService {
         if (newContactIds.size > 0) {
           this.conversationContactIds.update((ids) => new Set([...ids, ...newContactIds]));
         }
+
+        // Update last message preview for DM conversations
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg.recipientId) {
+          const key = lastMsg.senderId === currentUserId ? lastMsg.recipientId : lastMsg.senderId;
+          this.lastMessages.update((lm) => ({ ...lm, [key]: lastMsg }));
+        }
       }
 
       if (this.isChatOpen()) {
+        // Only apply messages to the view if this response matches the active conversation
+        if (recipientId !== this.activeRecipientId()) return;
+        this.loadingHistory.set(false);
         this.messages.set(msgs);
         msgs.forEach((m) => {
           if (m.senderId !== currentUserId && !m.readBy.includes(currentUserId ?? '')) {
@@ -228,14 +260,30 @@ export class ChatService {
     this.messages.set([]);
     this.unreadCounts.set({});
     this.conversationContactIds.set(new Set());
+    this.lastMessages.set({});
+    this.loadingHistory.set(false);
   }
 
-  sendMessage(content: string, recipientId?: string): void {
-    this.socket?.emit('message:send', { content, recipientId: recipientId ?? null });
+  sendMessage(content: string, recipientId?: string, attachment?: { url: string; name: string; size: number; mimeType: string }): void {
+    this.socket?.emit('message:send', {
+      content,
+      recipientId: recipientId ?? null,
+      attachmentUrl: attachment?.url,
+      attachmentName: attachment?.name,
+      attachmentSize: attachment?.size,
+      attachmentMimeType: attachment?.mimeType,
+    });
+  }
+
+  uploadFile(file: File): Observable<{ url: string; name: string; size: number; mimeType: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<{ url: string; name: string; size: number; mimeType: string }>('/api/chat/upload', form);
   }
 
   loadHistory(recipientId?: string | null): void {
     this.messages.set([]);
+    this.loadingHistory.set(true);
     this.socket?.emit('messages:history', { recipientId: recipientId ?? null });
   }
 

@@ -61,6 +61,7 @@ services:
         condition: service_started
     volumes:
       - ./backend/src:/app/src
+      - chat_uploads:/app/uploads
 
   frontend:
     build:
@@ -78,3 +79,4 @@ volumes:
   postgres_data:
   openldap_data:
   openldap_config:
+  chat_uploads:

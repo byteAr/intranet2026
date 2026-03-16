@@ -2,10 +2,13 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
 @Entity('messages')
+@Index(['senderId', 'recipientId', 'createdAt'])
+@Index(['recipientId', 'createdAt'])
 export class Message {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -22,8 +25,20 @@ export class Message {
   @Column({ nullable: true })
   recipientId?: string; // null = chat global
 
-  @Column('text')
+  @Column({ type: 'text', default: '' })
   content: string;
+
+  @Column({ type: 'text', nullable: true })
+  attachmentUrl?: string;
+
+  @Column({ nullable: true })
+  attachmentName?: string;
+
+  @Column({ type: 'integer', nullable: true })
+  attachmentSize?: number;
+
+  @Column({ nullable: true })
+  attachmentMimeType?: string;
 
   @Column('simple-array', { default: '' })
   readBy: string[];

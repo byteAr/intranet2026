@@ -86,19 +86,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log('[Chat] presence now:', Array.from(this.presence.keys()));
 
     try {
+      // Run all initial queries in parallel for faster load
+      const [unreadSummary, history, contactIds, lastMessages] = await Promise.all([
+        this.chatService.getUnreadSummary(userId),
+        this.chatService.getHistory(userId),
+        this.chatService.getContactIds(userId),
+        this.chatService.getLastDmMessages(userId),
+      ]);
+
       // Send unread summary so badge shows immediately on login
-      const unreadSummary = await this.chatService.getUnreadSummary(userId);
-      console.log('[Chat] unread:summary for', userId, '->', JSON.stringify(unreadSummary));
       if (Object.keys(unreadSummary).length > 0) {
         socket.emit('unread:summary', unreadSummary);
       }
 
       // Send global history
-      const history = await this.chatService.getHistory(userId);
-      socket.emit('messages:history', history);
+      socket.emit('messages:history', { recipientId: null, messages: history });
 
       // Send current names/avatars for all contacts (avoids stale senderName in messages)
-      const contactIds = await this.chatService.getContactIds(userId);
       if (contactIds.length > 0) {
         const users = await Promise.all(contactIds.map((id) => this.usersService.findById(id)));
         const contacts = users
@@ -112,6 +116,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             avatar: u.avatar ?? undefined,
           }));
         socket.emit('contacts:names', contacts);
+      }
+
+      // Send last DM message per conversation for sidebar previews
+      if (Object.keys(lastMessages).length > 0) {
+        socket.emit('conversations:lastMessages', lastMessages);
       }
     } catch (err) {
       console.error('[Chat] connection setup error for', userId, err);
@@ -136,7 +145,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('message:send')
   async handleSend(
     @ConnectedSocket() socket: AuthenticatedSocket,
-    @MessageBody() data: { content: string; recipientId?: string },
+    @MessageBody() data: {
+      content: string;
+      recipientId?: string;
+      attachmentUrl?: string;
+      attachmentName?: string;
+      attachmentSize?: number;
+      attachmentMimeType?: string;
+    },
   ) {
     const user = socket.data.user;
     const msg = await this.chatService.saveMessage({
@@ -145,6 +161,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       senderAvatar: this.presence.get(user.sub)?.avatar,
       recipientId: data.recipientId,
       content: data.content,
+      attachmentUrl: data.attachmentUrl,
+      attachmentName: data.attachmentName,
+      attachmentSize: data.attachmentSize,
+      attachmentMimeType: data.attachmentMimeType,
     });
 
     if (data.recipientId) {
@@ -174,7 +194,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       socket.data.user.sub,
       data.recipientId,
     );
-    socket.emit('messages:history', history);
+    socket.emit('messages:history', { recipientId: data.recipientId ?? null, messages: history });
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────

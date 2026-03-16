@@ -9,6 +9,10 @@ export interface SaveMessageDto {
   senderAvatar?: string;
   recipientId?: string;
   content: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentSize?: number;
+  attachmentMimeType?: string;
 }
 
 @Injectable()
@@ -25,13 +29,17 @@ export class ChatService {
     msg.senderAvatar = dto.senderAvatar ?? undefined;
     msg.recipientId = dto.recipientId ?? undefined;
     msg.content = dto.content;
+    msg.attachmentUrl = dto.attachmentUrl;
+    msg.attachmentName = dto.attachmentName;
+    msg.attachmentSize = dto.attachmentSize;
+    msg.attachmentMimeType = dto.attachmentMimeType;
     msg.readBy = [dto.senderId];
     return this.messageRepo.save(msg);
   }
 
   async getHistory(userId: string, recipientId?: string): Promise<Message[]> {
     if (recipientId) {
-      // DM: mensajes entre userId y recipientId en ambas direcciones
+      // DM: los 50 mensajes más recientes entre userId y recipientId
       return this.messageRepo
         .createQueryBuilder('m')
         .where(
@@ -39,14 +47,13 @@ export class ChatService {
           { a: userId, b: recipientId },
         )
         .orderBy('m.createdAt', 'ASC')
-        .take(50)
+        .take(100)
         .getMany();
     }
-    // Global: mensajes sin recipientId
+    // Global: todos los mensajes sin recipientId
     return this.messageRepo.find({
       where: { recipientId: IsNull() },
       order: { createdAt: 'ASC' },
-      take: 50,
     });
   }
 
@@ -63,29 +70,37 @@ export class ChatService {
   async getContactIds(userId: string): Promise<string[]> {
     const rows = await this.messageRepo
       .createQueryBuilder('m')
-      .select('DISTINCT m.senderId', 'id')
-      .where('m.recipientId = :userId', { userId })
+      .select(`DISTINCT CASE
+        WHEN "m"."recipientId" = :userId THEN "m"."senderId"
+        WHEN "m"."senderId" = :userId AND "m"."recipientId" IS NOT NULL THEN "m"."recipientId"
+        ELSE "m"."senderId"
+      END`, 'id')
+      .where(
+        '(m.recipientId = :userId) OR (m.senderId = :userId AND m.recipientId IS NOT NULL) OR (m.recipientId IS NULL AND m.senderId != :userId)',
+        { userId },
+      )
       .getRawMany<{ id: string }>();
 
-    const sent = await this.messageRepo
+    return rows.map((r) => r.id).filter(Boolean);
+  }
+
+  /** Returns the last DM message for each conversation of the user */
+  async getLastDmMessages(userId: string): Promise<Record<string, Message>> {
+    const messages = await this.messageRepo
       .createQueryBuilder('m')
-      .select('DISTINCT m.recipientId', 'id')
-      .where('m.senderId = :userId AND m.recipientId IS NOT NULL', { userId })
-      .getRawMany<{ id: string }>();
+      .where('(m.senderId = :userId OR m.recipientId = :userId) AND m.recipientId IS NOT NULL', { userId })
+      .orderBy('m.createdAt', 'DESC')
+      .take(500)
+      .getMany();
 
-    const global = await this.messageRepo
-      .createQueryBuilder('m')
-      .select('DISTINCT m.senderId', 'id')
-      .where('m.recipientId IS NULL AND m.senderId != :userId', { userId })
-      .getRawMany<{ id: string }>();
-
-    const ids = new Set([
-      ...rows.map((r) => r.id),
-      ...sent.map((r) => r.id),
-      ...global.map((r) => r.id),
-    ].filter(Boolean));
-
-    return Array.from(ids);
+    const last: Record<string, Message> = {};
+    for (const msg of messages) {
+      const otherUserId = msg.senderId === userId ? msg.recipientId! : msg.senderId;
+      if (otherUserId && !last[otherUserId]) {
+        last[otherUserId] = msg;
+      }
+    }
+    return last;
   }
 
   async getUnreadCount(userId: string): Promise<number> {

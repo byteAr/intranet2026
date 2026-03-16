@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Message } from './entities/message.entity';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
+import { ChatController } from './chat.controller';
 import { UsersModule } from '../users/users.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { UsersModule } from '../users/users.module';
     }),
     UsersModule,
   ],
+  controllers: [ChatController],
   providers: [ChatService, ChatGateway],
   exports: [ChatService],
 })

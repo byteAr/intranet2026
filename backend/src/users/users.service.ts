@@ -102,6 +102,13 @@ export class UsersService {
       .getMany();
   }
 
+  async findByRoleContaining(role: string): Promise<User[]> {
+    return this.userRepo
+      .createQueryBuilder('u')
+      .where("u.roles LIKE :role", { role: `%${role}%` })
+      .getMany();
+  }
+
   async updateProfile(id: string, data: { recoveryEmail?: string; avatar?: string }): Promise<User> {
     await this.userRepo.update(id, data);
     return this.userRepo.findOne({ where: { id } }) as Promise<User>;

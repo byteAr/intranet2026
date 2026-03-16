@@ -12,10 +12,12 @@ import ldapConfig from './config/ldap.config';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ChatModule } from './chat/chat.module';
+import { IncidentsModule } from './incidents/incidents.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { User } from './users/entities/user.entity';
 import { Message } from './chat/entities/message.entity';
+import { Incident } from './incidents/entities/incident.entity';
 
 @Module({
   imports: [
@@ -34,7 +36,7 @@ import { Message } from './chat/entities/message.entity';
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message],
+        entities: [User, Message, Incident],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),
@@ -48,6 +50,7 @@ import { Message } from './chat/entities/message.entity';
     AuthModule,
     UsersModule,
     ChatModule,
+    IncidentsModule,
   ],
   providers: [
     // Apply JwtAuthGuard globally; routes marked @Public() bypass it

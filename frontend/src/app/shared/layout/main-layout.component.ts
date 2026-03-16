@@ -6,6 +6,7 @@ import { Subject, filter, Subscription, debounceTime, distinctUntilChanged, swit
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 import { ChatService, UserSearchResult } from '../../core/services/chat.service';
+import { IncidentsService } from '../../core/services/incidents.service';
 
 @Component({
   selector: 'app-main-layout',
@@ -67,6 +68,26 @@ import { ChatService, UserSearchResult } from '../../core/services/chat.service'
                 </span>
               }
             } @else if (chatService.unreadCount() > 0 && !isOnChatPage()) {
+              <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+            }
+          </a>
+
+          <!-- Incidencias -->
+          <a routerLink="/incidencias" routerLinkActive="active-nav"
+            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
+            [title]="collapsed() ? 'Incidencias' : ''">
+            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            @if (!collapsed()) {
+              <span class="ml-3 flex-1">Incidencias</span>
+              @if (incidentsService.pendingCount() > 0) {
+                <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                  {{ incidentsService.pendingCount() }}
+                </span>
+              }
+            } @else if (incidentsService.pendingCount() > 0) {
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
@@ -258,6 +279,7 @@ import { ChatService, UserSearchResult } from '../../core/services/chat.service'
 export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   readonly chatService = inject(ChatService);
+  readonly incidentsService = inject(IncidentsService);
   private readonly router = inject(Router);
 
   private readonly destroyRef = inject(DestroyRef);
@@ -289,6 +311,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.chatService.connect();
+    this.incidentsService.connect();
+    this.incidentsService.loadIncidents(this.incidentsService.isTicom ? false : true);
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
     this.routerSub = this.router.events
       .pipe(filter((e) => e instanceof NavigationEnd))

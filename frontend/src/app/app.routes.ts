@@ -49,6 +49,13 @@ export const routes: Routes = [
             (m) => m.ChatComponent,
           ),
       },
+      {
+        path: 'incidencias',
+        loadComponent: () =>
+          import('./features/incidents/incidents.component').then(
+            (m) => m.IncidentsComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: 'cuenta' },

@@ -7,6 +7,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 import { ChatService, UserSearchResult } from '../../core/services/chat.service';
 import { IncidentsService } from '../../core/services/incidents.service';
+import { ReservationsService } from '../../core/services/reservations.service';
 
 @Component({
   selector: 'app-main-layout',
@@ -88,6 +89,26 @@ import { IncidentsService } from '../../core/services/incidents.service';
                 </span>
               }
             } @else if (incidentsService.pendingCount() > 0) {
+              <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+            }
+          </a>
+
+          <!-- Reservas -->
+          <a routerLink="/reservas" routerLinkActive="active-nav"
+            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
+            [title]="collapsed() ? 'Reservas' : ''">
+            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            @if (!collapsed()) {
+              <span class="ml-3 flex-1">Reservas</span>
+              @if (reservationsService.pendingCount() > 0) {
+                <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                  {{ reservationsService.pendingCount() }}
+                </span>
+              }
+            } @else if (reservationsService.pendingCount() > 0) {
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
@@ -280,6 +301,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   readonly chatService = inject(ChatService);
   readonly incidentsService = inject(IncidentsService);
+  readonly reservationsService = inject(ReservationsService);
   private readonly router = inject(Router);
 
   private readonly destroyRef = inject(DestroyRef);
@@ -313,6 +335,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.chatService.connect();
     this.incidentsService.connect();
     this.incidentsService.loadIncidents(this.incidentsService.isTicom ? false : true);
+    this.reservationsService.connect();
+    this.reservationsService.loadReservations(this.reservationsService.hasPrivilegedView ? false : true);
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
     this.routerSub = this.router.events
       .pipe(filter((e) => e instanceof NavigationEnd))

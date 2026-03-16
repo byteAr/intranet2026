@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 
 import appConfig from './config/app.config';
@@ -13,11 +14,13 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ChatModule } from './chat/chat.module';
 import { IncidentsModule } from './incidents/incidents.module';
+import { ReservationsModule } from './reservations/reservations.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { User } from './users/entities/user.entity';
 import { Message } from './chat/entities/message.entity';
 import { Incident } from './incidents/entities/incident.entity';
+import { Reservation } from './reservations/entities/reservation.entity';
 
 @Module({
   imports: [
@@ -36,7 +39,7 @@ import { Incident } from './incidents/entities/incident.entity';
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, Incident],
+        entities: [User, Message, Incident, Reservation],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),
@@ -47,10 +50,12 @@ import { Incident } from './incidents/entities/incident.entity';
         limit: 10,
       },
     ]),
+    ScheduleModule.forRoot(),
     AuthModule,
     UsersModule,
     ChatModule,
     IncidentsModule,
+    ReservationsModule,
   ],
   providers: [
     // Apply JwtAuthGuard globally; routes marked @Public() bypass it

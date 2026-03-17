@@ -14,14 +14,28 @@ export interface Incident {
   attachmentName?: string;
   attachmentSize?: number;
   attachmentMimeType?: string;
-  status: 'pendiente' | 'en_proceso' | 'finalizada';
+  status: 'pendiente' | 'en_proceso' | 'en_espera' | 'no_resuelta' | 'finalizada';
   technicianId?: string;
   technicianName?: string;
   assignedAt?: string;
   resolution?: string;
   resolvedAt?: string;
+  waitingReason?: string;
+  waitingSince?: string;
+  unresolvedReason?: string;
+  unresolvedAt?: string;
+  unresolvedById?: string;
+  unresolvedByName?: string;
+  history: IncidentEvent[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IncidentEvent {
+  type: 'creada' | 'tomada' | 'en_espera' | 'reactivada' | 'finalizada' | 'sin_solucion';
+  at: string;
+  byName?: string;
+  detail?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -116,6 +130,18 @@ export class IncidentsService {
 
   resolveIncident(id: string, resolution: string): Observable<Incident> {
     return this.http.patch<Incident>(`/api/incidents/${id}/resolve`, { resolution });
+  }
+
+  holdIncident(id: string, waitingReason: string): Observable<Incident> {
+    return this.http.patch<Incident>(`/api/incidents/${id}/hold`, { waitingReason });
+  }
+
+  reactivateIncident(id: string): Observable<Incident> {
+    return this.http.patch<Incident>(`/api/incidents/${id}/reactivate`, {});
+  }
+
+  closeUnresolvedIncident(id: string, unresolvedReason: string): Observable<Incident> {
+    return this.http.patch<Incident>(`/api/incidents/${id}/close-unresolved`, { unresolvedReason });
   }
 
   private recalcPendingCount(): void {

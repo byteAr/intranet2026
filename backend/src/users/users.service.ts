@@ -103,9 +103,19 @@ export class UsersService {
   }
 
   async findByRoleContaining(role: string): Promise<User[]> {
+    // roles is stored as simple-array (CSV text). Match exact role value only:
+    // handles: solo, primero, último, o en medio de la lista
     return this.userRepo
       .createQueryBuilder('u')
-      .where("u.roles LIKE :role", { role: `%${role}%` })
+      .where(
+        'u.roles = :exact OR u.roles LIKE :start OR u.roles LIKE :end OR u.roles LIKE :middle',
+        {
+          exact: role,
+          start: `${role},%`,
+          end: `%,${role}`,
+          middle: `%,${role},%`,
+        },
+      )
       .getMany();
   }
 

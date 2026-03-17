@@ -67,11 +67,16 @@ export class ReservationsGateway
     this.userSockets.get(userId)!.add(socket.id);
 
     const user = await this.usersService.findById(userId);
-    if (user?.roles?.includes('TICOM')) {
+    const roles: string[] = user?.roles ?? [];
+    if (roles.includes('TICOM')) {
       socket.join('ticom');
     }
-    if (user?.roles?.includes('AYUDANTIA')) {
-      socket.join('ayudantia');
+    // Backward compat: old generic 'AYUDANTIA' role maps to ayudantiadiredtos (piso_8)
+    if (roles.includes('AYUDANTIADIREDTOS') || roles.includes('AYUDANTIA')) {
+      socket.join('ayudantiadiredtos');
+    }
+    if (roles.includes('AYUDANTIARECTORADO')) {
+      socket.join('ayudantiarectorado');
     }
     socket.join(`user:${userId}`);
   }
@@ -88,20 +93,30 @@ export class ReservationsGateway
     }
   }
 
+  /** New reservation created — notify the creator, the relevant AYUDANTIA group, and TICOM */
   notifyNewReservation(reservation: Reservation): void {
-    this.server.to('ticom').emit('reservation:new', reservation);
     this.server.to(`user:${reservation.creatorId}`).emit('reservation:new', reservation);
-    // Notify AYUDANTIA for piso_8 reservations
     if (reservation.location === 'piso_8') {
-      this.server.to('ayudantia').emit('reservation:new', reservation);
+      this.server.to('ayudantiadiredtos').emit('reservation:new', reservation);
+    } else {
+      this.server.to('ayudantiarectorado').emit('reservation:new', reservation);
     }
+    this.server.to('ticom').emit('reservation:new', reservation);
   }
 
+  /** Reservation updated (approved, rejected, confirmed, or edited) — notify relevant parties */
   notifyReservationUpdate(reservation: Reservation): void {
-    this.server.to('ticom').emit('reservation:updated', reservation);
+    // Always notify creator
     this.server.to(`user:${reservation.creatorId}`).emit('reservation:updated', reservation);
+
+    // Always notify TICOM (they oversee all reservations at every stage)
+    this.server.to('ticom').emit('reservation:updated', reservation);
+
+    // Notify the responsible AYUDANTIA group (for their own record view)
     if (reservation.location === 'piso_8') {
-      this.server.to('ayudantia').emit('reservation:updated', reservation);
+      this.server.to('ayudantiadiredtos').emit('reservation:updated', reservation);
+    } else {
+      this.server.to('ayudantiarectorado').emit('reservation:updated', reservation);
     }
   }
 }

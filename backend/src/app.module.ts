@@ -21,6 +21,7 @@ import { User } from './users/entities/user.entity';
 import { Message } from './chat/entities/message.entity';
 import { Incident } from './incidents/entities/incident.entity';
 import { Reservation } from './reservations/entities/reservation.entity';
+import { BlockedPeriod } from './reservations/entities/blocked-period.entity';
 
 @Module({
   imports: [
@@ -39,7 +40,7 @@ import { Reservation } from './reservations/entities/reservation.entity';
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, Incident, Reservation],
+        entities: [User, Message, Incident, Reservation, BlockedPeriod],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),

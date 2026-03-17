@@ -1,7 +1,7 @@
 import { Injectable, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Incident } from './entities/incident.entity';
+import { Incident, IncidentEvent } from './entities/incident.entity';
 import { UsersService } from '../users/users.service';
 
 export interface CreateIncidentDto {
@@ -27,8 +27,17 @@ export class IncidentsService {
     const incident = this.incidentRepo.create({
       ...dto,
       status: 'pendiente',
+      history: [this.evt('creada', dto.creatorName)],
     });
     return this.incidentRepo.save(incident);
+  }
+
+  private evt(type: IncidentEvent['type'], byName?: string, detail?: string): IncidentEvent {
+    return { type, at: new Date().toISOString(), byName, detail };
+  }
+
+  private pushHistory(incident: Incident, type: IncidentEvent['type'], byName?: string, detail?: string): void {
+    incident.history = [...(incident.history ?? []), this.evt(type, byName, detail)];
   }
 
   async findAll(filters?: {
@@ -54,27 +63,17 @@ export class IncidentsService {
     technicianId: string,
     technicianName: string,
   ): Promise<Incident> {
-    const result = await this.incidentRepo
-      .createQueryBuilder()
-      .update(Incident)
-      .set({
-        status: 'en_proceso',
-        technicianId,
-        technicianName,
-        assignedAt: new Date(),
-      })
-      .where('id = :id AND status = :status', {
-        id: incidentId,
-        status: 'pendiente',
-      })
-      .execute();
-
-    if (result.affected === 0) {
-      throw new ConflictException(
-        'Esta incidencia ya fue tomada por otro técnico',
-      );
+    const incident = await this.findById(incidentId);
+    if (!incident) throw new ConflictException('Incidencia no encontrada');
+    if (incident.status !== 'pendiente') {
+      throw new ConflictException('Esta incidencia ya fue tomada por otro técnico');
     }
-    return this.findById(incidentId) as Promise<Incident>;
+    incident.status = 'en_proceso';
+    incident.technicianId = technicianId;
+    incident.technicianName = technicianName;
+    incident.assignedAt = new Date();
+    this.pushHistory(incident, 'tomada', technicianName);
+    return this.incidentRepo.save(incident);
   }
 
   async resolve(
@@ -84,19 +83,74 @@ export class IncidentsService {
   ): Promise<Incident> {
     const incident = await this.findById(incidentId);
     if (!incident) throw new ConflictException('Incidencia no encontrada');
-    if (incident.technicianId !== technicianId) {
-      throw new ForbiddenException(
-        'Solo el técnico asignado puede finalizar esta incidencia',
-      );
-    }
-    if (incident.status !== 'en_proceso') {
+    if (incident.status !== 'en_proceso' && incident.status !== 'en_espera') {
       throw new ConflictException(
-        'Solo se pueden finalizar incidencias en proceso',
+        'Solo se pueden finalizar incidencias en proceso o en espera',
       );
     }
     incident.status = 'finalizada';
     incident.resolution = resolution;
     incident.resolvedAt = new Date();
+    this.pushHistory(incident, 'finalizada', incident.technicianName, resolution);
+    return this.incidentRepo.save(incident);
+  }
+
+  async putOnHold(
+    incidentId: string,
+    technicianId: string,
+    waitingReason: string,
+  ): Promise<Incident> {
+    const incident = await this.findById(incidentId);
+    if (!incident) throw new ConflictException('Incidencia no encontrada');
+    if (incident.status !== 'en_proceso') {
+      throw new ConflictException(
+        'Solo se pueden poner en espera incidencias en proceso',
+      );
+    }
+    incident.status = 'en_espera';
+    incident.waitingReason = waitingReason;
+    incident.waitingSince = new Date();
+    this.pushHistory(incident, 'en_espera', incident.technicianName, waitingReason);
+    return this.incidentRepo.save(incident);
+  }
+
+  async reactivate(
+    incidentId: string,
+    technicianId: string,
+  ): Promise<Incident> {
+    const incident = await this.findById(incidentId);
+    if (!incident) throw new ConflictException('Incidencia no encontrada');
+    if (incident.status !== 'en_espera') {
+      throw new ConflictException(
+        'Solo se pueden reactivar incidencias en espera',
+      );
+    }
+    incident.status = 'en_proceso';
+    incident.waitingReason = undefined;
+    incident.waitingSince = undefined;
+    this.pushHistory(incident, 'reactivada', incident.technicianName);
+    return this.incidentRepo.save(incident);
+  }
+
+  async closeUnresolved(
+    incidentId: string,
+    technicianId: string,
+    technicianName: string,
+    unresolvedReason: string,
+  ): Promise<Incident> {
+    const incident = await this.findById(incidentId);
+    if (!incident) throw new ConflictException('Incidencia no encontrada');
+    if (incident.status !== 'en_proceso' && incident.status !== 'en_espera') {
+      throw new ConflictException(
+        'Solo se pueden cerrar incidencias en proceso o en espera',
+      );
+    }
+    incident.status = 'no_resuelta';
+    incident.unresolvedReason = unresolvedReason;
+    incident.unresolvedAt = new Date();
+    incident.unresolvedById = technicianId;
+    incident.unresolvedByName = technicianName;
+    this.pushHistory(incident, 'sin_solucion', technicianName, unresolvedReason);
     return this.incidentRepo.save(incident);
   }
 

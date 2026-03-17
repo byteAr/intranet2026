@@ -39,7 +39,7 @@ export class Incident {
   attachmentMimeType?: string;
 
   @Column({ type: 'varchar', default: 'pendiente' })
-  status: 'pendiente' | 'en_proceso' | 'finalizada';
+  status: 'pendiente' | 'en_proceso' | 'en_espera' | 'no_resuelta' | 'finalizada';
 
   @Column({ nullable: true })
   technicianId?: string;
@@ -56,9 +56,37 @@ export class Incident {
   @Column({ type: 'timestamp', nullable: true })
   resolvedAt?: Date;
 
+  @Column({ type: 'text', nullable: true })
+  waitingReason?: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  waitingSince?: Date;
+
+  @Column({ type: 'text', nullable: true })
+  unresolvedReason?: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  unresolvedAt?: Date;
+
+  @Column({ nullable: true })
+  unresolvedById?: string;
+
+  @Column({ nullable: true })
+  unresolvedByName?: string;
+
+  @Column({ type: 'jsonb', default: [] })
+  history: IncidentEvent[];
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+}
+
+export interface IncidentEvent {
+  type: 'creada' | 'tomada' | 'en_espera' | 'reactivada' | 'finalizada' | 'sin_solucion';
+  at: string;
+  byName?: string;
+  detail?: string;
 }

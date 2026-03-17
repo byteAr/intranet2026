@@ -146,4 +146,44 @@ export class IncidentsController {
     this.incidentsGateway.notifyIncidentUpdate(incident);
     return incident;
   }
+
+  @Patch(':id/hold')
+  @Roles('TICOM')
+  async putOnHold(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Body('waitingReason') waitingReason: string,
+  ) {
+    if (!waitingReason?.trim()) {
+      throw new BadRequestException('Debes indicar qué falta para continuar');
+    }
+    const incident = await this.incidentsService.putOnHold(id, req.user.id, waitingReason.trim());
+    this.incidentsGateway.notifyIncidentUpdate(incident);
+    return incident;
+  }
+
+  @Patch(':id/reactivate')
+  @Roles('TICOM')
+  async reactivate(@Param('id') id: string, @Req() req: any) {
+    const incident = await this.incidentsService.reactivate(id, req.user.id);
+    this.incidentsGateway.notifyIncidentUpdate(incident);
+    return incident;
+  }
+
+  @Patch(':id/close-unresolved')
+  @Roles('TICOM')
+  async closeUnresolved(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Body('unresolvedReason') unresolvedReason: string,
+  ) {
+    if (!unresolvedReason?.trim()) {
+      throw new BadRequestException('Debes indicar el motivo de cierre sin solución');
+    }
+    const user = req.user;
+    const techName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName || user.username;
+    const incident = await this.incidentsService.closeUnresolved(id, user.id, techName, unresolvedReason.trim());
+    this.incidentsGateway.notifyIncidentUpdate(incident);
+    return incident;
+  }
 }

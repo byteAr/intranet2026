@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed, effect, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { IncidentsService, Incident } from '../../core/services/incidents.service';
+import { IncidentsService, Incident, IncidentEvent } from '../../core/services/incidents.service';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
@@ -12,7 +12,7 @@ import { AuthService } from '../../core/services/auth.service';
     <div class="flex h-[calc(100vh-8rem)] bg-white rounded-xl shadow overflow-hidden">
 
       <!-- Sidebar: incident list -->
-      <aside class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col">
+      <aside class="w-[28rem] flex-shrink-0 border-r border-gray-200 flex flex-col">
         <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
           <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">
             {{ isTicom ? 'Incidencias' : 'Mis incidencias' }}
@@ -57,6 +57,15 @@ import { AuthService } from '../../core/services/auth.service';
             [class.text-gray-500]="filterStatus() !== 'en_proceso'">
             En proceso
           </button>
+          <button (click)="filterStatus.set('en_espera')"
+            class="flex-1 py-2 text-center transition-colors"
+            [class.text-amber-700]="filterStatus() === 'en_espera'"
+            [class.border-b-2]="filterStatus() === 'en_espera'"
+            [class.border-amber-500]="filterStatus() === 'en_espera'"
+            [class.font-semibold]="filterStatus() === 'en_espera'"
+            [class.text-gray-500]="filterStatus() !== 'en_espera'">
+            En espera
+          </button>
           <button (click)="filterStatus.set('finalizada')"
             class="flex-1 py-2 text-center transition-colors"
             [class.text-green-700]="filterStatus() === 'finalizada'"
@@ -65,6 +74,15 @@ import { AuthService } from '../../core/services/auth.service';
             [class.font-semibold]="filterStatus() === 'finalizada'"
             [class.text-gray-500]="filterStatus() !== 'finalizada'">
             Finalizadas
+          </button>
+          <button (click)="filterStatus.set('no_resuelta')"
+            class="flex-1 py-2 text-center transition-colors"
+            [class.text-red-700]="filterStatus() === 'no_resuelta'"
+            [class.border-b-2]="filterStatus() === 'no_resuelta'"
+            [class.border-red-500]="filterStatus() === 'no_resuelta'"
+            [class.font-semibold]="filterStatus() === 'no_resuelta'"
+            [class.text-gray-500]="filterStatus() !== 'no_resuelta'">
+            Sin solución
           </button>
         </div>
 
@@ -90,6 +108,9 @@ import { AuthService } from '../../core/services/auth.service';
               </div>
               @if (incident.technicianName) {
                 <p class="text-xs text-blue-500 mt-1">Técnico: {{ incident.technicianName }}</p>
+              }
+              @if (incident.status === 'en_espera' && incident.waitingReason) {
+                <p class="text-xs text-amber-600 mt-1 truncate">Esperando: {{ incident.waitingReason }}</p>
               }
             </button>
           } @empty {
@@ -199,25 +220,29 @@ import { AuthService } from '../../core/services/auth.service';
                 </div>
               }
 
-              <!-- Technician info -->
-              @if (selectedIncident()!.technicianName) {
-                <div class="bg-blue-50 rounded-lg p-4">
-                  <h4 class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Personal técnico asignado</h4>
-                  <p class="text-sm text-blue-800 font-medium">{{ selectedIncident()!.technicianName }}</p>
-                  @if (selectedIncident()!.assignedAt) {
-                    <p class="text-xs text-blue-500 mt-0.5">Tomada el {{ formatDateTime(selectedIncident()!.assignedAt!) }}</p>
-                  }
-                </div>
-              }
 
-              <!-- Resolution -->
-              @if (selectedIncident()!.resolution) {
-                <div class="bg-green-50 rounded-lg p-4">
-                  <h4 class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Resolución</h4>
-                  <p class="text-sm text-green-800 whitespace-pre-wrap">{{ selectedIncident()!.resolution }}</p>
-                  @if (selectedIncident()!.resolvedAt) {
-                    <p class="text-xs text-green-500 mt-1">Finalizada el {{ formatDateTime(selectedIncident()!.resolvedAt!) }}</p>
-                  }
+              <!-- Historial de procesos -->
+              @if (sortedHistory().length > 0) {
+                <div>
+                  <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Historial de procesos</h4>
+                  <ol class="relative border-l border-gray-200 space-y-4 ml-2">
+                    @for (event of sortedHistory(); track event.at) {
+                      <li class="ml-5">
+                        <span class="absolute -left-2 flex items-center justify-center w-4 h-4 rounded-full ring-4 ring-white"
+                          [class]="historyDotClass(event.type)">
+                        </span>
+                        <div class="flex items-start gap-2">
+                          <div class="flex-1">
+                            <p class="text-sm font-medium text-gray-800">{{ historyLabel(event) }}</p>
+                            @if (event.detail) {
+                              <p class="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{{ event.detail }}</p>
+                            }
+                          </div>
+                          <time class="flex-shrink-0 text-xs text-gray-400">{{ formatDateTime(event.at) }}</time>
+                        </div>
+                      </li>
+                    }
+                  </ol>
                 </div>
               }
 
@@ -234,26 +259,84 @@ import { AuthService } from '../../core/services/auth.service';
                     }
                     Tomar incidencia
                   </button>
-                } @else if (selectedIncident()!.status === 'en_proceso' && selectedIncident()!.technicianId === currentUserId()) {
-                  <div class="space-y-3">
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-1">¿Qué se realizó?</label>
+                } @else if (selectedIncident()!.status === 'en_proceso') {
+                  <div class="space-y-4">
+                    <!-- Finalizar -->
+                    <div class="border border-green-200 rounded-lg p-4 space-y-2">
+                      <h5 class="text-xs font-semibold text-green-700 uppercase tracking-wide">Finalizar con solución</h5>
                       <textarea
                         [(ngModel)]="resolutionText"
-                        rows="4"
+                        rows="3"
                         placeholder="Describe la solución aplicada..."
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"></textarea>
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"></textarea>
+                      <button (click)="resolveIncident()" [disabled]="actionLoading() || !resolutionText.trim()"
+                        class="px-5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-40">
+                        @if (actionLoading()) {
+                          <svg class="h-4 w-4 animate-spin inline mr-2" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                          </svg>
+                        }
+                        Finalizar incidencia
+                      </button>
                     </div>
-                    <button (click)="resolveIncident()" [disabled]="actionLoading() || !resolutionText.trim()"
-                      class="px-6 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-40">
-                      @if (actionLoading()) {
-                        <svg class="h-4 w-4 animate-spin inline mr-2" fill="none" viewBox="0 0 24 24">
-                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                        </svg>
-                      }
-                      Finalizar incidencia
-                    </button>
+                    <!-- Poner en espera -->
+                    <div class="border border-amber-200 rounded-lg p-4 space-y-2">
+                      <h5 class="text-xs font-semibold text-amber-700 uppercase tracking-wide">Poner en espera</h5>
+                      <textarea
+                        [(ngModel)]="holdReasonText"
+                        rows="3"
+                        placeholder="¿Qué falta para continuar? (ej: comprar tóner, esperar repuesto...)"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"></textarea>
+                      <button (click)="holdIncident()" [disabled]="actionLoading() || !holdReasonText.trim()"
+                        class="px-5 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-40">
+                        Poner en espera
+                      </button>
+                    </div>
+                    <!-- Cerrar sin solución -->
+                    <div class="border border-red-200 rounded-lg p-4 space-y-2">
+                      <h5 class="text-xs font-semibold text-red-700 uppercase tracking-wide">Cerrar sin solución</h5>
+                      <textarea
+                        [(ngModel)]="unresolvedReasonText"
+                        rows="3"
+                        placeholder="¿Por qué no se pudo resolver? (ej: hardware irreparable, fuera de alcance...)"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"></textarea>
+                      <button (click)="closeUnresolvedIncident()" [disabled]="actionLoading() || !unresolvedReasonText.trim()"
+                        class="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-40">
+                        Cerrar sin solución
+                      </button>
+                    </div>
+                  </div>
+                } @else if (selectedIncident()!.status === 'en_espera') {
+                  <div class="space-y-4">
+                    <!-- Reactivar -->
+                    <div class="border border-blue-200 rounded-lg p-4 space-y-2">
+                      <h5 class="text-xs font-semibold text-blue-700 uppercase tracking-wide">Reactivar incidencia</h5>
+                      <p class="text-xs text-gray-500">El obstáculo ya fue resuelto y se puede continuar trabajando.</p>
+                      <button (click)="reactivateIncident()" [disabled]="actionLoading()"
+                        class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-40">
+                        @if (actionLoading()) {
+                          <svg class="h-4 w-4 animate-spin inline mr-2" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                          </svg>
+                        }
+                        Reactivar
+                      </button>
+                    </div>
+                    <!-- Cerrar sin solución desde en_espera -->
+                    <div class="border border-red-200 rounded-lg p-4 space-y-2">
+                      <h5 class="text-xs font-semibold text-red-700 uppercase tracking-wide">Cerrar sin solución</h5>
+                      <textarea
+                        [(ngModel)]="unresolvedReasonText"
+                        rows="3"
+                        placeholder="¿Por qué no se pudo resolver?"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"></textarea>
+                      <button (click)="closeUnresolvedIncident()" [disabled]="actionLoading() || !unresolvedReasonText.trim()"
+                        class="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-40">
+                        Cerrar sin solución
+                      </button>
+                    </div>
                   </div>
                 }
               }
@@ -287,6 +370,8 @@ export class IncidentsComponent implements OnInit {
   readonly actionLoading = signal(false);
   newDescription = '';
   resolutionText = '';
+  holdReasonText = '';
+  unresolvedReasonText = '';
 
   constructor() {
     // Keep selectedIncident in sync with real-time updates from the list
@@ -306,6 +391,11 @@ export class IncidentsComponent implements OnInit {
 
   readonly currentUserId = computed(() => this.authService.currentUser()?.id);
 
+  readonly sortedHistory = computed(() => {
+    const history = this.selectedIncident()?.history ?? [];
+    return [...history].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  });
+
   readonly filteredIncidents = computed(() => {
     const status = this.filterStatus();
     const all = this.incidentsService.incidents();
@@ -324,6 +414,8 @@ export class IncidentsComponent implements OnInit {
     this.selectedIncident.set(incident);
     this.showCreateForm.set(false);
     this.resolutionText = '';
+    this.holdReasonText = '';
+    this.unresolvedReasonText = '';
   }
 
   openCreateForm(): void {
@@ -405,10 +497,86 @@ export class IncidentsComponent implements OnInit {
     });
   }
 
+  holdIncident(): void {
+    const incident = this.selectedIncident();
+    if (!incident || !this.holdReasonText.trim()) return;
+    this.actionLoading.set(true);
+    this.incidentsService.holdIncident(incident.id, this.holdReasonText.trim()).subscribe({
+      next: (updated) => {
+        this.actionLoading.set(false);
+        this.selectedIncident.set(updated);
+        this.holdReasonText = '';
+      },
+      error: (err) => {
+        this.actionLoading.set(false);
+        alert(err?.error?.message ?? 'No se pudo poner en espera la incidencia');
+      },
+    });
+  }
+
+  reactivateIncident(): void {
+    const incident = this.selectedIncident();
+    if (!incident) return;
+    this.actionLoading.set(true);
+    this.incidentsService.reactivateIncident(incident.id).subscribe({
+      next: (updated) => {
+        this.actionLoading.set(false);
+        this.selectedIncident.set(updated);
+      },
+      error: (err) => {
+        this.actionLoading.set(false);
+        alert(err?.error?.message ?? 'No se pudo reactivar la incidencia');
+      },
+    });
+  }
+
+  closeUnresolvedIncident(): void {
+    const incident = this.selectedIncident();
+    if (!incident || !this.unresolvedReasonText.trim()) return;
+    this.actionLoading.set(true);
+    this.incidentsService.closeUnresolvedIncident(incident.id, this.unresolvedReasonText.trim()).subscribe({
+      next: (updated) => {
+        this.actionLoading.set(false);
+        this.selectedIncident.set(updated);
+        this.unresolvedReasonText = '';
+      },
+      error: (err) => {
+        this.actionLoading.set(false);
+        alert(err?.error?.message ?? 'No se pudo cerrar la incidencia');
+      },
+    });
+  }
+
+  historyLabel(event: IncidentEvent): string {
+    switch (event.type) {
+      case 'creada':    return `Incidencia creada por ${event.byName ?? ''}`;
+      case 'tomada':    return `Tomada por ${event.byName ?? ''} (TICOM)`;
+      case 'en_espera': return `Puesta en espera por ${event.byName ?? ''}`;
+      case 'reactivada':return `Reactivada por ${event.byName ?? ''}`;
+      case 'finalizada':return `Finalizada por ${event.byName ?? ''}`;
+      case 'sin_solucion': return `Cerrada sin solución por ${event.byName ?? ''}`;
+      default: return event.type;
+    }
+  }
+
+  historyDotClass(type: string): string {
+    switch (type) {
+      case 'creada':    return 'bg-gray-300';
+      case 'tomada':    return 'bg-blue-500';
+      case 'en_espera': return 'bg-amber-400';
+      case 'reactivada':return 'bg-blue-400';
+      case 'finalizada':return 'bg-green-500';
+      case 'sin_solucion': return 'bg-red-500';
+      default: return 'bg-gray-300';
+    }
+  }
+
   statusLabel(status: string): string {
     switch (status) {
       case 'pendiente': return 'Pendiente';
       case 'en_proceso': return 'En proceso';
+      case 'en_espera': return 'En espera';
+      case 'no_resuelta': return 'Sin solución';
       case 'finalizada': return 'Finalizada';
       default: return status;
     }
@@ -418,6 +586,8 @@ export class IncidentsComponent implements OnInit {
     switch (status) {
       case 'pendiente': return 'inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700';
       case 'en_proceso': return 'inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700';
+      case 'en_espera': return 'inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700';
+      case 'no_resuelta': return 'inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700';
       case 'finalizada': return 'inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700';
       default: return 'inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700';
     }

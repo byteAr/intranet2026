@@ -64,6 +64,10 @@ export class AuthService {
     return this.http.post<{ message: string; email: string }>('/api/auth/forgot-password', { username });
   }
 
+  verifyOtp(username: string, otp: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>('/api/auth/verify-otp', { username, otp });
+  }
+
   resetPassword(username: string, otp: string, newPassword: string): Observable<{ message: string }> {
     return this.http.post<{ message: string }>('/api/auth/reset-password', { username, otp, newPassword });
   }

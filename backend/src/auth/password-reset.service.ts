@@ -39,6 +39,28 @@ export class PasswordResetService {
     return { email: targetEmail };
   }
 
+  async verifyOtp(username: string, otp: string): Promise<void> {
+    const key = username.toLowerCase();
+    const entry = this.otpStore.get(key);
+
+    if (!entry) throw new BadRequestException('No hay una solicitud de recuperación activa para este usuario');
+    if (Date.now() > entry.expiry) {
+      this.otpStore.delete(key);
+      throw new BadRequestException('El código OTP ha expirado. Solicita uno nuevo');
+    }
+
+    entry.attempts++;
+    if (entry.attempts > 3) {
+      this.otpStore.delete(key);
+      throw new BadRequestException('Demasiados intentos incorrectos. Solicita un nuevo código');
+    }
+
+    if (entry.otp !== otp) {
+      const remaining = 3 - entry.attempts + 1;
+      throw new BadRequestException(`Código incorrecto. Te quedan ${remaining} intento(s)`);
+    }
+  }
+
   async resetPassword(username: string, otp: string, newPassword: string): Promise<void> {
     const key = username.toLowerCase();
     const entry = this.otpStore.get(key);

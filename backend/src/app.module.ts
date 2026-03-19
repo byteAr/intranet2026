@@ -15,6 +15,7 @@ import { UsersModule } from './users/users.module';
 import { ChatModule } from './chat/chat.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { ReservationsModule } from './reservations/reservations.module';
+import { PushModule } from './push/push.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { User } from './users/entities/user.entity';
@@ -22,6 +23,7 @@ import { Message } from './chat/entities/message.entity';
 import { Incident } from './incidents/entities/incident.entity';
 import { Reservation } from './reservations/entities/reservation.entity';
 import { BlockedPeriod } from './reservations/entities/blocked-period.entity';
+import { PushSubscription } from './push/entities/push-subscription.entity';
 
 @Module({
   imports: [
@@ -40,7 +42,7 @@ import { BlockedPeriod } from './reservations/entities/blocked-period.entity';
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, Incident, Reservation, BlockedPeriod],
+        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),
@@ -57,6 +59,7 @@ import { BlockedPeriod } from './reservations/entities/blocked-period.entity';
     ChatModule,
     IncidentsModule,
     ReservationsModule,
+    PushModule,
   ],
   providers: [
     // Apply JwtAuthGuard globally; routes marked @Public() bypass it

@@ -15,7 +15,7 @@ import { AuthService } from '../../core/services/auth.service';
       <aside class="w-[28rem] flex-shrink-0 border-r border-gray-200 flex flex-col">
         <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
           <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-            {{ isTicom ? 'Incidencias' : 'Mis incidencias' }}
+            {{ isTicom ? 'Ayuda técnica' : 'Mis solicitudes' }}
           </h2>
           @if (!isTicom) {
             <button (click)="openCreateForm()"

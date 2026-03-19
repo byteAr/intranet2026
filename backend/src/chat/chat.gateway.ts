@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ChatService } from './chat.service';
 import { UsersService } from '../users/users.service';
+import { PushService } from '../push/push.service';
 
 interface AuthenticatedSocket extends Socket {
   data: {
@@ -30,11 +31,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /** userId → { socketIds, displayName, avatar } */
   private presence = new Map<string, { socketIds: Set<string>; displayName: string; avatar?: string }>();
 
+  /** socketId → visible (Page Visibility API) */
+  private socketVisibility = new Map<string, boolean>();
+
   constructor(
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
+    private readonly pushService: PushService,
   ) {}
 
   // ─── Auth middleware ──────────────────────────────────────────────────────
@@ -136,11 +141,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       userData.socketIds.delete(socket.id);
       if (userData.socketIds.size === 0) this.presence.delete(userId);
     }
+    this.socketVisibility.delete(socket.id);
     this.broadcastPresence();
     console.log('[Chat] presence now:', Array.from(this.presence.keys()));
   }
 
   // ─── Events ───────────────────────────────────────────────────────────────
+
+  @SubscribeMessage('visibility')
+  handleVisibility(
+    @ConnectedSocket() socket: AuthenticatedSocket,
+    @MessageBody() data: { visible: boolean },
+  ) {
+    this.socketVisibility.set(socket.id, data.visible);
+  }
+
+  private isUserVisible(userId: string): boolean {
+    const userData = this.presence.get(userId);
+    if (!userData) return false;
+    for (const socketId of userData.socketIds) {
+      if (this.socketVisibility.get(socketId) === true) return true;
+    }
+    return false;
+  }
 
   @SubscribeMessage('message:send')
   async handleSend(
@@ -171,6 +194,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // DM: emit to recipient sockets + sender sockets
       this.emitToUser(data.recipientId, 'message:new', msg);
       this.emitToUser(user.sub, 'message:new', msg);
+
+      // Push solo si el destinatario no tiene la app visible
+      if (!this.isUserVisible(data.recipientId)) {
+        const senderName = user.displayName ?? user.username;
+        const preview = data.content
+          ? data.content.length > 60 ? data.content.slice(0, 60) + '…' : data.content
+          : '📎 Archivo adjunto';
+        void this.pushService.sendToUser(data.recipientId, {
+          title: senderName,
+          body: preview,
+          icon: '/icons/icon-192x192.png',
+          data: { onActionClick: { default: { operation: 'openWindow', url: '/chat' } } },
+        });
+      }
     } else {
       // Global broadcast
       this.server.emit('message:new', msg);

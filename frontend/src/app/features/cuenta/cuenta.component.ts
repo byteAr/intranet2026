@@ -41,7 +41,7 @@ type Panel = 'info' | 'password' | 'recovery';
           <!-- User info -->
           <div class="flex-1 min-w-0">
             <h2 class="text-2xl font-bold text-gray-900 truncate">{{ user()?.displayName }}</h2>
-            <p class="text-sm text-gray-500 truncate">{{ user()?.username }} — {{ user()?.email }}</p>
+            <p class="text-sm text-gray-500 truncate">{{ user()?.username }}</p>
             @if (user()?.lastLoginAt) {
               <p class="mt-2 text-xs text-gray-400">
                 Último acceso: {{ user()!.lastLoginAt | date:'dd/MM/yyyy HH:mm' }}

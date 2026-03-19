@@ -39,6 +39,15 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
+  @Post('verify-otp')
+  async verifyOtp(@Body() dto: { username: string; otp: string }) {
+    await this.passwordResetService.verifyOtp(dto.username, dto.otp);
+    return { message: 'Código verificado' };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.passwordResetService.resetPassword(dto.username, dto.otp, dto.newPassword);

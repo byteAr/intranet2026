@@ -2,12 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Frontend</title>
+  <title>Intranet Diredtos</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" href="assets/images/diredtosintranet.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      z-index: 9999;
+      transition: opacity 0.5s ease;
+    }
+    #splash.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #splash img {
+      width: 220px;
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.75; transform: scale(0.97); }
+    }
+  </style>
 </head>
 <body>
+  <div id="splash">
+    <img src="assets/images/diredtosintranet.png" alt="Intranet Diredtos" />
+  </div>
   <app-root></app-root>
+  <noscript>Please enable JavaScript to continue using this application.</noscript>
+  <script>
+    window.addEventListener('load', function () {
+      var splash = document.getElementById('splash');
+      setTimeout(function () {
+        splash.classList.add('hide');
+        setTimeout(function () { splash.remove(); }, 500);
+      }, 2000);
+    });
+  </script>
 </body>
 </html>

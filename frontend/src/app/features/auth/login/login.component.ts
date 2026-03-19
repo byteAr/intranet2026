@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, ViewChildren, QueryList, ElementRef } from '@angular/core';
 import {
   FormBuilder,
   FormGroup,
@@ -21,16 +21,9 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
 
         <!-- Header -->
         <div class="text-center">
-          <div class="mx-auto h-16 w-16 flex items-center justify-center rounded-full"
-               style="background: linear-gradient(135deg, #14B8A5, #22C562)">
-            <svg class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h2 class="mt-4 text-3xl font-extrabold text-gray-900">Intranet Diredtos</h2>
+          <img src="assets/images/diredtosintranet.png" class="mx-auto h-36 object-contain" alt="Diredtos Intranet" />
           @if (step() === 'login') {
-            <p class="mt-2 text-sm text-gray-600">Inicia sesión con tus credenciales corporativas</p>
+            <p class="mt-2 text-sm text-gray-600">Inicie sesión con el mismo usuario y contraseña que utiliza para ingresar a la PC</p>
           } @else if (step() === 'forgot-username') {
             <p class="mt-2 text-sm text-gray-600">Paso 1 de 3 — Ingresa tu usuario</p>
           } @else if (step() === 'forgot-otp') {
@@ -71,7 +64,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
         @if (step() === 'login') {
           <form [formGroup]="loginForm" (ngSubmit)="onLogin()" class="space-y-6">
             <div>
-              <label for="username" class="block text-sm font-medium text-gray-700">Usuario (AD)</label>
+              <label for="username" class="block text-sm font-medium text-gray-700">Usuario</label>
               <input
                 id="username"
                 type="text"
@@ -134,23 +127,22 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
               onmouseover="this.style.background='linear-gradient(to right, #0f9d8f, #1aad52)'"
               onmouseout="this.style.background='linear-gradient(to right, #14B8A5, #22C562)'">
               @if (loading()) {
-                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                <svg class="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 3 2.373 3 5.373A8.001 8.001 0 004 12z"></path>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 3 2.373 3 5.373A8.001 8.001 0 004 12z"></path>
                 </svg>
-                Verificando...
               } @else {
                 Iniciar sesión
               }
             </button>
           </form>
 
-          <div class="text-center">
+          <div class="text-center space-y-3">
             <button type="button" (click)="goToForgot()"
               class="text-sm hover:underline focus:outline-none" style="color: #14B8A5">
               ¿Olvidaste tu contraseña?
             </button>
+            <p class="text-xs text-gray-400 mt-6">División tecnología de la información y comunicaciones</p>
           </div>
         }
 
@@ -159,7 +151,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
           <form [formGroup]="forgotUsernameForm" (ngSubmit)="onSendOtp()" class="space-y-6">
             <div>
               <label for="forgot-user" class="block text-sm font-medium text-gray-700">
-                Tu usuario de dominio
+                Tu usuario
               </label>
               <input
                 id="forgot-user"
@@ -169,7 +161,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm
                        focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
                 [class.border-red-300]="isInvalid(forgotUsernameForm, 'username')"
-                placeholder="usuario.apellido"
+                placeholder="Tu usuario"
               />
               @if (isInvalid(forgotUsernameForm, 'username')) {
                 <p class="mt-1 text-xs text-red-600">El usuario es requerido.</p>
@@ -186,14 +178,20 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                 Volver
               </button>
               <button type="submit" [disabled]="loading()"
-                class="flex-1 flex justify-center py-2.5 px-4 border border-transparent rounded-md
-                       shadow-sm text-sm font-medium text-white bg-indigo-600
-                       disabled:opacity-50 disabled:cursor-not-allowed
-                       transition-all duration-200"
+                class="flex-1 flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md
+                       shadow-sm text-sm font-medium text-white
+                       disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                 style="background: linear-gradient(to right, #14B8A5, #22C562)"
                 onmouseover="this.style.background='linear-gradient(to right, #0f9d8f, #1aad52)'"
                 onmouseout="this.style.background='linear-gradient(to right, #14B8A5, #22C562)'">
-                @if (loading()) { Enviando... } @else { Enviar código }
+                @if (loading()) {
+                  <svg class="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 3 2.373 3 5.373A8.001 8.001 0 004 12z"></path>
+                  </svg>
+                } @else {
+                  Enviar código
+                }
               </button>
             </div>
           </form>
@@ -201,27 +199,45 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
 
         <!-- ===== STEP 2: FORGOT — OTP ===== -->
         @if (step() === 'forgot-otp') {
-          <form [formGroup]="otpForm" (ngSubmit)="onVerifyOtp()" class="space-y-6">
+          <div class="space-y-6">
             <div>
-              <label for="otp" class="block text-sm font-medium text-gray-700">
-                Código de verificación (4 dígitos)
-              </label>
-              <input
-                id="otp"
-                type="text"
-                formControlName="otp"
-                autocomplete="one-time-code"
-                maxlength="4"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-center
-                       text-2xl font-bold tracking-widest focus:border-teal-500
-                       focus:ring-teal-500 sm:text-sm"
-                [class.border-red-300]="isInvalid(otpForm, 'otp')"
-                placeholder="0000"
-              />
-              @if (isInvalid(otpForm, 'otp')) {
-                <p class="mt-1 text-xs text-red-600">Ingresa el código de 4 dígitos.</p>
+              <p class="block text-sm font-medium text-gray-700 text-center mb-6">
+                Código de verificación
+              </p>
+
+              <!-- 4 OTP boxes -->
+              <div class="flex justify-center gap-4">
+                @for (digit of otpDigits(); track $index) {
+                  <div class="otp-wrapper"
+                       [class.otp-wrapper--filled]="digit !== '' && !otpError()"
+                       [class.otp-wrapper--error]="otpError()">
+                    <input
+                      #otpInput
+                      type="text"
+                      inputmode="numeric"
+                      maxlength="1"
+                      class="otp-input"
+                      [class.otp-input--error]="otpError()"
+                      [value]="digit"
+                      [disabled]="otpVerifying()"
+                      (input)="onOtpInput($index, $event)"
+                      (keydown)="onOtpKeydown($index, $event)"
+                      (paste)="onOtpPaste($event)"
+                      autocomplete="one-time-code"
+                    />
+                  </div>
+                }
+              </div>
+              @if (otpVerifying()) {
+                <div class="flex justify-center mt-4">
+                  <svg class="animate-spin h-6 w-6" style="color: #14B8A5" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 3 2.373 3 5.373A8.001 8.001 0 004 12z"></path>
+                  </svg>
+                </div>
               }
-              <p class="mt-2 text-xs text-gray-500">
+
+              <p class="mt-4 text-xs text-gray-500 text-center">
                 Revisa el correo educativo del usuario <strong>{{ forgotUsername() }}</strong>.
                 El código expira en 10 minutos.
               </p>
@@ -233,18 +249,8 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                        text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200">
                 Volver
               </button>
-              <button type="submit" [disabled]="loading()"
-                class="flex-1 flex justify-center py-2.5 px-4 border border-transparent rounded-md
-                       shadow-sm text-sm font-medium text-white bg-indigo-600
-                       disabled:opacity-50 disabled:cursor-not-allowed
-                       transition-all duration-200"
-                style="background: linear-gradient(to right, #14B8A5, #22C562)"
-                onmouseover="this.style.background='linear-gradient(to right, #0f9d8f, #1aad52)'"
-                onmouseout="this.style.background='linear-gradient(to right, #14B8A5, #22C562)'">
-                @if (loading()) { Verificando... } @else { Continuar }
-              </button>
             </div>
-          </form>
+          </div>
         }
 
         <!-- ===== STEP 3: FORGOT — NEW PASSWORD ===== -->
@@ -304,14 +310,20 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                 Volver
               </button>
               <button type="submit" [disabled]="loading()"
-                class="flex-1 flex justify-center py-2.5 px-4 border border-transparent rounded-md
-                       shadow-sm text-sm font-medium text-white bg-indigo-600
-                       disabled:opacity-50 disabled:cursor-not-allowed
-                       transition-all duration-200"
+                class="flex-1 flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md
+                       shadow-sm text-sm font-medium text-white
+                       disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                 style="background: linear-gradient(to right, #14B8A5, #22C562)"
                 onmouseover="this.style.background='linear-gradient(to right, #0f9d8f, #1aad52)'"
                 onmouseout="this.style.background='linear-gradient(to right, #14B8A5, #22C562)'">
-                @if (loading()) { Guardando... } @else { Restablecer }
+                @if (loading()) {
+                  <svg class="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 3 2.373 3 5.373A8.001 8.001 0 004 12z"></path>
+                  </svg>
+                } @else {
+                  Restablecer
+                }
               </button>
             </div>
           </form>
@@ -320,11 +332,58 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
       </div>
     </div>
   `,
+  styles: [`
+    .otp-wrapper {
+      display: inline-flex;
+      padding: 2px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #d1fae5, #ccfbf1);
+      transition: all 0.2s;
+    }
+    .otp-wrapper:focus-within {
+      background: linear-gradient(135deg, #14B8A5, #22C562);
+      box-shadow: 0 0 0 4px rgba(20, 184, 165, 0.18);
+    }
+    .otp-wrapper--filled {
+      background: linear-gradient(135deg, #14B8A5, #22C562);
+    }
+    .otp-wrapper--error {
+      background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.18);
+      animation: shake 0.4s ease;
+    }
+    .otp-input {
+      width: 44px;
+      height: 52px;
+      text-align: center;
+      font-size: 1.4rem;
+      font-weight: 700;
+      border-radius: 10px;
+      border: none;
+      outline: none;
+      background: white;
+      color: #0d9488;
+      caret-color: #14B8A5;
+      transition: color 0.2s;
+    }
+    .otp-input--error {
+      color: #ef4444 !important;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%       { transform: translateX(-6px); }
+      40%       { transform: translateX(6px); }
+      60%       { transform: translateX(-4px); }
+      80%       { transform: translateX(4px); }
+    }
+  `],
 })
 export class LoginComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
+
+  @ViewChildren('otpInput') otpInputs!: QueryList<ElementRef<HTMLInputElement>>;
 
   step = signal<Step>('login');
   loading = signal(false);
@@ -333,6 +392,9 @@ export class LoginComponent {
   showPassword = signal(false);
   showNewPassword = signal(false);
   forgotUsername = signal('');
+  otpDigits = signal<string[]>(['', '', '', '']);
+  otpError = signal(false);
+  otpVerifying = signal(false);
 
   loginForm: FormGroup = this.fb.group({
     username: ['', [Validators.required, Validators.maxLength(100)]],
@@ -379,6 +441,50 @@ export class LoginComponent {
     this.step.set('login');
   }
 
+  focusOtp(index: number): void {
+    const inputs = this.otpInputs?.toArray();
+    inputs?.[index]?.nativeElement.focus();
+  }
+
+  onOtpInput(index: number, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const val = input.value.replace(/\D/g, '').slice(-1);
+    input.value = val;
+    const digits = [...this.otpDigits()];
+    digits[index] = val;
+    this.otpDigits.set(digits);
+    this.otpForm.get('otp')?.setValue(digits.join(''));
+
+    // Limpiar error al empezar a corregir
+    if (this.otpError()) this.otpError.set(false);
+
+    if (val && index < 3) {
+      setTimeout(() => this.focusOtp(index + 1), 0);
+    }
+
+    if (digits.every(d => d !== '')) {
+      setTimeout(() => this.onVerifyOtp(), 80);
+    }
+  }
+
+  onOtpKeydown(index: number, event: KeyboardEvent): void {
+    if (event.key === 'Backspace' && !this.otpDigits()[index] && index > 0) {
+      setTimeout(() => this.focusOtp(index - 1), 0);
+    }
+  }
+
+  onOtpPaste(event: ClipboardEvent): void {
+    const text = event.clipboardData?.getData('text') ?? '';
+    const digits = text.replace(/\D/g, '').slice(0, 4).split('');
+    if (digits.length === 4) {
+      event.preventDefault();
+      this.otpDigits.set(digits);
+      this.otpForm.get('otp')?.setValue(digits.join(''));
+      setTimeout(() => this.focusOtp(3), 0);
+      setTimeout(() => this.onVerifyOtp(), 150);
+    }
+  }
+
   onLogin(): void {
     if (this.loginForm.invalid) { this.loginForm.markAllAsTouched(); return; }
 
@@ -406,9 +512,11 @@ export class LoginComponent {
       next: (res) => {
         this.loading.set(false);
         this.forgotUsername.set(username);
+        this.otpDigits.set(['', '', '', '']);
         this.otpForm.reset();
         this.successMessage.set(`Código enviado a ${res.email}`);
         this.step.set('forgot-otp');
+        setTimeout(() => this.focusOtp(0), 100);
       },
       error: (err: { error?: { message?: string } }) => {
         this.loading.set(false);
@@ -418,15 +526,33 @@ export class LoginComponent {
   }
 
   onVerifyOtp(): void {
-    if (this.otpForm.invalid) { this.otpForm.markAllAsTouched(); return; }
+    if (this.otpForm.invalid) return;
 
+    this.otpVerifying.set(true);
+    this.otpError.set(false);
     this.clearMessages();
-    const { otp } = this.otpForm.value as { otp: string };
+    const otp = this.otpForm.get('otp')!.value as string;
 
-    // El OTP se verifica en el servidor junto con el reset — avanzamos al paso 3
-    this.newPasswordForm.reset();
-    this.step.set('forgot-newpass');
-    this.successMessage.set('Código aceptado. Ahora establece tu nueva contraseña.');
+    this.authService.verifyOtp(this.forgotUsername(), otp).subscribe({
+      next: () => {
+        this.otpVerifying.set(false);
+        this.newPasswordForm.reset();
+        this.step.set('forgot-newpass');
+        this.successMessage.set('Código aceptado. Ahora establece tu nueva contraseña.');
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.otpVerifying.set(false);
+        this.otpError.set(true);
+        this.errorMessage.set(err?.error?.message ?? 'Código incorrecto.');
+        // Limpiar cajitas para reintento
+        setTimeout(() => {
+          this.otpDigits.set(['', '', '', '']);
+          this.otpForm.get('otp')?.setValue('');
+          this.otpError.set(false);
+          this.focusOtp(0);
+        }, 1200);
+      },
+    });
   }
 
   onResetPassword(): void {

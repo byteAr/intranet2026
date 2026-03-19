@@ -88,6 +88,16 @@ export class ChatService {
       transports: ['websocket', 'polling'],
     });
 
+    // Notificar al servidor si la ventana está visible o no
+    const emitVisibility = () => {
+      this.socket?.emit('visibility', { visible: document.visibilityState === 'visible' });
+    };
+    this.socket.on('connect', emitVisibility);
+    document.addEventListener('visibilitychange', emitVisibility);
+    this.socket.on('disconnect', () => {
+      document.removeEventListener('visibilitychange', emitVisibility);
+    });
+
     this.socket.on('presence:update', (users: OnlineUser[]) => {
       this.onlineUsers.set(users);
       const names = { ...this.userNames() };

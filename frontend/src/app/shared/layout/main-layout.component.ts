@@ -8,6 +8,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ChatService, UserSearchResult } from '../../core/services/chat.service';
 import { IncidentsService } from '../../core/services/incidents.service';
 import { ReservationsService } from '../../core/services/reservations.service';
+import { PushNotificationService } from '../../core/services/push.service';
 
 @Component({
   selector: 'app-main-layout',
@@ -16,23 +17,26 @@ import { ReservationsService } from '../../core/services/reservations.service';
   template: `
     <div class="flex h-screen bg-gray-100">
       <!-- Sidebar -->
-      <aside class="flex flex-col transition-all duration-300 text-white"
+      <aside class="flex flex-col transition-all duration-300"
              [class.w-64]="!collapsed()"
              [class.w-16]="collapsed()"
-             style="background: #0f766e">
+             style="background: white; border-right: 1px solid #e5e7eb">
 
         <!-- Logo -->
-        <div class="flex items-center justify-between h-16 px-4 flex-shrink-0"
-             style="background: #0d6460">
+        <div class="relative flex items-center justify-center px-4 py-3 flex-shrink-0"
+             style="background: white; border-bottom: 1px solid #e5e7eb; min-height: 5rem">
           @if (!collapsed()) {
-            <span class="text-base font-bold tracking-wide truncate">Intranet Diredtos</span>
+            <img src="assets/images/diredtosintranet.png" class="h-24 object-contain" alt="Diredtos" />
           }
           <button (click)="collapsed.set(!collapsed())"
-            class="p-1.5 rounded-md transition-colors flex-shrink-0"
-            style="hover:background: rgba(255,255,255,0.1)"
+            class="absolute right-3 p-1.5 rounded-md transition-colors flex-shrink-0 text-gray-500 hover:bg-gray-100"
             [attr.aria-label]="collapsed() ? 'Expandir menú' : 'Contraer menú'">
-            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            <svg class="h-5 w-5 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              @if (collapsed()) {
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              } @else {
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
+              }
             </svg>
           </button>
         </div>
@@ -73,16 +77,16 @@ import { ReservationsService } from '../../core/services/reservations.service';
             }
           </a>
 
-          <!-- Incidencias -->
+          <!-- Ayuda técnica -->
           <a routerLink="/incidencias" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
-            [title]="collapsed() ? 'Incidencias' : ''">
+            [title]="collapsed() ? 'Ayuda técnica' : ''">
             <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
             </svg>
             @if (!collapsed()) {
-              <span class="ml-3 flex-1">Incidencias</span>
+              <span class="ml-3 flex-1">Ayuda técnica</span>
               @if (incidentsService.pendingCount() > 0) {
                 <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
                   {{ incidentsService.pendingCount() }}
@@ -97,9 +101,8 @@ import { ReservationsService } from '../../core/services/reservations.service';
           <a routerLink="/reservas" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Reservas' : ''">
-            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <svg class="h-5 w-5 flex-shrink-0" viewBox="0 0 1024 640" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+              <path d="M896 576h-64q0 26-18.5 45t-45 19t-45.5-19t-19-45H320q0 26-18.5 45t-45 19t-45.5-19t-19-45h-64q-53 0-90.5-37.5T0 448V256q0-53 37.5-90.5T128 128h22q27-58 81.5-93T352 0t120.5 35t81.5 93h342q53 0 90.5 37.5T1024 256v192q0 53-37.5 90.5T896 576M352 64q-66 0-113 47t-47 113t47 113t113 47t113-47t47-113t-47-113t-113-47m384 192q-13 0-22.5 9.5T704 288t9.5 22.5T736 320t22.5-9.5T768 288t-9.5-22.5T736 256m128 0q-13 0-22.5 9.5T832 288t9.5 22.5T864 320t22.5-9.5T896 288t-9.5-22.5T864 256"/>
             </svg>
             @if (!collapsed()) {
               <span class="ml-3 flex-1">Reservas</span>
@@ -116,10 +119,10 @@ import { ReservationsService } from '../../core/services/reservations.service';
         </nav>
 
         <!-- User info + logout -->
-        <div class="p-4 flex-shrink-0" style="border-top: 1px solid rgba(255,255,255,0.15)">
+        <div class="p-4 flex-shrink-0" style="border-top: 1px solid #e5e7eb">
           @if (!collapsed()) {
             <div class="flex items-center space-x-3 mb-3">
-              <div class="h-9 w-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-sm font-bold"
+              <div class="h-9 w-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-sm font-bold text-white"
                    style="background: #22C562">
                 @if (authService.currentUser()?.avatar) {
                   <img [src]="authService.currentUser()!.avatar" class="h-full w-full object-cover" alt="" />
@@ -128,16 +131,16 @@ import { ReservationsService } from '../../core/services/reservations.service';
                 }
               </div>
               <div class="overflow-hidden">
-                <p class="text-sm font-medium truncate">{{ authService.currentUser()?.displayName }}</p>
-                <p class="text-xs truncate" style="color: rgba(255,255,255,0.6)">{{ authService.currentUser()?.username }}</p>
+                <p class="text-sm font-medium truncate text-gray-800">{{ authService.currentUser()?.displayName }}</p>
+                <p class="text-xs truncate text-gray-400">{{ authService.currentUser()?.username }}</p>
               </div>
             </div>
           }
           <button (click)="authService.logout()"
             class="flex items-center w-full px-3 py-2 text-sm rounded-md transition-colors"
-            style="color: rgba(255,255,255,0.75)"
-            onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='white'"
-            onmouseout="this.style.background='';this.style.color='rgba(255,255,255,0.75)'">
+            style="color: #6b7280"
+            onmouseover="this.style.background='#f3f4f6';this.style.color='#111827'"
+            onmouseout="this.style.background='';this.style.color='#6b7280'">
             <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -151,23 +154,9 @@ import { ReservationsService } from '../../core/services/reservations.service';
 
       <!-- Main content -->
       <div class="flex flex-col flex-1 overflow-hidden">
-        <!-- Topbar -->
-        <header class="h-16 bg-white shadow-sm flex items-center justify-between px-6 flex-shrink-0">
-          <div class="flex items-center space-x-3 ml-auto">
-            <span class="text-sm text-gray-500">{{ fullName() }}</span>
-            <div class="h-9 w-9 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold text-white"
-                 style="background: linear-gradient(135deg, #14B8A5, #22C562)">
-              @if (authService.currentUser()?.avatar) {
-                <img [src]="authService.currentUser()!.avatar" class="h-full w-full object-cover" alt="" />
-              } @else {
-                {{ userInitials() }}
-              }
-            </div>
-          </div>
-        </header>
 
         <!-- Page content -->
-        <main class="flex-1 overflow-y-auto p-6">
+        <main class="flex-1 overflow-y-auto px-4 pt-20 pb-8">
           <router-outlet />
         </main>
       </div>
@@ -292,9 +281,9 @@ import { ReservationsService } from '../../core/services/reservations.service';
     </div>
   `,
   styles: [`
-    .nav-item { color: rgba(255,255,255,0.8); }
-    .nav-item:hover { background: rgba(255,255,255,0.12); color: white; }
-    .active-nav { background: rgba(255,255,255,0.18) !important; color: white !important; font-weight: 600; }
+    .nav-item { color: #374151; }
+    .nav-item:hover { background: #f3f4f6; color: #111827; }
+    .active-nav { background: #0f766e !important; color: white !important; font-weight: 600; }
   `],
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
@@ -302,6 +291,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly chatService = inject(ChatService);
   readonly incidentsService = inject(IncidentsService);
   readonly reservationsService = inject(ReservationsService);
+  private readonly pushService = inject(PushNotificationService);
   private readonly router = inject(Router);
 
   private readonly destroyRef = inject(DestroyRef);
@@ -333,6 +323,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.chatService.connect();
+    void this.pushService.subscribe();
     this.incidentsService.connect();
     this.incidentsService.loadIncidents(this.incidentsService.isTicom ? false : true);
     this.reservationsService.connect();

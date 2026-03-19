@@ -7,6 +7,7 @@ import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { ChatController } from './chat.controller';
 import { UsersModule } from '../users/users.module';
+import { PushModule } from '../push/push.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UsersModule } from '../users/users.module';
       }),
     }),
     UsersModule,
+    PushModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, ChatGateway],

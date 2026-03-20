@@ -1,0 +1,23 @@
+services:
+  postgres:
+    ports: !reset []
+
+  openldap:
+    ports: !reset []
+
+  phpldapadmin:
+    profiles: ["disabled"]
+
+  backend:
+    ports:
+      - '127.0.0.1:3000:3000'
+
+  frontend:
+    ports:
+      - '8280:80'
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 192.168.200.0/24

@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Query, Request, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { UsersService } from './users.service';
@@ -84,6 +86,19 @@ export class UsersController {
       displayName: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName || user.username,
       avatar: user.avatar ?? undefined,
     };
+  }
+
+  @Get(':id/avatar')
+  @Public()
+  async getAvatar(@Param('id') id: string, @Res() res: Response) {
+    const user = await this.usersService.findById(id);
+    const match = user?.avatar?.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) throw new NotFoundException();
+    const mimeType = match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.end(buffer);
   }
 
   @Get(':id')

@@ -201,10 +201,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const preview = data.content
           ? data.content.length > 60 ? data.content.slice(0, 60) + '…' : data.content
           : '📎 Archivo adjunto';
+        const senderHasAvatar = !!this.presence.get(user.sub)?.avatar;
         void this.pushService.sendToUser(data.recipientId, {
           title: senderName,
           body: preview,
-          icon: '/icons/icon-192x192.png',
+          icon: senderHasAvatar ? `/api/users/${user.sub}/avatar` : '/icons/icon-192x192.png',
           data: { onActionClick: { default: { operation: 'openWindow', url: '/chat' } } },
         });
       }

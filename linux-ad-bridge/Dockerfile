@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    krb5-user libgssapi-krb5-2 && \
+    krb5-user libgssapi-krb5-2 libkrb5-dev gcc && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY requirements.txt .

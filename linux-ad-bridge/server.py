@@ -16,8 +16,10 @@ AD_BASE = os.environ.get('AD_BASE', 'DC=iugnad,DC=lan')
 
 def reset_ad_password(username: str, new_password: str) -> None:
     tls = Tls(validate=ssl.CERT_NONE)
-    server = Server(AD_HOST, port=636, use_ssl=True, tls=tls)
+    server = Server(AD_HOST, port=389, tls=tls)
     conn = Connection(server, user=AD_USER, password=AD_PASS, authentication=SIMPLE)
+    conn.open()
+    conn.start_tls()
 
     if not conn.bind():
         raise RuntimeError(f'LDAP bind falló: {conn.result}')

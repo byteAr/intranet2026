@@ -82,7 +82,7 @@ export class PasswordResetService {
     }
 
     // OTP válido — resetear en AD
-    await this.callBridge(username, newPassword);
+    await this.resetAdPassword(username, newPassword);
     this.otpStore.delete(key);
     this.logger.log(`Contraseña reseteada exitosamente para ${username}`);
   }
@@ -95,7 +95,7 @@ export class PasswordResetService {
     const valid = await this.verifyLdapPassword(user.adDn, currentPassword);
     if (!valid) throw new BadRequestException('La contraseña actual es incorrecta');
 
-    await this.callBridge(user.username, newPassword);
+    await this.resetAdPassword(user.username, newPassword);
     this.logger.log(`Contraseña cambiada por el usuario: ${user.username}`);
   }
 
@@ -133,40 +133,57 @@ export class PasswordResetService {
       throw new BadRequestException('No se encontró la cuenta de dominio del usuario');
     }
 
-    const ldapUrl = this.configService.get<string>('ldap.url') ?? '';
-    const ldapsUrl = this.configService.get<string>('LDAPS_URL') ??
-      ldapUrl.replace(/^ldap:\/\//, 'ldaps://').replace(/:389$/, ':636');
+    const ldapUrl = this.configService.get<string>('ldap.url') ?? 'ldap://10.98.40.22:389';
     const bindDn = this.configService.get<string>('ldap.bindDn')!;
     const bindCredentials = this.configService.get<string>('ldap.bindCredentials')!;
+    const tlsOptions = { rejectUnauthorized: false };
 
     return new Promise((resolve, reject) => {
-      const client = ldap.createClient({ url: ldapsUrl, tlsOptions: { rejectUnauthorized: false } });
+      const client = ldap.createClient({ url: ldapUrl, tlsOptions });
 
       client.on('error', (err: Error) => {
         reject(new BadRequestException(`Error de conexión con el directorio: ${err.message}`));
       });
 
-      client.bind(bindDn, bindCredentials, (bindErr) => {
-        if (bindErr) {
+      // StartTLS en puerto 389 para poder modificar unicodePwd de forma segura
+      client.starttls(tlsOptions, [], (tlsErr) => {
+        if (tlsErr) {
           client.destroy();
-          return reject(new BadRequestException('Error de autenticación con el directorio'));
+          this.logger.error(`Error StartTLS para ${username}: ${tlsErr.message}`);
+          return reject(new BadRequestException(`Error al establecer canal seguro: ${tlsErr.message}`));
         }
 
-        const encodedPassword = Buffer.from(`"${newPassword}"`, 'utf16le');
-        const change = new ldap.Change({
-          operation: 'replace',
-          modification: new ldap.Attribute({ type: 'unicodePwd', vals: [encodedPassword] }),
-        });
-
-        client.modify(user.adDn!, change, (modErr) => {
-          client.destroy();
-          if (modErr) {
-            this.logger.error(`Error LDAPS al resetear contraseña de ${username}: ${modErr.message}`);
-            return reject(new BadRequestException(
-              'No se pudo actualizar la contraseña. Verificá que cumpla los requisitos del dominio',
-            ));
+        client.bind(bindDn, bindCredentials, (bindErr) => {
+          if (bindErr) {
+            client.destroy();
+            return reject(new BadRequestException('Error de autenticación con el directorio'));
           }
-          resolve();
+
+          const encodedPassword = Buffer.from(`"${newPassword}"`, 'utf16le');
+          const change = new ldap.Change({
+            operation: 'replace',
+            modification: new ldap.Attribute({ type: 'unicodePwd', vals: [encodedPassword] }),
+          });
+
+          client.modify(user.adDn!, change, (modErr) => {
+            if (modErr) {
+              client.destroy();
+              this.logger.error(`Error al resetear contraseña de ${username}: ${modErr.message}`);
+              return reject(new BadRequestException(
+                'No se pudo actualizar la contraseña. Verificá que cumpla los requisitos del dominio',
+              ));
+            }
+
+            // Marcar pwdLastSet = -1 para no forzar cambio al próximo login
+            const pwdLastSetChange = new ldap.Change({
+              operation: 'replace',
+              modification: new ldap.Attribute({ type: 'pwdLastSet', vals: ['-1'] }),
+            });
+            client.modify(user.adDn!, pwdLastSetChange, () => {
+              client.destroy();
+              resolve();
+            });
+          });
         });
       });
     });

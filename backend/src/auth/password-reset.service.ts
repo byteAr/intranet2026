@@ -82,7 +82,7 @@ export class PasswordResetService {
     }
 
     // OTP válido — resetear en AD
-    await this.resetAdPassword(username, newPassword);
+    await this.callBridge(username, newPassword);
     this.otpStore.delete(key);
     this.logger.log(`Contraseña reseteada exitosamente para ${username}`);
   }
@@ -95,7 +95,7 @@ export class PasswordResetService {
     const valid = await this.verifyLdapPassword(user.adDn, currentPassword);
     if (!valid) throw new BadRequestException('La contraseña actual es incorrecta');
 
-    await this.resetAdPassword(user.username, newPassword);
+    await this.callBridge(user.username, newPassword);
     this.logger.log(`Contraseña cambiada por el usuario: ${user.username}`);
   }
 
@@ -112,7 +112,7 @@ export class PasswordResetService {
   }
 
   private async callBridge(username: string, newPassword: string): Promise<void> {
-    const bridgeUrl = this.configService.get<string>('AD_BRIDGE_URL') ?? 'http://host.docker.internal:3001';
+    const bridgeUrl = this.configService.get<string>('AD_BRIDGE_URL') ?? 'http://ad-bridge:3002';
     const bridgeSecret = this.configService.get<string>('BRIDGE_SECRET') ?? 'pac-bridge-secret-change-me';
 
     const response = await fetch(`${bridgeUrl}/reset-password`, {

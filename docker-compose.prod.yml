@@ -8,9 +8,19 @@ services:
   phpldapadmin:
     profiles: ["disabled"]
 
+  ad-bridge:
+    build: ./linux-ad-bridge
+    container_name: pac_ad_bridge
+    environment:
+      BRIDGE_SECRET: ${BRIDGE_SECRET:-pac-bridge-secret-change-me}
+      AD_PASS: ${LDAP_BIND_CREDENTIALS}
+    restart: unless-stopped
+
   backend:
     ports:
       - '127.0.0.1:3001:3000'
+    depends_on:
+      - ad-bridge
 
   frontend:
     ports:

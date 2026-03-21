@@ -1,28 +1,78 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import json, os, re, logging, ssl
+import json, os, re, logging, subprocess, tempfile
 
-from ldap3 import Server, Connection, SIMPLE, MODIFY_REPLACE, SUBTREE, Tls
+from ldap3 import Server, Connection, SASL, GSSAPI, MODIFY_REPLACE, SUBTREE
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-PORT    = int(os.environ.get('BRIDGE_PORT', '3002'))
-SECRET  = os.environ.get('BRIDGE_SECRET', 'pac-bridge-secret-change-me')
-AD_HOST = os.environ.get('AD_HOST', '10.98.40.22')
-AD_USER = os.environ.get('AD_USER', r'iugnad\svc-pac')
-AD_PASS = os.environ.get('AD_PASS', '')
-AD_BASE = os.environ.get('AD_BASE', 'DC=iugnad,DC=lan')
+PORT       = int(os.environ.get('BRIDGE_PORT', '3002'))
+SECRET     = os.environ.get('BRIDGE_SECRET', 'pac-bridge-secret-change-me')
+AD_HOST    = os.environ.get('AD_HOST', '10.98.40.22')
+AD_USER    = os.environ.get('AD_USER', r'iugnad\svc-pac')
+AD_PASS    = os.environ.get('AD_PASS', '')
+AD_BASE    = os.environ.get('AD_BASE', 'DC=iugnad,DC=lan')
+KRB5_REALM = os.environ.get('KRB5_REALM', 'IUGNAD.LAN')
+
+# Generar krb5.conf al inicio con los valores de entorno
+_KRB5_CONF = f"""\
+[libdefaults]
+    default_realm = {KRB5_REALM}
+    rdns = false
+    forwardable = true
+
+[realms]
+    {KRB5_REALM} = {{
+        kdc = {AD_HOST}
+        admin_server = {AD_HOST}
+    }}
+
+[domain_realm]
+    {KRB5_REALM.lower()} = {KRB5_REALM}
+    .{KRB5_REALM.lower()} = {KRB5_REALM}
+"""
+_KRB5_PATH = '/tmp/pac_krb5.conf'
+with open(_KRB5_PATH, 'w') as _f:
+    _f.write(_KRB5_CONF)
+os.environ['KRB5_CONFIG'] = _KRB5_PATH
+
+
+def _principal() -> str:
+    """Convierte 'domain\\user' → 'user@DOMAIN.LAN'"""
+    if '\\' in AD_USER:
+        _domain, user = AD_USER.split('\\', 1)
+    else:
+        user = AD_USER
+    return f'{user}@{KRB5_REALM}'
+
+
+def _kinit() -> None:
+    principal = _principal()
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.pwd', delete=False) as f:
+        f.write(AD_PASS)
+        pwd_file = f.name
+    try:
+        result = subprocess.run(
+            ['kinit', f'--password-file={pwd_file}', principal],
+            capture_output=True,
+            env=os.environ,
+        )
+    finally:
+        os.unlink(pwd_file)
+
+    if result.returncode != 0:
+        raise RuntimeError(f'kinit falló ({principal}): {result.stderr.decode().strip()}')
+    logger.info('kinit OK para %s', principal)
 
 
 def reset_ad_password(username: str, new_password: str) -> None:
-    tls = Tls(validate=ssl.CERT_NONE)
-    server = Server(AD_HOST, port=389, tls=tls)
-    conn = Connection(server, user=AD_USER, password=AD_PASS, authentication=SIMPLE)
-    conn.open()
-    conn.start_tls()
+    _kinit()
+
+    server = Server(AD_HOST, port=389)
+    conn = Connection(server, authentication=SASL, sasl_mechanism=GSSAPI)
 
     if not conn.bind():
-        raise RuntimeError(f'LDAP bind falló: {conn.result}')
+        raise RuntimeError(f'LDAP GSSAPI bind falló: {conn.result}')
 
     conn.search(AD_BASE, f'(sAMAccountName={username})', attributes=['distinguishedName'])
     if not conn.entries:
@@ -84,5 +134,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     httpd = HTTPServer(('0.0.0.0', PORT), Handler)
-    logger.info('AD Bridge (Linux/ldap3 LDAPS) en http://0.0.0.0:%d', PORT)
+    logger.info('AD Bridge (Kerberos/GSSAPI) en http://0.0.0.0:%d', PORT)
     httpd.serve_forever()

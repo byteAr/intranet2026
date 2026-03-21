@@ -14,6 +14,7 @@ services:
     environment:
       BRIDGE_SECRET: ${BRIDGE_SECRET:-pac-bridge-secret-change-me}
       AD_PASS: ${LDAP_BIND_CREDENTIALS}
+      KRB5_REALM: ${KRB5_REALM:-IUGNAD.LAN}
     restart: unless-stopped
 
   backend:

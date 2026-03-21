@@ -1,3 +1,42 @@
+import hashlib
+
+# OpenSSL 3.x deshabilita MD4 por defecto; NTLM lo necesita.
+# Usamos pycryptodome como fallback si no está disponible.
+try:
+    hashlib.new('md4', b'')
+except ValueError:
+    from Crypto.Hash import MD4 as _MD4
+
+    class _MD4Wrapper:
+        name = 'md4'
+        digest_size = 16
+        block_size  = 64
+
+        def __init__(self, data: bytes = b''):
+            self._h = _MD4.new(data)
+
+        def update(self, data: bytes):
+            self._h.update(data)
+            return self
+
+        def digest(self) -> bytes:
+            return self._h.digest()
+
+        def hexdigest(self) -> str:
+            return self._h.hexdigest()
+
+        def copy(self):
+            w = _MD4Wrapper()
+            w._h = self._h.copy()
+            return w
+
+    _orig_new = hashlib.new
+    def _patched_new(name, data=b'', **kw):
+        if name.lower() == 'md4':
+            return _MD4Wrapper(data)
+        return _orig_new(name, data, **kw)
+    hashlib.new = _patched_new
+
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json, os, re, logging
 from ldap3 import Server, Connection, NTLM, MODIFY_REPLACE

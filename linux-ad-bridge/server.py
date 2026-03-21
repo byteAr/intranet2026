@@ -39,7 +39,7 @@ except ValueError:
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json, os, re, logging
-from ldap3 import Server, Connection, NTLM, MODIFY_REPLACE
+from ldap3 import Server, Connection, NTLM, MODIFY_REPLACE, ENCRYPT
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -54,7 +54,8 @@ AD_BASE = os.environ.get('AD_BASE', 'DC=iugnad,DC=lan')
 
 def reset_ad_password(username: str, new_password: str) -> None:
     srv  = Server(AD_HOST, port=389, use_ssl=False)
-    conn = Connection(srv, user=AD_USER, password=AD_PASS, authentication=NTLM, auto_bind=True)
+    conn = Connection(srv, user=AD_USER, password=AD_PASS, authentication=NTLM,
+                      session_security=ENCRYPT, auto_bind=True)
 
     conn.search(AD_BASE, f'(sAMAccountName={username})', attributes=['distinguishedName'])
     if not conn.entries:

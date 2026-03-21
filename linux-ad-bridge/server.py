@@ -1,7 +1,7 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import json, os, re, logging
+import json, os, re, logging, ssl
 
-from impacket.ldap import ldap as impacket_ldap, ldapasn1
+from ldap3 import Server, Connection, SIMPLE, MODIFY_REPLACE, SUBTREE, Tls
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -13,31 +13,32 @@ AD_USER = os.environ.get('AD_USER', r'iugnad\svc-pac')
 AD_PASS = os.environ.get('AD_PASS', '')
 AD_BASE = os.environ.get('AD_BASE', 'DC=iugnad,DC=lan')
 
-LDAP_REPLACE = 2  # Operation: add=0, delete=1, replace=2
-
 
 def reset_ad_password(username: str, new_password: str) -> None:
-    domain, user = AD_USER.split('\\', 1) if '\\' in AD_USER else ('iugnad', AD_USER)
+    tls = Tls(validate=ssl.CERT_NONE)
+    server = Server(AD_HOST, port=636, use_ssl=True, tls=tls)
+    conn = Connection(server, user=AD_USER, password=AD_PASS, authentication=SIMPLE)
 
-    conn = impacket_ldap.LDAPConnection(f'ldap://{AD_HOST}', AD_BASE)
-    conn.login(user, AD_PASS, domain, '', '')
+    if not conn.bind():
+        raise RuntimeError(f'LDAP bind falló: {conn.result}')
 
-    user_dn = None
-    for entry in conn.search(searchFilter=f'(sAMAccountName={username})',
-                              attributes=['distinguishedName']):
-        if isinstance(entry, ldapasn1.SearchResultEntry):
-            user_dn = str(entry['objectName'])
-            break
-
-    if not user_dn:
+    conn.search(AD_BASE, f'(sAMAccountName={username})', attributes=['distinguishedName'])
+    if not conn.entries:
+        conn.unbind()
         raise ValueError(f'Usuario no encontrado en AD: {username}')
 
+    user_dn = conn.entries[0].entry_dn
     pwd_bytes = f'"{new_password}"'.encode('utf-16-le')
-    conn.modify(user_dn, {
-        'unicodePwd': [(LDAP_REPLACE, [pwd_bytes])],
-        'pwdLastSet':  [(LDAP_REPLACE, [b'-1'])],
+
+    ok = conn.modify(user_dn, {
+        'unicodePwd': [(MODIFY_REPLACE, [pwd_bytes])],
+        'pwdLastSet': [(MODIFY_REPLACE, [-1])],
     })
-    conn.close()
+    conn.unbind()
+
+    if not ok:
+        raise RuntimeError(f'modify falló: {conn.result}')
+
     logger.info('Contraseña reseteada para: %s', username)
 
 
@@ -81,5 +82,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     httpd = HTTPServer(('0.0.0.0', PORT), Handler)
-    logger.info('AD Bridge (Linux/impacket) en http://0.0.0.0:%d', PORT)
+    logger.info('AD Bridge (Linux/ldap3 LDAPS) en http://0.0.0.0:%d', PORT)
     httpd.serve_forever()

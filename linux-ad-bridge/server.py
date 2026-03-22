@@ -16,9 +16,10 @@ AD_BASE  = os.environ.get('AD_BASE', 'DC=iugnad,DC=lan')
 
 
 def reset_ad_password(username: str, new_password: str) -> None:
-    tls = Tls(validate=ssl.CERT_NONE)
-    server = Server(AD_HOST, port=AD_PORT, use_ssl=True, tls=tls)
-    conn = Connection(server, user=AD_DN, password=AD_PASS, authentication=SIMPLE, auto_bind=True)
+    tls = Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
+    server = Server(AD_HOST, port=AD_PORT, tls=tls)
+    conn = Connection(server, user=AD_DN, password=AD_PASS, authentication=SIMPLE, auto_bind='NO_TLS')
+    conn.start_tls()
 
     conn.search(AD_BASE, f'(sAMAccountName={username})', attributes=['distinguishedName'])
     if not conn.entries:

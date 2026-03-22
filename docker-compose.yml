@@ -50,7 +50,7 @@ services:
     environment:
       BRIDGE_SECRET: ${BRIDGE_SECRET}
       AD_HOST: ${AD_HOST:-10.98.40.22}
-      AD_PORT: ${AD_PORT:-636}
+      AD_PORT: ${AD_PORT:-389}
       AD_DN: ${LDAP_BIND_DN}
       AD_PASS: ${LDAP_BIND_CREDENTIALS}
       AD_BASE: ${LDAP_SEARCH_BASE}

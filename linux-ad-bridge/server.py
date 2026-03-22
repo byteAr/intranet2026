@@ -48,17 +48,12 @@ def _principal() -> str:
 
 def _kinit() -> None:
     principal = _principal()
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pwd', delete=False) as f:
-        f.write(AD_PASS)
-        pwd_file = f.name
-    try:
-        result = subprocess.run(
-            ['kinit', f'--password-file={pwd_file}', principal],
-            capture_output=True,
-            env=os.environ,
-        )
-    finally:
-        os.unlink(pwd_file)
+    result = subprocess.run(
+        ['kinit', principal],
+        input=AD_PASS.encode(),
+        capture_output=True,
+        env=os.environ,
+    )
 
     if result.returncode != 0:
         raise RuntimeError(f'kinit falló ({principal}): {result.stderr.decode().strip()}')

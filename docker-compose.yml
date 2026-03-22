@@ -42,6 +42,20 @@ services:
     depends_on:
       - openldap
 
+  ad-bridge:
+    build:
+      context: ./linux-ad-bridge
+      dockerfile: Dockerfile
+    container_name: pac_ad_bridge
+    environment:
+      BRIDGE_SECRET: ${BRIDGE_SECRET}
+      AD_HOST: ${AD_HOST:-10.98.40.22}
+      AD_USER: ${AD_USER:-iugnad\svc-pac}
+      AD_PASS: ${LDAP_BIND_CREDENTIALS}
+      AD_BASE: ${LDAP_SEARCH_BASE}
+      KRB5_REALM: ${KRB5_REALM:-IUGNAD.LAN}
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -56,6 +70,8 @@ services:
       postgres:
         condition: service_healthy
       openldap:
+        condition: service_started
+      ad-bridge:
         condition: service_started
     volumes:
       - ./backend/src:/app/src

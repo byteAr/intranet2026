@@ -1,7 +1,5 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import json, os, re, logging, ssl
-
-from ldap3 import Server, Connection, SIMPLE, MODIFY_REPLACE, Tls
+import json, os, re, logging, subprocess
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -9,34 +7,27 @@ logger = logging.getLogger(__name__)
 PORT     = int(os.environ.get('BRIDGE_PORT', '3002'))
 SECRET   = os.environ.get('BRIDGE_SECRET', 'pac-bridge-secret-change-me')
 AD_HOST  = os.environ.get('AD_HOST', '10.98.40.22')
-AD_PORT  = int(os.environ.get('AD_PORT', '636'))
-AD_DN    = os.environ.get('AD_DN', 'CN=svc-pac,CN=Users,DC=iugnad,DC=lan')
+AD_USER  = os.environ.get('AD_USER', 'svc-pac')
 AD_PASS  = os.environ.get('AD_PASS', '')
-AD_BASE  = os.environ.get('AD_BASE', 'DC=iugnad,DC=lan')
+AD_DOMAIN = os.environ.get('AD_DOMAIN', 'IUGNAD')
 
 
 def reset_ad_password(username: str, new_password: str) -> None:
-    tls = Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
-    server = Server(AD_HOST, port=AD_PORT, tls=tls)
-    conn = Connection(server, user=AD_DN, password=AD_PASS, authentication=SIMPLE, auto_bind='NO_TLS')
-    conn.start_tls()
+    # Usa Samba 'net rpc password' via SAMR/RPC (puerto 445, sin TLS)
+    result = subprocess.run(
+        [
+            'net', 'rpc', 'password', username, new_password,
+            '-U', f'{AD_DOMAIN}\\{AD_USER}%{AD_PASS}',
+            '-S', AD_HOST,
+        ],
+        capture_output=True,
+        timeout=15,
+    )
 
-    conn.search(AD_BASE, f'(sAMAccountName={username})', attributes=['distinguishedName'])
-    if not conn.entries:
-        conn.unbind()
-        raise ValueError(f'Usuario no encontrado en AD: {username}')
-
-    user_dn = conn.entries[0].entry_dn
-    pwd_bytes = f'"{new_password}"'.encode('utf-16-le')
-
-    ok = conn.modify(user_dn, {
-        'unicodePwd': [(MODIFY_REPLACE, [pwd_bytes])],
-        'pwdLastSet': [(MODIFY_REPLACE, [-1])],
-    })
-    conn.unbind()
-
-    if not ok:
-        raise RuntimeError(f'modify falló: {conn.result}')
+    if result.returncode != 0:
+        stderr = result.stderr.decode().strip()
+        stdout = result.stdout.decode().strip()
+        raise RuntimeError(stderr or stdout or 'net rpc password falló')
 
     logger.info('Contraseña reseteada para: %s', username)
 
@@ -81,5 +72,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     httpd = HTTPServer(('0.0.0.0', PORT), Handler)
-    logger.info('AD Bridge (LDAPS/simple) en http://0.0.0.0:%d', PORT)
+    logger.info('AD Bridge (Samba RPC) en http://0.0.0.0:%d', PORT)
     httpd.serve_forever()

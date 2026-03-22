@@ -50,10 +50,9 @@ services:
     environment:
       BRIDGE_SECRET: ${BRIDGE_SECRET}
       AD_HOST: ${AD_HOST:-10.98.40.22}
-      AD_PORT: ${AD_PORT:-389}
-      AD_DN: ${LDAP_BIND_DN}
+      AD_USER: ${AD_USER:-svc-pac}
       AD_PASS: ${LDAP_BIND_CREDENTIALS}
-      AD_BASE: ${LDAP_SEARCH_BASE}
+      AD_DOMAIN: ${AD_DOMAIN:-IUGNAD}
     restart: unless-stopped
 
   backend:

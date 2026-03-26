@@ -9,6 +9,7 @@ import { ChatService, UserSearchResult } from '../../core/services/chat.service'
 import { IncidentsService } from '../../core/services/incidents.service';
 import { ReservationsService } from '../../core/services/reservations.service';
 import { PushNotificationService } from '../../core/services/push.service';
+import { MailService } from '../../core/services/mail.service';
 
 @Component({
   selector: 'app-main-layout',
@@ -96,6 +97,40 @@ import { PushNotificationService } from '../../core/services/push.service';
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
+
+          <!-- Correo -->
+          <a routerLink="/correo" routerLinkActive="active-nav" [routerLinkActiveOptions]="{exact: true}"
+            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
+            [title]="collapsed() ? 'Correo' : ''">
+            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            @if (!collapsed()) {
+              <span class="ml-3 flex-1">Correo</span>
+              @if (mailService.unreadCount() > 0) {
+                <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                  {{ mailService.unreadCount() }}
+                </span>
+              }
+            } @else if (mailService.unreadCount() > 0) {
+              <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+            }
+          </a>
+
+          @if (authService.currentUser()?.roles?.includes('TICOM')) {
+            <a routerLink="/correo/admin" routerLinkActive="active-nav"
+              class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
+              [title]="collapsed() ? 'Importar PST' : ''">
+              <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              @if (!collapsed()) {
+                <span class="ml-3">Importar PST</span>
+              }
+            </a>
+          }
 
           <!-- Reservas -->
           <a routerLink="/reservas" routerLinkActive="active-nav"
@@ -291,6 +326,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly chatService = inject(ChatService);
   readonly incidentsService = inject(IncidentsService);
   readonly reservationsService = inject(ReservationsService);
+  readonly mailService = inject(MailService);
   private readonly pushService = inject(PushNotificationService);
   private readonly router = inject(Router);
 
@@ -324,6 +360,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.chatService.connect();
     void this.pushService.subscribe();
+    this.mailService.connect();
+    this.mailService.loadEmails(undefined, 1, 50);
     this.incidentsService.connect();
     this.incidentsService.loadIncidents(this.incidentsService.isTicom ? false : true);
     this.reservationsService.connect();

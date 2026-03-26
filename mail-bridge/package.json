@@ -1,0 +1,16 @@
+{
+  "name": "mail-bridge",
+  "version": "1.0.0",
+  "description": "Puente IMAP/SMTP/LDAP para el servidor de correo institucional",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "imapflow": "^1.0.162",
+    "ldapjs": "^3.0.7",
+    "mailparser": "^3.7.1",
+    "nodemailer": "^6.9.14"
+  }
+}

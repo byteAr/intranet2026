@@ -1,16 +1,10 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, ParsedMail, AddressObject } from 'mailparser';
-import * as fs from 'fs';
-import * as path from 'path';
 
-import { MailParserService } from './mail-parser.service';
-import { Email, MailFolder } from './entities/email.entity';
-import { Attachment } from './entities/attachment.entity';
-import { EmailReference } from './entities/email-reference.entity';
+import { Email } from './entities/email.entity';
+import { MailIngestService } from './mail-ingest.service';
 
 export interface IMailGateway {
   notifyNewEmail(email: Email): void;
@@ -26,21 +20,21 @@ export class ImapPollerService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly mailParserService: MailParserService,
-    @InjectRepository(Email)
-    private readonly emailRepo: Repository<Email>,
-    @InjectRepository(Attachment)
-    private readonly attachmentRepo: Repository<Attachment>,
-    @InjectRepository(EmailReference)
-    private readonly referenceRepo: Repository<EmailReference>,
+    private readonly mailIngestService: MailIngestService,
   ) {}
 
-  /** Called by MailGateway (Phase 5) to register itself for WS emission. */
+  /** Called by MailGateway to register itself for WS emission. Delegates to MailIngestService. */
   setGateway(gateway: IMailGateway): void {
     this.mailGateway = gateway;
+    this.mailIngestService.setGateway(gateway);
   }
 
   async onModuleInit(): Promise<void> {
+    // Skip IMAP polling when bridge mode is active — the bridge handles ingestion
+    if (this.configService.get<string>('MAIL_BRIDGE_URL')) {
+      this.logger.log('Bridge mode active — IMAP poller disabled');
+      return;
+    }
     await this.start();
   }
 
@@ -191,96 +185,31 @@ export class ImapPollerService implements OnModuleInit, OnModuleDestroy {
       const rawResult = await this.client.fetchOne(String(uid), { source: true });
       if (!rawResult) return;
       const raw = rawResult as { source?: Buffer };
-
       if (!raw.source) return;
+
       const parsed: ParsedMail = await simpleParser(raw.source);
       const internetMessageId = parsed.messageId ?? `uid-${uid}-${Date.now()}`;
 
-      // Idempotency check
-      const existing = await this.emailRepo.findOne({ where: { internetMessageId } });
-      if (existing) return;
+      const attachments = (parsed.attachments ?? []).map((att) => ({
+        filename: att.filename ?? 'attachment',
+        contentType: att.contentType ?? 'application/octet-stream',
+        data: att.content,
+      }));
 
-      const fromAddress = this.extractAddress(parsed.from);
-      const toAddresses = this.extractAddressList(parsed.to);
-      const ccAddresses = this.extractAddressList(parsed.cc);
-      const bodyText = parsed.text ?? '';
-
-      const { mailCode, folder: detectedFolder, references } = this.mailParserService.parse(
-        fromAddress,
-        toAddresses,
-        ccAddresses,
-        bodyText,
-      );
-      const folder = forceTx ? MailFolder.TX : detectedFolder;
-
-      const email = this.emailRepo.create({
+      await this.mailIngestService.ingest({
         internetMessageId,
-        mailCode: mailCode ?? undefined,
         subject: parsed.subject ?? '(sin asunto)',
-        bodyText,
+        fromAddress: this.extractAddress(parsed.from),
+        toAddresses: this.extractAddressList(parsed.to),
+        ccAddresses: this.extractAddressList(parsed.cc),
+        bodyText: parsed.text ?? '',
         bodyHtml: parsed.html || undefined,
-        fromAddress,
-        toAddresses,
-        ccAddresses,
         date: parsed.date ?? new Date(),
-        folder,
-        isFromPstImport: false,
+        isSentFolder: forceTx,
+        attachments,
       });
-
-      const saved = await this.emailRepo.save(email);
-
-      // Save attachments
-      await this.saveAttachments(saved, parsed);
-
-      // Save references for codes mentioned in the body
-      await this.mailParserService.saveReferences(
-        saved.id,
-        references,
-        async (code) => {
-          const ref = await this.emailRepo.findOne({ where: { mailCode: code } });
-          return ref?.id ?? null;
-        },
-      );
-
-      // Resolve any existing pending references that pointed to this mail's code
-      if (mailCode) {
-        await this.mailParserService.resolvePendingReferences(saved.id, mailCode);
-      }
-
-      this.logger.log(`Saved email [${folder}] "${saved.subject}" <${internetMessageId}>`);
-
-      // Phase 5: notify via WebSocket
-      this.mailGateway?.notifyNewEmail(saved);
     } catch (err) {
       this.logger.error(`processMessage uid=${uid} error: ${(err as Error).message}`);
-    }
-  }
-
-  private async saveAttachments(email: Email, parsed: ParsedMail): Promise<void> {
-    if (!parsed.attachments?.length) return;
-
-    const basePath = this.configService.get<string>('MAIL_ATTACHMENTS_PATH') ?? '/app/storage/attachments';
-    await fs.promises.mkdir(basePath, { recursive: true });
-
-    for (const att of parsed.attachments) {
-      try {
-        const safeFilename = att.filename?.replace(/[^a-zA-Z0-9._-]/g, '_') ?? 'attachment';
-        const storagePath = path.join(basePath, `${email.id}_${safeFilename}`);
-
-        await fs.promises.writeFile(storagePath, att.content);
-
-        await this.attachmentRepo.save(
-          this.attachmentRepo.create({
-            emailId: email.id,
-            filename: att.filename ?? safeFilename,
-            contentType: att.contentType ?? 'application/octet-stream',
-            size: att.size ?? att.content.length,
-            storagePath,
-          }),
-        );
-      } catch (err) {
-        this.logger.error(`Failed to save attachment "${att.filename}": ${(err as Error).message}`);
-      }
     }
   }
 

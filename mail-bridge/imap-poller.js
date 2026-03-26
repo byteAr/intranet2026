@@ -163,9 +163,6 @@ class ImapPoller {
       };
 
       await postToBackend(this.config.backendUrl, this.config.secret, payload);
-
-      // Mark as seen only after successful delivery to backend
-      await client.messageFlagsAdd(String(uid), ['\\Seen']);
       this.log(`Ingested uid=${uid} <${internetMessageId}>`);
     } catch (err) {
       // Do NOT mark as seen — will retry on next poll

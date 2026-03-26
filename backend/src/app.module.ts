@@ -16,6 +16,7 @@ import { ChatModule } from './chat/chat.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { PushModule } from './push/push.module';
+import { MailModule } from './mail/mail.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { User } from './users/entities/user.entity';
@@ -24,6 +25,11 @@ import { Incident } from './incidents/entities/incident.entity';
 import { Reservation } from './reservations/entities/reservation.entity';
 import { BlockedPeriod } from './reservations/entities/blocked-period.entity';
 import { PushSubscription } from './push/entities/push-subscription.entity';
+import { Email } from './mail/entities/email.entity';
+import { Attachment } from './mail/entities/attachment.entity';
+import { EmailReadStatus } from './mail/entities/email-read-status.entity';
+import { EmailReference } from './mail/entities/email-reference.entity';
+import { PstImportLog } from './mail/entities/pst-import-log.entity';
 
 @Module({
   imports: [
@@ -42,7 +48,7 @@ import { PushSubscription } from './push/entities/push-subscription.entity';
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription],
+        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),
@@ -60,6 +66,7 @@ import { PushSubscription } from './push/entities/push-subscription.entity';
     IncidentsModule,
     ReservationsModule,
     PushModule,
+    MailModule,
   ],
   providers: [
     // Apply JwtAuthGuard globally; routes marked @Public() bypass it

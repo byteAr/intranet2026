@@ -41,6 +41,12 @@ async function bootstrap() {
 
   const port = parseInt(process.env.APP_PORT ?? '3000', 10);
   await app.listen(port);
+
+  // Allow large PST file uploads (can take 20+ minutes for multi-GB files)
+  const httpServer = app.getHttpServer();
+  httpServer.requestTimeout = 7200000; // 2 hours
+  httpServer.headersTimeout = 7200010; // slightly above requestTimeout
+
   console.log(`Backend running at http://localhost:${port}/api`);
 }
 

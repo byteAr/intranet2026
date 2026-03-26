@@ -63,6 +63,20 @@ export const routes: Routes = [
             (m) => m.ReservationsComponent,
           ),
       },
+      {
+        path: 'correo',
+        loadComponent: () =>
+          import('./features/mail/mail.component').then(
+            (m) => m.MailComponent,
+          ),
+      },
+      {
+        path: 'correo/admin',
+        loadComponent: () =>
+          import('./features/mail/pst-admin.component').then(
+            (m) => m.PstAdminComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: 'cuenta' },

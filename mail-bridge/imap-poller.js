@@ -95,7 +95,7 @@ class ImapPoller {
       await this._fetchFromSent(client);
       await client.logout();
     } catch (err) {
-      this.log(`IMAP poll error: ${err.message}`);
+      this.log(`IMAP poll error: ${err.message} | stack: ${err.stack}`);
       try { await client.logout(); } catch { /* ignore */ }
     }
 

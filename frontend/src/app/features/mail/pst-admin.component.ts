@@ -79,6 +79,18 @@ interface PstComplete {
           }
         </div>
 
+        @if (uploading()) {
+          <div class="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+            <svg class="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <p class="text-sm text-amber-700 font-medium">
+              No cierre ni recargue esta página mientras se sube el archivo. Si lo hace, la carga se cancelará y deberá empezar de nuevo.
+            </p>
+          </div>
+        }
+
         @if (uploadProgress() !== null) {
           <div class="mt-3">
             <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -242,15 +254,23 @@ export class PstAdminComponent implements OnInit, OnDestroy {
 
   uploadFile: File | null = null;
 
+  private beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+    if (this.uploading()) {
+      e.preventDefault();
+    }
+  };
+
   ngOnInit(): void {
     this.connectWs();
     this.loadFiles();
     this.loadHistory();
+    window.addEventListener('beforeunload', this.beforeUnloadHandler);
   }
 
   ngOnDestroy(): void {
     this.socket?.disconnect();
     this.socket = null;
+    window.removeEventListener('beforeunload', this.beforeUnloadHandler);
   }
 
   private connectWs(): void {

@@ -190,7 +190,12 @@ interface PstComplete {
       <section class="bg-white rounded-xl border border-gray-200 p-5">
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-sm font-semibold text-gray-700">3. Historial de importaciones</h2>
-          <button (click)="loadHistory()" class="text-xs text-teal-600 hover:text-teal-800">Actualizar</button>
+          <div class="flex items-center gap-3">
+            @if (history().length > 0) {
+              <button (click)="clearHistory()" class="text-xs text-red-400 hover:text-red-600">Limpiar historial</button>
+            }
+            <button (click)="loadHistory()" class="text-xs text-teal-600 hover:text-teal-800">Actualizar</button>
+          </div>
         </div>
 
         @if (history().length === 0) {
@@ -309,6 +314,12 @@ export class PstAdminComponent implements OnInit, OnDestroy {
   loadHistory(): void {
     this.http.get<ImportLog[]>('/api/mail/admin/pst/history').subscribe({
       next: (list) => this.history.set(list),
+    });
+  }
+
+  clearHistory(): void {
+    this.http.delete('/api/mail/admin/pst/history').subscribe({
+      next: () => this.history.set([]),
     });
   }
 

@@ -152,6 +152,10 @@ export class PstImportService {
     return this.logRepo.find({ order: { startedAt: 'DESC' } });
   }
 
+  async clearHistory(): Promise<void> {
+    await this.logRepo.delete({});
+  }
+
   /** Start import in background — returns immediately. */
   async startImport(filename: string): Promise<void> {
     const filePath = path.join(this.uploadPath, filename);

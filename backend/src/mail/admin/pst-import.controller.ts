@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Param,
   UploadedFile,
   UseInterceptors,
@@ -62,6 +63,12 @@ export class PstImportController {
   @Get('history')
   async getHistory() {
     return this.pstImportService.getHistory();
+  }
+
+  @Delete('history')
+  async clearHistory() {
+    await this.pstImportService.clearHistory();
+    return { ok: true };
   }
 
   @Get('files')

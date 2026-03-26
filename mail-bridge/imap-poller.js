@@ -134,7 +134,7 @@ class ImapPoller {
 
   async _processMessage(client, uid, isSentFolder) {
     try {
-      const rawResult = await client.fetchOne(String(uid), { source: true });
+      const rawResult = await client.fetchOne(String(uid), { source: true }, { uid: true });
       if (!rawResult?.source) return;
 
       const parsed = await simpleParser(rawResult.source);

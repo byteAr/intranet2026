@@ -108,7 +108,7 @@ export class ImapPollerService implements OnModuleInit, OnModuleDestroy {
         lock.release();
       }
     } catch (err) {
-      this.logger.warn(`IMAP error: ${(err as Error).message} — falling back to polling`);
+      this.logger.warn(`IMAP error: ${String(err)} — falling back to polling`);
       this.client = null;
     }
 

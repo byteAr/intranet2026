@@ -86,7 +86,7 @@ class ImapPoller {
       secure: this.config.imap.tls,
       auth: { user: this.config.imap.user, pass: this.config.imap.password },
       tls: { rejectUnauthorized: false },
-      logger: false,
+      logger: { debug: () => {}, info: (obj) => console.log('[IMAP]', JSON.stringify(obj)), warn: (obj) => console.log('[IMAP WARN]', JSON.stringify(obj)), error: (obj) => console.log('[IMAP ERR]', JSON.stringify(obj)) },
     });
 
     try {

@@ -22,6 +22,7 @@ interface ImportLog {
   referencesResolved: number;
   attachmentsSaved: number;
   errorMessage?: string;
+  importedBy?: string;
 }
 
 interface PstProgress {
@@ -190,12 +191,7 @@ interface PstComplete {
       <section class="bg-white rounded-xl border border-gray-200 p-5">
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-sm font-semibold text-gray-700">3. Historial de importaciones</h2>
-          <div class="flex items-center gap-3">
-            @if (history().length > 0) {
-              <button (click)="clearHistory()" class="text-xs text-red-400 hover:text-red-600">Limpiar historial</button>
-            }
-            <button (click)="loadHistory()" class="text-xs text-teal-600 hover:text-teal-800">Actualizar</button>
-          </div>
+          <button (click)="loadHistory()" class="text-xs text-teal-600 hover:text-teal-800">Actualizar</button>
         </div>
 
         @if (history().length === 0) {
@@ -211,6 +207,7 @@ interface PstComplete {
                   <th class="pb-2 font-medium text-right">Saltados</th>
                   <th class="pb-2 font-medium text-right">Refs</th>
                   <th class="pb-2 font-medium text-right">Adjuntos</th>
+                  <th class="pb-2 font-medium">Importado por</th>
                   <th class="pb-2 font-medium">Inicio</th>
                 </tr>
               </thead>
@@ -231,6 +228,7 @@ interface PstComplete {
                     <td class="py-2 pr-3 text-right text-gray-400">{{ log.skippedDuplicates }}</td>
                     <td class="py-2 pr-3 text-right text-gray-400">{{ log.referencesResolved }}</td>
                     <td class="py-2 pr-3 text-right text-gray-400">{{ log.attachmentsSaved }}</td>
+                    <td class="py-2 pr-3 text-xs text-gray-700">{{ log.importedBy ?? '—' }}</td>
                     <td class="py-2 text-xs text-gray-400">{{ formatDate(log.startedAt) }}</td>
                   </tr>
                 }
@@ -314,12 +312,6 @@ export class PstAdminComponent implements OnInit, OnDestroy {
   loadHistory(): void {
     this.http.get<ImportLog[]>('/api/mail/admin/pst/history').subscribe({
       next: (list) => this.history.set(list),
-    });
-  }
-
-  clearHistory(): void {
-    this.http.delete('/api/mail/admin/pst/history').subscribe({
-      next: () => this.history.set([]),
     });
   }
 

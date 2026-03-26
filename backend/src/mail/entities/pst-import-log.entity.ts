@@ -45,4 +45,7 @@ export class PstImportLog {
 
   @Column({ type: 'text', nullable: true })
   errorMessage: string;
+
+  @Column({ type: 'text', nullable: true })
+  importedBy: string;
 }

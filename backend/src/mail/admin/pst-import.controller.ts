@@ -2,13 +2,13 @@ import {
   Controller,
   Post,
   Get,
-  Delete,
   Param,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as path from 'path';
@@ -52,23 +52,20 @@ export class PstImportController {
   }
 
   @Post('import/:filename')
-  async startImport(@Param('filename') filename: string) {
+  async startImport(
+    @Param('filename') filename: string,
+    @CurrentUser() user: { displayName: string },
+  ) {
     if (filename.includes('/') || filename.includes('..')) {
       throw new BadRequestException('Nombre de archivo inválido');
     }
-    await this.pstImportService.startImport(filename);
+    await this.pstImportService.startImport(filename, user.displayName);
     return { ok: true, message: 'Importación iniciada en segundo plano' };
   }
 
   @Get('history')
   async getHistory() {
     return this.pstImportService.getHistory();
-  }
-
-  @Delete('history')
-  async clearHistory() {
-    await this.pstImportService.clearHistory();
-    return { ok: true };
   }
 
   @Get('files')

@@ -152,12 +152,8 @@ export class PstImportService {
     return this.logRepo.find({ order: { startedAt: 'DESC' } });
   }
 
-  async clearHistory(): Promise<void> {
-    await this.logRepo.delete({});
-  }
-
   /** Start import in background — returns immediately. */
-  async startImport(filename: string): Promise<void> {
+  async startImport(filename: string, importedBy: string): Promise<void> {
     const filePath = path.join(this.uploadPath, filename);
     if (!fs.existsSync(filePath)) throw new Error(`Archivo no encontrado: ${filename}`);
 
@@ -175,7 +171,7 @@ export class PstImportService {
     if (log) {
       await this.logRepo.delete(log.id);
     }
-    log = await this.logRepo.save(this.logRepo.create({ filename }));
+    log = await this.logRepo.save(this.logRepo.create({ filename, importedBy }));
 
     // Run in background — worker thread handles all PST I/O
     this.runImport(filePath, filename, log.id).catch((err) => {

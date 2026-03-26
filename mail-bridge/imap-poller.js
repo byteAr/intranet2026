@@ -85,6 +85,7 @@ class ImapPoller {
       port: this.config.imap.port,
       secure: this.config.imap.tls,
       auth: { user: this.config.imap.user, pass: this.config.imap.password },
+      tls: { rejectUnauthorized: false },
       logger: false,
     });
 

@@ -163,8 +163,7 @@ export class ImapPollerService implements OnModuleInit, OnModuleDestroy {
   private async fetchFromSentFolder(): Promise<void> {
     if (!this.client) return;
     try {
-      const tree = await this.client.listMailboxes();
-      const sentBox = this.findSentMailbox(tree);
+      const sentBox = await this.findSentMailbox();
       if (!sentBox) return;
       this.logger.log(`Monitoring Sent folder: ${sentBox}`);
       await this.fetchFromMailbox(sentBox, true);
@@ -173,14 +172,14 @@ export class ImapPollerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private findSentMailbox(node: { name?: string; path?: string; children?: unknown[] }): string | null {
-    const name = (node.name ?? '').toLowerCase();
-    if (this.SENT_FOLDER_NAMES.some((s) => name.includes(s))) {
-      return node.path ?? node.name ?? null;
-    }
-    for (const child of (node.children ?? []) as typeof node[]) {
-      const found = this.findSentMailbox(child);
-      if (found) return found;
+  private async findSentMailbox(): Promise<string | null> {
+    if (!this.client) return null;
+    const list = await this.client.list();
+    for (const mailbox of list) {
+      const name = (mailbox.path ?? mailbox.name ?? '').toLowerCase();
+      if (this.SENT_FOLDER_NAMES.some((s) => name.includes(s))) {
+        return mailbox.path ?? mailbox.name ?? null;
+      }
     }
     return null;
   }

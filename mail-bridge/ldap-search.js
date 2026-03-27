@@ -14,14 +14,29 @@ function searchRecipients(config, query) {
       connectTimeout: 10000,
     });
 
+    let settled = false;
+    function fail(err) {
+      if (settled) return;
+      settled = true;
+      try { client.destroy(); } catch (_) {}
+      reject(err);
+    }
+
     client.on('error', (err) => {
-      reject(new Error(`LDAP connection error: ${err.message}`));
+      fail(new Error(`LDAP connection error: ${err.message ?? err.code ?? err}`));
+    });
+
+    client.on('connectTimeout', () => {
+      fail(new Error(`LDAP connection timeout to ${config.host}:${config.port}`));
     });
 
     client.bind(config.bindUser, config.bindPassword, (bindErr) => {
       if (bindErr) {
-        client.destroy();
-        return reject(new Error(`LDAP bind error: ${bindErr.message}`));
+        return fail(new Error(
+          bindErr.message === 'client destroyed'
+            ? `LDAP connect failed to ${config.host}:${config.port} (connection refused or timeout)`
+            : `LDAP bind error: ${bindErr.message}`
+        ));
       }
 
       const q = query.replace(/[*()\\\x00]/g, '\\$&'); // escape special chars
@@ -60,11 +75,18 @@ function searchRecipients(config, query) {
         });
 
         res.on('error', (err) => {
-          client.destroy();
-          reject(new Error(`LDAP search stream error: ${err.message}`));
+          // Size Limit Exceeded es un límite suave: devolver los resultados ya recolectados
+          if (err.message?.includes('Size Limit Exceeded') || err.code === 4) {
+            settled = true;
+            try { client.unbind(); } catch (_) {}
+            resolve(results);
+          } else {
+            fail(new Error(`LDAP search stream error: ${err.message}`));
+          }
         });
 
         res.on('end', () => {
+          settled = true;
           client.unbind();
           resolve(results);
         });

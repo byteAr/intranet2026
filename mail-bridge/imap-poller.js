@@ -178,11 +178,18 @@ class ImapPoller {
       const toList = this._extractAddressList(parsed.to);
       const ccList = this._extractAddressList(parsed.cc);
 
-      const attachments = (parsed.attachments || []).map((att) => ({
-        filename: att.filename || 'attachment',
-        contentType: att.contentType || 'application/octet-stream',
-        base64: att.content.toString('base64'),
-      }));
+      const attachments = (parsed.attachments || [])
+        .filter((att) => {
+          // Excluir imágenes inline (logos embebidos en el body via cid:)
+          const isImage = (att.contentType || '').startsWith('image/');
+          const isInline = att.contentDisposition === 'inline' || !!att.cid;
+          return !(isImage && isInline);
+        })
+        .map((att) => ({
+          filename: att.filename || 'attachment',
+          contentType: att.contentType || 'application/octet-stream',
+          base64: att.content.toString('base64'),
+        }));
 
       const payload = {
         internetMessageId,

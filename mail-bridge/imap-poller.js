@@ -4,6 +4,8 @@ const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const https = require('https');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { URL } = require('url');
 
 const SENT_FOLDER_NAMES = [
@@ -11,6 +13,24 @@ const SENT_FOLDER_NAMES = [
   'enviados', 'elementos enviados',
   '[gmail]/sent mail',
 ];
+
+const STATE_FILE = path.join(__dirname, 'state.json');
+
+function loadState() {
+  try {
+    return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function saveState(state) {
+  try {
+    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+  } catch (err) {
+    // non-fatal — will retry saving on next cycle
+  }
+}
 
 function postToBackend(backendUrl, secret, payload) {
   return new Promise((resolve, reject) => {
@@ -58,6 +78,8 @@ class ImapPoller {
     this.log = logger;
     this.timer = null;
     this.running = false;
+    this.state = loadState();
+    this.log(`Loaded UID state: ${JSON.stringify(this.state)}`);
   }
 
   start() {
@@ -119,14 +141,26 @@ class ImapPoller {
   async _fetchFromMailbox(client, mailbox, isSentFolder) {
     const lock = await client.getMailboxLock(mailbox);
     try {
+      const lastUid = this.state[mailbox] || 0;
+      const uidRange = `${lastUid + 1}:*`;
+
       const uids = [];
-      for await (const msg of client.fetch('1:*', { flags: true, envelope: true })) {
-        if (msg.flags && !msg.flags.has('\\Seen')) uids.push(msg.uid);
+      for await (const msg of client.fetch(uidRange, { uid: true }, { uid: true })) {
+        uids.push(msg.uid);
       }
+
+      if (uids.length === 0) return;
+
+      this.log(`Found ${uids.length} new message(s) in ${mailbox} (lastUid=${lastUid})`);
 
       for (const uid of uids) {
         await this._processMessage(client, uid, isSentFolder);
       }
+
+      const maxUid = Math.max(...uids);
+      this.state[mailbox] = maxUid;
+      saveState(this.state);
+      this.log(`Updated lastUid for ${mailbox}: ${maxUid}`);
     } finally {
       lock.release();
     }
@@ -166,8 +200,7 @@ class ImapPoller {
       await postToBackend(this.config.backendUrl, this.config.secret, payload);
       this.log(`Ingested uid=${uid} <${internetMessageId}>`);
     } catch (err) {
-      // Do NOT mark as seen — will retry on next poll
-      this.log(`processMessage uid=${uid} error: ${err.message} — will retry`);
+      this.log(`processMessage uid=${uid} error: ${err.message}`);
     }
   }
 

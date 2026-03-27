@@ -13,6 +13,7 @@ import {
   Email,
   MailFolder,
   SendEmailDto,
+  MailRecipient,
 } from '../../core/services/mail.service';
 
 const FOLDER_LABELS: Record<MailFolder, string> = {
@@ -181,15 +182,89 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 </button>
               </div>
               <div class="space-y-3">
+                <!-- Para -->
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">Para *</label>
-                  <input [(ngModel)]="composeTo" type="text" placeholder="correo1@dom.com, correo2@dom.com"
-                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                  <div class="relative">
+                    <div class="flex flex-wrap gap-1 min-h-[38px] px-2 py-1.5 border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-teal-500 cursor-text"
+                         (click)="toInputRef.focus()">
+                      @for (r of composeToList(); track r.email) {
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-teal-100 text-teal-800 rounded-full shrink-0">
+                          {{ r.displayName }}
+                          <button type="button" (click)="$event.stopPropagation(); removeToRecipient(r)"
+                            class="text-teal-600 hover:text-red-500 font-bold leading-none">&times;</button>
+                        </span>
+                      }
+                      <input #toInputRef
+                        [(ngModel)]="toQuery"
+                        (input)="onToInput()"
+                        (keydown.backspace)="onToBackspace()"
+                        (keydown.escape)="toDropdownOpen.set(false)"
+                        (blur)="onToBlur()"
+                        type="text"
+                        [placeholder]="composeToList().length === 0 ? 'Buscar destinatario...' : ''"
+                        class="flex-1 min-w-[120px] outline-none text-sm bg-transparent py-0.5" />
+                    </div>
+                    @if (toDropdownOpen()) {
+                      <div class="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                        @if (toSearching()) {
+                          <div class="px-3 py-2 text-sm text-gray-400">Buscando...</div>
+                        } @else if (toSuggestions().length === 0) {
+                          <div class="px-3 py-2 text-sm text-gray-400">Sin resultados</div>
+                        } @else {
+                          @for (s of toSuggestions(); track s.email) {
+                            <button type="button" (mousedown)="selectToRecipient(s)"
+                              class="w-full text-left px-3 py-2 hover:bg-teal-50 transition-colors border-b border-gray-50 last:border-0">
+                              <p class="text-sm font-medium text-gray-800">{{ s.displayName }}</p>
+                              <p class="text-xs text-gray-500">{{ s.email }}{{ s.department ? ' — ' + s.department : '' }}</p>
+                            </button>
+                          }
+                        }
+                      </div>
+                    }
+                  </div>
                 </div>
+                <!-- CC -->
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">CC</label>
-                  <input [(ngModel)]="composeCc" type="text" placeholder="opcional"
-                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                  <div class="relative">
+                    <div class="flex flex-wrap gap-1 min-h-[38px] px-2 py-1.5 border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-teal-500 cursor-text"
+                         (click)="ccInputRef.focus()">
+                      @for (r of composeCcList(); track r.email) {
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full shrink-0">
+                          {{ r.displayName }}
+                          <button type="button" (click)="$event.stopPropagation(); removeCcRecipient(r)"
+                            class="text-gray-500 hover:text-red-500 font-bold leading-none">&times;</button>
+                        </span>
+                      }
+                      <input #ccInputRef
+                        [(ngModel)]="ccQuery"
+                        (input)="onCcInput()"
+                        (keydown.backspace)="onCcBackspace()"
+                        (keydown.escape)="ccDropdownOpen.set(false)"
+                        (blur)="onCcBlur()"
+                        type="text"
+                        [placeholder]="composeCcList().length === 0 ? 'Buscar destinatario...' : ''"
+                        class="flex-1 min-w-[120px] outline-none text-sm bg-transparent py-0.5" />
+                    </div>
+                    @if (ccDropdownOpen()) {
+                      <div class="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                        @if (ccSearching()) {
+                          <div class="px-3 py-2 text-sm text-gray-400">Buscando...</div>
+                        } @else if (ccSuggestions().length === 0) {
+                          <div class="px-3 py-2 text-sm text-gray-400">Sin resultados</div>
+                        } @else {
+                          @for (s of ccSuggestions(); track s.email) {
+                            <button type="button" (mousedown)="selectCcRecipient(s)"
+                              class="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+                              <p class="text-sm font-medium text-gray-800">{{ s.displayName }}</p>
+                              <p class="text-xs text-gray-500">{{ s.email }}{{ s.department ? ' — ' + s.department : '' }}</p>
+                            </button>
+                          }
+                        }
+                      </div>
+                    }
+                  </div>
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">Asunto *</label>
@@ -340,11 +415,23 @@ export class MailComponent implements OnInit {
   readonly composeSent = signal(false);
   readonly composeError = signal('');
   readonly composeFiles = signal<File[]>([]);
-  composeTo = '';
-  composeCc = '';
   composeSubject = '';
   composeBody = '';
   searchQuery = '';
+
+  // Recipient pickers
+  readonly composeToList = signal<MailRecipient[]>([]);
+  readonly composeCcList = signal<MailRecipient[]>([]);
+  toQuery = '';
+  ccQuery = '';
+  readonly toSuggestions = signal<MailRecipient[]>([]);
+  readonly ccSuggestions = signal<MailRecipient[]>([]);
+  readonly toDropdownOpen = signal(false);
+  readonly ccDropdownOpen = signal(false);
+  readonly toSearching = signal(false);
+  readonly ccSearching = signal(false);
+  private toSearchTimer: ReturnType<typeof setTimeout> | null = null;
+  private ccSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly totalPages = computed(() =>
     Math.max(1, Math.ceil(this.mailService.totalEmails() / 30))
@@ -446,13 +533,107 @@ export class MailComponent implements OnInit {
   openCompose(): void {
     this.showCompose.set(true);
     this.activeEmail.set(null);
-    this.composeTo = '';
-    this.composeCc = '';
+    this.composeToList.set([]);
+    this.composeCcList.set([]);
+    this.toQuery = '';
+    this.ccQuery = '';
+    this.toSuggestions.set([]);
+    this.ccSuggestions.set([]);
+    this.toDropdownOpen.set(false);
+    this.ccDropdownOpen.set(false);
     this.composeSubject = '';
     this.composeBody = '';
     this.composeError.set('');
     this.composeSent.set(false);
     this.composeFiles.set([]);
+  }
+
+  // ── To field ────────────────────────────────────────────
+  onToInput(): void {
+    if (this.toSearchTimer) clearTimeout(this.toSearchTimer);
+    if (this.toQuery.trim().length < 2) {
+      this.toSuggestions.set([]);
+      this.toDropdownOpen.set(false);
+      return;
+    }
+    this.toDropdownOpen.set(true);
+    this.toSearching.set(true);
+    this.toSearchTimer = setTimeout(() => {
+      this.mailService.searchRecipients(this.toQuery.trim()).subscribe({
+        next: (results) => {
+          const selected = new Set(this.composeToList().map((r) => r.email));
+          this.toSuggestions.set(results.filter((r) => !selected.has(r.email)));
+          this.toSearching.set(false);
+        },
+        error: () => { this.toSearching.set(false); this.toSuggestions.set([]); },
+      });
+    }, 300);
+  }
+
+  selectToRecipient(r: MailRecipient): void {
+    this.composeToList.update((list) =>
+      list.some((x) => x.email === r.email) ? list : [...list, r],
+    );
+    this.toQuery = '';
+    this.toSuggestions.set([]);
+    this.toDropdownOpen.set(false);
+  }
+
+  removeToRecipient(r: MailRecipient): void {
+    this.composeToList.update((list) => list.filter((x) => x.email !== r.email));
+  }
+
+  onToBackspace(): void {
+    if (this.toQuery !== '') return;
+    this.composeToList.update((list) => list.slice(0, -1));
+  }
+
+  onToBlur(): void {
+    setTimeout(() => this.toDropdownOpen.set(false), 150);
+  }
+
+  // ── CC field ─────────────────────────────────────────────
+  onCcInput(): void {
+    if (this.ccSearchTimer) clearTimeout(this.ccSearchTimer);
+    if (this.ccQuery.trim().length < 2) {
+      this.ccSuggestions.set([]);
+      this.ccDropdownOpen.set(false);
+      return;
+    }
+    this.ccDropdownOpen.set(true);
+    this.ccSearching.set(true);
+    this.ccSearchTimer = setTimeout(() => {
+      this.mailService.searchRecipients(this.ccQuery.trim()).subscribe({
+        next: (results) => {
+          const selected = new Set(this.composeCcList().map((r) => r.email));
+          this.ccSuggestions.set(results.filter((r) => !selected.has(r.email)));
+          this.ccSearching.set(false);
+        },
+        error: () => { this.ccSearching.set(false); this.ccSuggestions.set([]); },
+      });
+    }, 300);
+  }
+
+  selectCcRecipient(r: MailRecipient): void {
+    this.composeCcList.update((list) =>
+      list.some((x) => x.email === r.email) ? list : [...list, r],
+    );
+    this.ccQuery = '';
+    this.ccSuggestions.set([]);
+    this.ccDropdownOpen.set(false);
+  }
+
+  removeCcRecipient(r: MailRecipient): void {
+    this.composeCcList.update((list) => list.filter((x) => x.email !== r.email));
+  }
+
+  onCcBackspace(): void {
+    if (this.ccQuery !== '') return;
+    this.composeCcList.update((list) => list.slice(0, -1));
+  }
+
+  onCcBlur(): void {
+    setTimeout(() => this.ccDropdownOpen.set(false), 150);
   }
 
   onFilesSelected(event: Event): void {
@@ -475,8 +656,10 @@ export class MailComponent implements OnInit {
   }
 
   submitCompose(): void {
-    const to = this.composeTo.split(',').map((s) => s.trim()).filter(Boolean);
-    const cc = this.composeCc.split(',').map((s) => s.trim()).filter(Boolean);
+    if (this.toQuery.trim()) { this.composeError.set('Seleccioná un destinatario de la lista o borrá el texto del campo Para.'); return; }
+    if (this.ccQuery.trim()) { this.composeError.set('Seleccioná un destinatario de la lista o borrá el texto del campo CC.'); return; }
+    const to = this.composeToList().map((r) => r.email);
+    const cc = this.composeCcList().map((r) => r.email);
     if (!to.length) { this.composeError.set('Ingresá al menos un destinatario.'); return; }
     if (!this.composeSubject.trim()) { this.composeError.set('El asunto es obligatorio.'); return; }
     if (!this.composeBody.trim()) { this.composeError.set('El cuerpo es obligatorio.'); return; }

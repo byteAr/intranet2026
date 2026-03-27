@@ -67,6 +67,13 @@ export interface SendEmailDto {
   bodyHtml?: string;
 }
 
+export interface MailRecipient {
+  displayName: string;
+  email: string;
+  department?: string;
+  title?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MailService {
   private readonly authService = inject(AuthService);
@@ -191,6 +198,12 @@ export class MailService {
     if (dto.bodyHtml) fd.append('bodyHtml', dto.bodyHtml);
     files.forEach((f) => fd.append('files', f, f.name));
     return this.http.post<Email>('/api/mail/emails/send', fd);
+  }
+
+  searchRecipients(q: string): Observable<MailRecipient[]> {
+    return this.http.get<MailRecipient[]>('/api/mail/bridge/recipients', {
+      params: new HttpParams().set('q', q),
+    });
   }
 
   downloadAttachment(emailId: string, attachmentId: string, filename: string): void {

@@ -835,15 +835,13 @@ export class MailComponent implements OnInit {
       refMap.set(r.referencedCode.toUpperCase(), r.referencedEmailId ?? null);
     }
 
-    if (email.bodyHtml) {
-      // HTML email: inject styles into text nodes only via simple regex on visible text
-      // For safety, just render HTML as-is (highlighting HTML bodies is complex)
+    // Prefer bodyText for code highlighting. Fall back to HTML-only render if no plain text.
+    if (!email.bodyText?.trim()) {
       return this.sanitizer.bypassSecurityTrustHtml(
-        `<div class="prose prose-sm max-w-none text-gray-700 text-sm leading-relaxed">${email.bodyHtml}</div>`
+        `<div class="prose prose-sm max-w-none text-gray-700 text-sm leading-relaxed">${email.bodyHtml ?? ''}</div>`
       );
     }
-
-    const raw = email.bodyText ?? '';
+    const raw = email.bodyText;
     // HTML-escape the plain text first to prevent XSS
     const escaped = raw
       .replace(/&/g, '&amp;')

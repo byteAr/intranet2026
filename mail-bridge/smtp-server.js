@@ -89,6 +89,7 @@ class SmtpServer {
             from: body.from,
             to: Array.isArray(body.to) ? body.to.join(', ') : body.to,
             cc: Array.isArray(body.cc) && body.cc.length ? body.cc.join(', ') : undefined,
+            bcc: Array.isArray(body.bcc) && body.bcc.length ? body.bcc.join(', ') : undefined,
             subject: body.subject,
             text: body.text,
             html: body.html,

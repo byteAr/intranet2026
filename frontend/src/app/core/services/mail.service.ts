@@ -62,6 +62,7 @@ export interface MailTreeNode {
 export interface SendEmailDto {
   to: string[];
   cc?: string[];
+  bcc?: string[];
   subject: string;
   bodyText: string;
   bodyHtml?: string;
@@ -193,6 +194,7 @@ export class MailService {
     const fd = new FormData();
     dto.to.forEach((t) => fd.append('to', t));
     dto.cc?.forEach((c) => fd.append('cc', c));
+    dto.bcc?.forEach((b) => fd.append('bcc', b));
     fd.append('subject', dto.subject);
     fd.append('bodyText', dto.bodyText);
     if (dto.bodyHtml) fd.append('bodyHtml', dto.bodyHtml);

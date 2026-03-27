@@ -266,6 +266,48 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                     }
                   </div>
                 </div>
+                <!-- CCO -->
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">CCO (copia oculta)</label>
+                  <div class="relative">
+                    <div class="flex flex-wrap gap-1 min-h-[38px] px-2 py-1.5 border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-teal-500 cursor-text"
+                         (click)="bccInputRef.focus()">
+                      @for (r of composeBccList(); track r.email) {
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full shrink-0">
+                          {{ r.displayName }}
+                          <button type="button" (click)="$event.stopPropagation(); removeBccRecipient(r)"
+                            class="text-gray-500 hover:text-red-500 font-bold leading-none">&times;</button>
+                        </span>
+                      }
+                      <input #bccInputRef
+                        [(ngModel)]="bccQuery"
+                        (input)="onBccInput()"
+                        (keydown.backspace)="onBccBackspace()"
+                        (keydown.escape)="bccDropdownOpen.set(false)"
+                        (blur)="onBccBlur()"
+                        type="text"
+                        [placeholder]="composeBccList().length === 0 ? 'Buscar destinatario...' : ''"
+                        class="flex-1 min-w-[120px] outline-none text-sm bg-transparent py-0.5" />
+                    </div>
+                    @if (bccDropdownOpen()) {
+                      <div class="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                        @if (bccSearching()) {
+                          <div class="px-3 py-2 text-sm text-gray-400">Buscando...</div>
+                        } @else if (bccSuggestions().length === 0) {
+                          <div class="px-3 py-2 text-sm text-gray-400">Sin resultados</div>
+                        } @else {
+                          @for (s of bccSuggestions(); track s.email) {
+                            <button type="button" (mousedown)="selectBccRecipient(s)"
+                              class="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+                              <p class="text-sm font-medium text-gray-800">{{ s.displayName }}</p>
+                              <p class="text-xs text-gray-500">{{ s.email }}{{ s.department ? ' — ' + s.department : '' }}</p>
+                            </button>
+                          }
+                        }
+                      </div>
+                    }
+                  </div>
+                </div>
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">Asunto *</label>
                   <input [(ngModel)]="composeSubject" type="text"
@@ -422,16 +464,22 @@ export class MailComponent implements OnInit {
   // Recipient pickers
   readonly composeToList = signal<MailRecipient[]>([]);
   readonly composeCcList = signal<MailRecipient[]>([]);
+  readonly composeBccList = signal<MailRecipient[]>([]);
   toQuery = '';
   ccQuery = '';
+  bccQuery = '';
   readonly toSuggestions = signal<MailRecipient[]>([]);
   readonly ccSuggestions = signal<MailRecipient[]>([]);
+  readonly bccSuggestions = signal<MailRecipient[]>([]);
   readonly toDropdownOpen = signal(false);
   readonly ccDropdownOpen = signal(false);
+  readonly bccDropdownOpen = signal(false);
   readonly toSearching = signal(false);
   readonly ccSearching = signal(false);
+  readonly bccSearching = signal(false);
   private toSearchTimer: ReturnType<typeof setTimeout> | null = null;
   private ccSearchTimer: ReturnType<typeof setTimeout> | null = null;
+  private bccSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly totalPages = computed(() =>
     Math.max(1, Math.ceil(this.mailService.totalEmails() / 30))
@@ -535,12 +583,16 @@ export class MailComponent implements OnInit {
     this.activeEmail.set(null);
     this.composeToList.set([]);
     this.composeCcList.set([]);
+    this.composeBccList.set([]);
     this.toQuery = '';
     this.ccQuery = '';
+    this.bccQuery = '';
     this.toSuggestions.set([]);
     this.ccSuggestions.set([]);
+    this.bccSuggestions.set([]);
     this.toDropdownOpen.set(false);
     this.ccDropdownOpen.set(false);
+    this.bccDropdownOpen.set(false);
     this.composeSubject = '';
     this.composeBody = '';
     this.composeError.set('');
@@ -636,6 +688,50 @@ export class MailComponent implements OnInit {
     setTimeout(() => this.ccDropdownOpen.set(false), 150);
   }
 
+  // ── BCC field ─────────────────────────────────────────────
+  onBccInput(): void {
+    if (this.bccSearchTimer) clearTimeout(this.bccSearchTimer);
+    if (this.bccQuery.trim().length < 2) {
+      this.bccSuggestions.set([]);
+      this.bccDropdownOpen.set(false);
+      return;
+    }
+    this.bccDropdownOpen.set(true);
+    this.bccSearching.set(true);
+    this.bccSearchTimer = setTimeout(() => {
+      this.mailService.searchRecipients(this.bccQuery.trim()).subscribe({
+        next: (results) => {
+          const selected = new Set(this.composeBccList().map((r) => r.email));
+          this.bccSuggestions.set(results.filter((r) => !selected.has(r.email)));
+          this.bccSearching.set(false);
+        },
+        error: () => { this.bccSearching.set(false); this.bccSuggestions.set([]); },
+      });
+    }, 300);
+  }
+
+  selectBccRecipient(r: MailRecipient): void {
+    this.composeBccList.update((list) =>
+      list.some((x) => x.email === r.email) ? list : [...list, r],
+    );
+    this.bccQuery = '';
+    this.bccSuggestions.set([]);
+    this.bccDropdownOpen.set(false);
+  }
+
+  removeBccRecipient(r: MailRecipient): void {
+    this.composeBccList.update((list) => list.filter((x) => x.email !== r.email));
+  }
+
+  onBccBackspace(): void {
+    if (this.bccQuery !== '') return;
+    this.composeBccList.update((list) => list.slice(0, -1));
+  }
+
+  onBccBlur(): void {
+    setTimeout(() => this.bccDropdownOpen.set(false), 150);
+  }
+
   onFilesSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files) return;
@@ -658,8 +754,10 @@ export class MailComponent implements OnInit {
   submitCompose(): void {
     if (this.toQuery.trim()) { this.composeError.set('Seleccioná un destinatario de la lista o borrá el texto del campo Para.'); return; }
     if (this.ccQuery.trim()) { this.composeError.set('Seleccioná un destinatario de la lista o borrá el texto del campo CC.'); return; }
+    if (this.bccQuery.trim()) { this.composeError.set('Seleccioná un destinatario de la lista o borrá el texto del campo CCO.'); return; }
     const to = this.composeToList().map((r) => r.email);
     const cc = this.composeCcList().map((r) => r.email);
+    const bcc = this.composeBccList().map((r) => r.email);
     if (!to.length) { this.composeError.set('Ingresá al menos un destinatario.'); return; }
     if (!this.composeSubject.trim()) { this.composeError.set('El asunto es obligatorio.'); return; }
     if (!this.composeBody.trim()) { this.composeError.set('El cuerpo es obligatorio.'); return; }
@@ -671,6 +769,7 @@ export class MailComponent implements OnInit {
     const dto: SendEmailDto = {
       to,
       cc: cc.length ? cc : undefined,
+      bcc: bcc.length ? bcc : undefined,
       subject: this.composeSubject.trim(),
       bodyText: this.composeBody.trim(),
     };

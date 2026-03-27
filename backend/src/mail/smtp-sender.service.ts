@@ -63,6 +63,7 @@ export class SmtpSenderService implements OnModuleInit {
         from,
         to: dto.to,
         cc: dto.cc ?? [],
+        bcc: dto.bcc ?? [],
         subject: dto.subject,
         text: dto.bodyText,
         html: dto.bodyHtml,

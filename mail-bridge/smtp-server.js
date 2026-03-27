@@ -30,6 +30,7 @@ class SmtpServer {
       port: config.smtp.port,
       secure: false,
       auth: { user: config.smtp.user, pass: config.smtp.password },
+      tls: { rejectUnauthorized: false },
     });
   }
 

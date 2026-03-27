@@ -2,6 +2,8 @@
 
 const http = require('http');
 const nodemailer = require('nodemailer');
+const MailComposer = require('nodemailer/lib/mail-composer');
+const { ImapFlow } = require('imapflow');
 const { searchRecipients } = require('./ldap-search');
 const { URL } = require('url');
 
@@ -19,6 +21,35 @@ function readBody(req) {
 
 function validateSecret(req, secret) {
   return req.headers['authorization'] === `Bearer ${secret}`;
+}
+
+function buildRawMessage(mailOptions) {
+  return new Promise((resolve, reject) => {
+    new MailComposer(mailOptions).compile().build((err, buf) => {
+      if (err) reject(err);
+      else resolve(buf);
+    });
+  });
+}
+
+async function appendToSent(imapConfig, rawMessage, logger) {
+  const client = new ImapFlow({
+    host: imapConfig.host,
+    port: imapConfig.port,
+    secure: imapConfig.tls,
+    auth: { user: imapConfig.user, pass: imapConfig.password },
+    tls: { rejectUnauthorized: false },
+    logger: false,
+  });
+  try {
+    await client.connect();
+    await client.append('INBOX.Elementos enviados', rawMessage, ['\\Seen']);
+    await client.logout();
+    logger('Appended sent message to INBOX.Elementos enviados');
+  } catch (err) {
+    logger(`IMAP append error: ${err.message}`);
+    try { await client.logout(); } catch (_) {}
+  }
 }
 
 class SmtpServer {
@@ -54,7 +85,7 @@ class SmtpServer {
             content: Buffer.from(a.base64, 'base64'),
           }));
 
-          const info = await this.transporter.sendMail({
+          const mailOptions = {
             from: body.from,
             to: Array.isArray(body.to) ? body.to.join(', ') : body.to,
             cc: Array.isArray(body.cc) && body.cc.length ? body.cc.join(', ') : undefined,
@@ -62,11 +93,18 @@ class SmtpServer {
             text: body.text,
             html: body.html,
             attachments,
-          });
+          };
 
+          const info = await this.transporter.sendMail(mailOptions);
           this.log(`Sent email "${body.subject}" → messageId: ${info.messageId}`);
           res.writeHead(200);
           res.end(JSON.stringify({ ok: true, messageId: info.messageId }));
+
+          // Guardar copia en Elementos enviados (async, no bloquea la respuesta)
+          buildRawMessage(mailOptions)
+            .then((raw) => appendToSent(this.config.imap, raw, this.log))
+            .catch((err) => this.log(`Failed to append to sent: ${err.message}`));
+
         } catch (err) {
           this.log(`SMTP send error: ${err.message}`);
           res.writeHead(500);

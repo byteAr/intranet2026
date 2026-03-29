@@ -349,4 +349,42 @@ export class PstImportService {
 
     stats.inserted++;
   }
+
+  /**
+   * Re-procesa las referencias de todos los emails existentes usando el regex actualizado.
+   * Borra las referencias viejas y las re-extrae del bodyText.
+   */
+  async reprocessReferences(): Promise<{ processed: number; referencesCreated: number }> {
+    const emails = await this.emailRepo.find({ select: ['id', 'mailCode', 'bodyText'] });
+
+    let referencesCreated = 0;
+
+    for (const email of emails) {
+      await this.referenceRepo.delete({ emailId: email.id });
+
+      if (!email.bodyText?.trim()) continue;
+
+      const { references } = this.mailParserService.extractCodes(email.bodyText);
+      if (!references.length) continue;
+
+      await this.mailParserService.saveReferences(
+        email.id,
+        references,
+        async (code) => {
+          const ref = await this.emailRepo.findOne({ where: { mailCode: code } });
+          return ref?.id ?? null;
+        },
+      );
+
+      referencesCreated += references.length;
+    }
+
+    for (const email of emails) {
+      if (email.mailCode) {
+        await this.mailParserService.resolvePendingReferences(email.id, email.mailCode);
+      }
+    }
+
+    return { processed: emails.length, referencesCreated };
+  }
 }

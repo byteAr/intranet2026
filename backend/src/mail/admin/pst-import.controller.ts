@@ -7,6 +7,7 @@ import {
   UseInterceptors,
   BadRequestException,
   NotFoundException,
+  HttpCode,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -62,6 +63,12 @@ export class PstImportController {
   @Get('history')
   async getHistory() {
     return this.pstImportService.getHistory();
+  }
+
+  @Post('reprocess-references')
+  @HttpCode(200)
+  async reprocessReferences() {
+    return this.pstImportService.reprocessReferences();
   }
 
   @Get('files')

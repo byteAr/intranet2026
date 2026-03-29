@@ -363,6 +363,26 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
         <!-- DETAIL -->
         } @else if (activeEmail()) {
           <div class="flex-1 overflow-y-auto p-5">
+            <!-- Navigation history arrows -->
+            @if (navHistory().length > 1) {
+              <div class="flex items-center gap-1 mb-3">
+                <button (click)="navBack()" [disabled]="!canGoBack()"
+                  class="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md border border-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Atrás
+                </button>
+                <button (click)="navForward()" [disabled]="!canGoForward()"
+                  class="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md border border-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                  Adelante
+                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <span class="text-xs text-gray-400 ml-1">{{ navIndex() + 1 }} / {{ navHistory().length }}</span>
+              </div>
+            }
             <!-- Header -->
             <div class="border-b border-gray-100 pb-4 mb-4">
               <div class="flex items-start justify-between gap-3 mb-2">
@@ -451,6 +471,12 @@ export class MailComponent implements OnInit {
   readonly detailLoading = signal(false);
   readonly isSearchMode = signal(false);
 
+  // Historial de navegación por referencias
+  readonly navHistory = signal<Email[]>([]);
+  readonly navIndex = signal(-1);
+  readonly canGoBack = computed(() => this.navIndex() > 0);
+  readonly canGoForward = computed(() => this.navIndex() < this.navHistory().length - 1);
+
 
   readonly showCompose = signal(false);
   readonly composeSending = signal(false);
@@ -506,9 +532,15 @@ export class MailComponent implements OnInit {
   selectEmail(email: Email): void {
     if (this.activeEmail()?.id === email.id) return;
     this.showCompose.set(false);
+    this.navHistory.set([]);
+    this.navIndex.set(-1);
     this.activeEmail.set(email);
     this.mailService.getEmail(email.id).subscribe({
-      next: (full) => this.activeEmail.set(full),
+      next: (full) => {
+        this.activeEmail.set(full);
+        this.navHistory.set([full]);
+        this.navIndex.set(0);
+      },
     });
 
     // Mark as read
@@ -874,8 +906,28 @@ export class MailComponent implements OnInit {
     const emailId = target.getAttribute('data-ref-id');
     if (!emailId) return;
     this.mailService.getEmail(emailId).subscribe({
-      next: (email) => this.activeEmail.set(email),
+      next: (email) => {
+        const truncated = this.navHistory().slice(0, this.navIndex() + 1);
+        this.navHistory.set([...truncated, email]);
+        this.navIndex.set(truncated.length);
+        this.activeEmail.set(email);
+      },
     });
+  }
+
+  navBack(): void {
+    const idx = this.navIndex();
+    if (idx <= 0) return;
+    this.navIndex.set(idx - 1);
+    this.activeEmail.set(this.navHistory()[idx - 1]);
+  }
+
+  navForward(): void {
+    const idx = this.navIndex();
+    const history = this.navHistory();
+    if (idx >= history.length - 1) return;
+    this.navIndex.set(idx + 1);
+    this.activeEmail.set(history[idx + 1]);
   }
 
   fileIcon(filename: string): { bg: string; fg: string; char: string } {

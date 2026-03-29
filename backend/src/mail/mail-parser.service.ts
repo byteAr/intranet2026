@@ -6,7 +6,7 @@ import { EmailReference } from './entities/email-reference.entity';
 
 // Matches institutional codes like "DE 130/19", "DE130/19", "DE 130 / 19", "DE130 /19", etc.
 // Normalised form is always "PREFIX NUM/YY" (single space, no spaces around /).
-const CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{2,5})[ \t]*(\d{1,4})[ \t]*\/[ \t]*(\d{2})\b/g;
+const CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[ \t]*\/[ \t]*(\d{2})\b/g;
 const OUR_ADDRESS = 'DIREDTOS@MTO.GNA';
 const REDGEN_ADDRESS = 'REDGEN@MTO.GNA';
 

@@ -848,7 +848,7 @@ export class MailComponent implements OnInit {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    const CODE_RE = /\b([A-ZÁÉÍÓÚÑ]{2,5})[ \t]*(\d{1,4})[ \t]*\/[ \t]*(\d{2})\b/g;
+    const CODE_RE = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[ \t]*\/[ \t]*(\d{2})\b/g;
     const selfCode = (email.mailCode ?? '').toUpperCase();
 
     const highlighted = escaped.replace(CODE_RE, (match, p1, p2, p3) => {

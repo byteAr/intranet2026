@@ -239,13 +239,20 @@ export class MailService {
   downloadAttachment(emailId: string, attachmentId: string, filename: string): void {
     this.http
       .get(`/api/mail/emails/${emailId}/attachments/${attachmentId}`, { responseType: 'blob' })
-      .subscribe((blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        },
+        error: () => {
+          console.error(`No se pudo descargar el adjunto: ${filename}`);
+        },
       });
   }
 

@@ -4,10 +4,12 @@ import { Repository } from 'typeorm';
 import { MailFolder } from './entities/email.entity';
 import { EmailReference } from './entities/email-reference.entity';
 
-// Matches institutional codes like "DE 130/19", "DE130/19", "AA 12../19", etc.
-// Tolerates dots between number and slash (typos like "12../19").
-// Normalised form is always "PREFIX NUM/YY" (single space, no spaces around /).
-const CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[ \t.]*\/[ \t]*(\d{2})\b/g;
+// Matches institutional codes like "DE 130/19", "DE130/19", "AA 12../19", "ES 1266/1.-9", etc.
+// - Tolerates dots before slash ("12../19")
+// - Tolerates noise (dots/hyphens) inside the 2-digit year ("1.-9" → "19")
+// Normalised form is always "PREFIX NUM/YY" (single space, no spaces/noise).
+// When using match[3], call .replace(/\D/g,'') to strip noise from the year capture.
+const CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[ \t.]*\/[ \t]*(\d[.-]*\d)\b/g;
 
 // Partial match for codes missing the /YY suffix (typo: "AB 22" instead of "AB 22/26").
 // Only used when trying to extract the mailCode from the head of the email.
@@ -94,7 +96,7 @@ export class MailParserService {
     let mailCode: string | null = null;
     const fullMatch = new RegExp(CODE_REGEX.source, CODE_REGEX.flags).exec(headForMailCode);
     if (fullMatch && !EXCLUDED_PREFIXES.has(fullMatch[1])) {
-      mailCode = `${fullMatch[1]} ${fullMatch[2]}/${fullMatch[3]}`;
+      mailCode = `${fullMatch[1]} ${fullMatch[2]}/${fullMatch[3].replace(/\D/g, '')}`;
     }
 
     // If no full match, try partial (missing /YY) and infer year from email date
@@ -114,7 +116,7 @@ export class MailParserService {
 
     while ((match = regex.exec(bodyText)) !== null) {
       if (EXCLUDED_PREFIXES.has(match[1])) continue;
-      const code = `${match[1]} ${match[2]}/${match[3]}`;
+      const code = `${match[1]} ${match[2]}/${match[3].replace(/\D/g, '')}`;
       if (!seen.has(code)) {
         seen.add(code);
         references.push(code);

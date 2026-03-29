@@ -365,8 +365,8 @@ export class PstImportService {
     for (const email of emails) {
       if (!email.bodyText?.trim()) {
         if (email.mailCode) {
-          await this.emailRepo.update(email.id, { mailCode: undefined });
-          email.mailCode = undefined as unknown as string;
+          await this.emailRepo.update(email.id, { mailCode: null as any });
+          email.mailCode = null as any;
           mailCodesUpdated++;
         }
         continue;
@@ -378,7 +378,7 @@ export class PstImportService {
 
       if ((newCode ?? null) !== storedCode) {
         await this.emailRepo.update(email.id, { mailCode: newCode });
-        email.mailCode = (newCode ?? undefined) as unknown as string;
+        email.mailCode = (newCode ?? null) as any;
         mailCodesUpdated++;
       }
     }

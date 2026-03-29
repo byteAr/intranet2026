@@ -351,14 +351,39 @@ export class PstImportService {
   }
 
   /**
-   * Re-procesa las referencias de todos los emails existentes usando el regex actualizado.
-   * Borra las referencias viejas y las re-extrae del bodyText.
+   * Re-procesa todos los emails:
+   * 1. Re-extrae y actualiza la columna mailCode usando el regex actual.
+   * 2. Borra y re-crea email_references con los mailCodes actualizados.
    */
-  async reprocessReferences(): Promise<{ processed: number; referencesCreated: number }> {
+  async reprocessReferences(): Promise<{ processed: number; mailCodesUpdated: number; referencesCreated: number }> {
     const emails = await this.emailRepo.find({ select: ['id', 'mailCode', 'bodyText'] });
 
+    let mailCodesUpdated = 0;
     let referencesCreated = 0;
 
+    // Paso 1: re-extraer mailCode de cada email y actualizar si cambió
+    for (const email of emails) {
+      if (!email.bodyText?.trim()) {
+        if (email.mailCode !== null) {
+          await this.emailRepo.update(email.id, { mailCode: undefined });
+          email.mailCode = null;
+          mailCodesUpdated++;
+        }
+        continue;
+      }
+
+      const { mailCode: extracted } = this.mailParserService.extractCodes(email.bodyText);
+      const newCode = extracted ?? undefined;
+      const storedCode = email.mailCode ?? null;
+
+      if ((newCode ?? null) !== storedCode) {
+        await this.emailRepo.update(email.id, { mailCode: newCode });
+        email.mailCode = newCode ?? null;
+        mailCodesUpdated++;
+      }
+    }
+
+    // Paso 2: borrar y re-crear referencias usando los mailCodes actualizados
     for (const email of emails) {
       await this.referenceRepo.delete({ emailId: email.id });
 
@@ -371,7 +396,10 @@ export class PstImportService {
         email.id,
         references,
         async (code) => {
-          const ref = await this.emailRepo.findOne({ where: { mailCode: code } });
+          const ref = await this.emailRepo.findOne({
+            where: { mailCode: code },
+            order: { date: 'ASC' },
+          });
           return ref?.id ?? null;
         },
       );
@@ -379,12 +407,13 @@ export class PstImportService {
       referencesCreated += references.length;
     }
 
+    // Paso 3: resolver referencias pendientes (las que apuntaban a emails aún no importados)
     for (const email of emails) {
       if (email.mailCode) {
         await this.mailParserService.resolvePendingReferences(email.id, email.mailCode);
       }
     }
 
-    return { processed: emails.length, referencesCreated };
+    return { processed: emails.length, mailCodesUpdated, referencesCreated };
   }
 }

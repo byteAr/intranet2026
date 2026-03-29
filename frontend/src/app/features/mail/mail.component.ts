@@ -880,7 +880,7 @@ export class MailComponent implements OnInit {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    const CODE_RE = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[ \t.]*\/[ \t]*(\d[.-]*\d)\b/g;
+    const CODE_RE = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[^\w\/]*\/[^\w]*(\d[^\w\/]*\d)\b/g;
     const EXCLUDED = new Set(['PON']);
     const selfCode = (email.mailCode ?? '').toUpperCase();
 

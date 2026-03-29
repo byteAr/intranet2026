@@ -4,12 +4,12 @@ import { Repository } from 'typeorm';
 import { MailFolder } from './entities/email.entity';
 import { EmailReference } from './entities/email-reference.entity';
 
-// Matches institutional codes like "DE 130/19", "DE130/19", "AA 12../19", "ES 1266/1.-9", etc.
-// - Tolerates dots before slash ("12../19")
-// - Tolerates noise (dots/hyphens) inside the 2-digit year ("1.-9" → "19")
-// Normalised form is always "PREFIX NUM/YY" (single space, no spaces/noise).
-// When using match[3], call .replace(/\D/g,'') to strip noise from the year capture.
-const CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[ \t.]*\/[ \t]*(\d[.-]*\d)\b/g;
+// Matches institutional codes with structure PREFIX NUM/YY.
+// The ONLY meaningful special char is "/" (year separator).
+// Any other special char between components is treated as noise and ignored.
+// Examples: "DE 130/19", "AA 12../19", "ES 1266/1.-9", "DE(130)/19"
+// Normalised form: "PREFIX NUM/YY" — call .replace(/\D/g,'') on match[3] to get clean year.
+const CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[^\w\/]*\/[^\w]*(\d[^\w\/]*\d)\b/g;
 
 // Partial match for codes missing the /YY suffix (typo: "AB 22" instead of "AB 22/26").
 // Only used when trying to extract the mailCode from the head of the email.

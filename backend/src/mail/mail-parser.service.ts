@@ -4,9 +4,24 @@ import { Repository } from 'typeorm';
 import { MailFolder } from './entities/email.entity';
 import { EmailReference } from './entities/email-reference.entity';
 
-// Matches institutional codes like "DE 130/19", "DE130/19", "DE 130 / 19", "DE130 /19", etc.
+// Matches institutional codes like "DE 130/19", "DE130/19", "AA 12../19", etc.
+// Tolerates dots between number and slash (typos like "12../19").
 // Normalised form is always "PREFIX NUM/YY" (single space, no spaces around /).
-const CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[ \t]*\/[ \t]*(\d{2})\b/g;
+const CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[ \t.]*\/[ \t]*(\d{2})\b/g;
+
+// Partial match for codes missing the /YY suffix (typo: "AB 22" instead of "AB 22/26").
+// Only used when trying to extract the mailCode from the head of the email.
+const PARTIAL_CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)\b/;
+
+// Prefixes that are NEVER email codes — just institutional indicators in the body.
+// PON = encryption indicator for attachments ("PON 33/96" is a crypto key, not an email ref).
+const EXCLUDED_PREFIXES = new Set(['PON']);
+
+// Service/correction message prefixes — the actual mail code follows after them.
+// "SVC AB 123/22" → mailCode is "AB 123/22" (SVC = corrige un envío anterior)
+// "MTP ABC 123/22" → mailCode is "ABC 123/22" (MTP = mensaje no oficial)
+const SERVICE_PREFIX_RE = /^[ \t]*(SVC|MTP)[ \t]+/i;
+
 const OUR_ADDRESS = 'DIREDTOS@MTO.GNA';
 const REDGEN_ADDRESS = 'REDGEN@MTO.GNA';
 
@@ -56,23 +71,49 @@ export class MailParserService {
 
   /**
    * Extracts the mail code and all referenced codes from the email body.
-   * First match → mailCode. Subsequent matches → references list.
+   *
+   * Rules:
+   * - Own code is the first institutional code in the first ~150 chars.
+   * - SVC/MTP prefix is stripped before searching (e.g. "SVC AB 123/22" → mailCode "AB 123/22").
+   * - If no full code (with /YY) is found in the head, tries a partial match (PREFIX NUM) and
+   *   infers the year from emailDate if provided (e.g. "AB 22" sent in 2026 → "AB 22/26").
+   * - PON codes are never treated as mail codes or references (they are encryption indicators).
+   * - Dots between number and slash are tolerated ("AA 12../19" → "AA 12/19").
    */
-  extractCodes(bodyText: string): { mailCode: string | null; references: string[] } {
+  extractCodes(
+    bodyText: string,
+    emailDate?: Date | string,
+  ): { mailCode: string | null; references: string[] } {
     if (!bodyText) return { mailCode: null, references: [] };
 
-    // The email's own code always appears at the very start of the body (first ~150 chars).
-    // If no code is found there, this is an informal message (e.g. starts with "NOTA") — no mailCode.
-    const headMatch = new RegExp(CODE_REGEX.source, CODE_REGEX.flags).exec(bodyText.slice(0, 150));
-    const mailCode = headMatch ? `${headMatch[1]} ${headMatch[2]}/${headMatch[3]}` : null;
+    // Strip SVC/MTP prefix from head to find the actual mailCode
+    const rawHead = bodyText.slice(0, 150);
+    const headForMailCode = rawHead.replace(SERVICE_PREFIX_RE, '');
 
-    // Collect all codes in the full body, excluding mailCode (those are references to other emails)
+    // Try full regex match (with /YY) in head
+    let mailCode: string | null = null;
+    const fullMatch = new RegExp(CODE_REGEX.source, CODE_REGEX.flags).exec(headForMailCode);
+    if (fullMatch && !EXCLUDED_PREFIXES.has(fullMatch[1])) {
+      mailCode = `${fullMatch[1]} ${fullMatch[2]}/${fullMatch[3]}`;
+    }
+
+    // If no full match, try partial (missing /YY) and infer year from email date
+    if (!mailCode && emailDate) {
+      const partialMatch = PARTIAL_CODE_REGEX.exec(headForMailCode);
+      if (partialMatch && !EXCLUDED_PREFIXES.has(partialMatch[1])) {
+        const yy = new Date(emailDate).getFullYear().toString().slice(-2);
+        mailCode = `${partialMatch[1]} ${partialMatch[2]}/${yy}`;
+      }
+    }
+
+    // Collect all full codes in the body, skipping mailCode and PON codes
     const seen = new Set<string>(mailCode ? [mailCode] : []);
     const references: string[] = [];
     const regex = new RegExp(CODE_REGEX.source, CODE_REGEX.flags);
     let match: RegExpExecArray | null;
 
     while ((match = regex.exec(bodyText)) !== null) {
+      if (EXCLUDED_PREFIXES.has(match[1])) continue;
       const code = `${match[1]} ${match[2]}/${match[3]}`;
       if (!seen.has(code)) {
         seen.add(code);
@@ -85,15 +126,17 @@ export class MailParserService {
 
   /**
    * Full parse: classify folder + extract codes.
+   * emailDate is used to infer the year when a code is missing its /YY suffix.
    */
   parse(
     fromAddress: string,
     toAddresses: string[],
     ccAddresses: string[],
     bodyText: string,
+    emailDate?: Date | string,
   ): ParsedMailData {
     const folder = this.classifyFolder(fromAddress, toAddresses, ccAddresses);
-    const { mailCode, references } = this.extractCodes(bodyText);
+    const { mailCode, references } = this.extractCodes(bodyText, emailDate);
     return { mailCode, folder, references };
   }
 

@@ -289,6 +289,7 @@ export class PstImportService {
       data.toAddresses,
       data.ccAddresses,
       data.bodyText,
+      data.date,
     );
     const folder = data.isSentFolder ? MailFolder.TX : detectedFolder;
 
@@ -356,7 +357,7 @@ export class PstImportService {
    * 2. Borra y re-crea email_references con los mailCodes actualizados.
    */
   async reprocessReferences(): Promise<{ processed: number; mailCodesUpdated: number; referencesCreated: number }> {
-    const emails = await this.emailRepo.find({ select: ['id', 'mailCode', 'bodyText'] });
+    const emails = await this.emailRepo.find({ select: ['id', 'mailCode', 'bodyText', 'date'] });
 
     let mailCodesUpdated = 0;
     let referencesCreated = 0;
@@ -365,7 +366,7 @@ export class PstImportService {
     for (const email of emails) {
       if (!email.bodyText?.trim()) continue;
 
-      const { mailCode: extracted } = this.mailParserService.extractCodes(email.bodyText);
+      const { mailCode: extracted } = this.mailParserService.extractCodes(email.bodyText, email.date);
       const storedCode = email.mailCode ?? null;
 
       if ((extracted ?? null) !== storedCode) {
@@ -386,7 +387,7 @@ export class PstImportService {
 
       if (!email.bodyText?.trim()) continue;
 
-      const { references } = this.mailParserService.extractCodes(email.bodyText);
+      const { references } = this.mailParserService.extractCodes(email.bodyText, email.date);
       if (!references.length) continue;
 
       await this.mailParserService.saveReferences(

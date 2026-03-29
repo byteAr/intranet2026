@@ -363,22 +363,19 @@ export class PstImportService {
 
     // Paso 1: re-extraer mailCode de cada email y actualizar si cambió
     for (const email of emails) {
-      if (!email.bodyText?.trim()) {
-        if (email.mailCode) {
-          await this.emailRepo.update(email.id, { mailCode: null as any });
-          email.mailCode = null as any;
-          mailCodesUpdated++;
-        }
-        continue;
-      }
+      if (!email.bodyText?.trim()) continue;
 
       const { mailCode: extracted } = this.mailParserService.extractCodes(email.bodyText);
-      const newCode = extracted ?? undefined;
       const storedCode = email.mailCode ?? null;
 
-      if ((newCode ?? null) !== storedCode) {
-        await this.emailRepo.update(email.id, { mailCode: newCode });
-        email.mailCode = (newCode ?? null) as any;
+      if ((extracted ?? null) !== storedCode) {
+        // TypeORM repository.update filtra null; usar query nativa para setear NULL
+        if (extracted) {
+          await this.emailRepo.update(email.id, { mailCode: extracted });
+        } else {
+          await this.emailRepo.query('UPDATE emails SET "mailCode" = NULL WHERE id = $1', [email.id]);
+        }
+        email.mailCode = extracted as any;
         mailCodesUpdated++;
       }
     }

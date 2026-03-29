@@ -364,9 +364,9 @@ export class PstImportService {
     // Paso 1: re-extraer mailCode de cada email y actualizar si cambió
     for (const email of emails) {
       if (!email.bodyText?.trim()) {
-        if (email.mailCode !== null) {
+        if (email.mailCode) {
           await this.emailRepo.update(email.id, { mailCode: undefined });
-          email.mailCode = null;
+          email.mailCode = undefined as unknown as string;
           mailCodesUpdated++;
         }
         continue;
@@ -378,7 +378,7 @@ export class PstImportService {
 
       if ((newCode ?? null) !== storedCode) {
         await this.emailRepo.update(email.id, { mailCode: newCode });
-        email.mailCode = newCode ?? null;
+        email.mailCode = (newCode ?? undefined) as unknown as string;
         mailCodesUpdated++;
       }
     }

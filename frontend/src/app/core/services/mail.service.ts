@@ -50,6 +50,14 @@ export interface EmailListResponse {
   limit: number;
 }
 
+export interface MailUnreadCounts {
+  total: number;
+  informativos: number;
+  ejecutivos: number;
+  redgen: number;
+  tx: number;
+}
+
 export interface MailTreeNode {
   id: string;
   mail_code: string;
@@ -84,6 +92,7 @@ export class MailService {
   readonly emails = signal<Email[]>([]);
   readonly totalEmails = signal(0);
   readonly unreadCount = signal(0);
+  readonly unreadCounts = signal<MailUnreadCounts>({ total: 0, informativos: 0, ejecutivos: 0, redgen: 0, tx: 0 });
   readonly loading = signal(false);
 
   constructor() {
@@ -109,8 +118,7 @@ export class MailService {
     });
 
     this.socket.on('new_email', (payload: Pick<Email, 'id' | 'subject' | 'fromAddress' | 'folder' | 'date' | 'mailCode'>) => {
-      // Add to list only if matches current folder (or always add and let component filter)
-      this.unreadCount.update((n) => n + 1);
+      this.loadUnreadCounts();
       // Prepend a minimal email entry so the list updates immediately
       const newEntry: Email = {
         id: payload.id,
@@ -139,26 +147,46 @@ export class MailService {
     this.emails.set([]);
     this.totalEmails.set(0);
     this.unreadCount.set(0);
+    this.unreadCounts.set({ total: 0, informativos: 0, ejecutivos: 0, redgen: 0, tx: 0 });
   }
 
   isConnected(): boolean {
     return this.socket?.connected ?? false;
   }
 
-  loadEmails(folder?: MailFolder, page = 1, limit = 30): void {
+  loadEmails(folder?: MailFolder, page = 1, limit = 30, historical = false): void {
     this.loading.set(true);
     let params = new HttpParams().set('page', page).set('limit', limit);
     if (folder) params = params.set('folder', folder);
+    if (historical) params = params.set('historical', 'true');
 
     this.http.get<EmailListResponse>('/api/mail/emails', { params }).subscribe({
       next: (res) => {
         this.emails.set(res.data);
         this.totalEmails.set(res.total);
-        this.recalcUnread();
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
     });
+  }
+
+  loadUnreadCounts(): void {
+    this.http.get<MailUnreadCounts>('/api/mail/unread-counts').subscribe({
+      next: (counts) => {
+        this.unreadCounts.set(counts);
+        this.unreadCount.set(counts.total);
+      },
+      error: () => {},
+    });
+  }
+
+  decrementUnread(folder: MailFolder): void {
+    this.unreadCounts.update((c) => {
+      const prev = c[folder];
+      if (prev <= 0) return c;
+      return { ...c, [folder]: prev - 1, total: Math.max(0, c.total - 1) };
+    });
+    this.unreadCount.update((n) => Math.max(0, n - 1));
   }
 
   search(q: string): void {
@@ -221,11 +249,4 @@ export class MailService {
       });
   }
 
-  private recalcUnread(): void {
-    const count = this.emails().filter((e) => {
-      const rs = e.readStatuses;
-      return !rs || rs.length === 0 || !rs[0].isRead;
-    }).length;
-    this.unreadCount.set(count);
-  }
 }

@@ -38,6 +38,11 @@ export class MailController {
     private readonly configService: ConfigService,
   ) {}
 
+  @Get('unread-counts')
+  async getUnreadCounts(@Req() req: any) {
+    return this.mailService.getUnreadCounts(req.user.id);
+  }
+
   @Get('emails')
   async findAll(@Query() query: QueryEmailsDto, @Req() req: any) {
     return this.mailService.findAll(query, req.user.id);

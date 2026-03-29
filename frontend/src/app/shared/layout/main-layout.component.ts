@@ -108,12 +108,12 @@ import { MailService } from '../../core/services/mail.service';
             </svg>
             @if (!collapsed()) {
               <span class="ml-3 flex-1">Correo</span>
-              @if (mailService.unreadCount() > 0) {
+              @if (mailService.unreadCount() > 0 && !isOnMailPage()) {
                 <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
                   {{ mailService.unreadCount() }}
                 </span>
               }
-            } @else if (mailService.unreadCount() > 0) {
+            } @else if (mailService.unreadCount() > 0 && !isOnMailPage()) {
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
@@ -336,6 +336,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly pageTitle = signal('Mi cuenta');
   readonly chatPopupOpen = signal(false);
   readonly isOnChatPage = signal(false);
+  readonly isOnMailPage = signal(false);
   private routerSub?: Subscription;
 
   // Nueva conversación desde popup
@@ -362,15 +363,19 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     void this.pushService.subscribe();
     this.mailService.connect();
     this.mailService.loadEmails(undefined, 1, 50);
+    this.mailService.loadUnreadCounts();
     this.incidentsService.connect();
     this.incidentsService.loadIncidents(this.incidentsService.isTicom ? false : true);
     this.reservationsService.connect();
     this.reservationsService.loadReservations(this.reservationsService.hasPrivilegedView ? false : true);
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
+    this.isOnMailPage.set(this.router.url.startsWith('/correo'));
     this.routerSub = this.router.events
       .pipe(filter((e) => e instanceof NavigationEnd))
       .subscribe((e) => {
-        this.isOnChatPage.set((e as NavigationEnd).urlAfterRedirects.startsWith('/chat'));
+        const url = (e as NavigationEnd).urlAfterRedirects;
+        this.isOnChatPage.set(url.startsWith('/chat'));
+        this.isOnMailPage.set(url.startsWith('/correo'));
       });
 
     this.popupSearchSubject.pipe(

@@ -14,6 +14,7 @@ import {
   MailFolder,
   SendEmailDto,
   MailRecipient,
+  MailUnreadCounts,
 } from '../../core/services/mail.service';
 
 const FOLDER_LABELS: Record<MailFolder, string> = {
@@ -36,25 +37,44 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Carpetas</p>
         </div>
 
-        <button (click)="selectFolder(null)" class="folder-btn" [class.folder-active]="activeFolder() === null">
+        <button (click)="selectFolder(null)" class="folder-btn" [class.folder-active]="activeFolder() === null && !isHistorical()">
           <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
-          <span class="ml-2 text-sm">Todos</span>
+          <span class="ml-2 text-sm flex-1 text-left">Todos</span>
+          @if (!isHistorical() && mailService.unreadCounts().total > 0) {
+            <span class="text-xs bg-teal-100 text-teal-700 rounded-full px-1.5 leading-5">{{ mailService.unreadCounts().total }}</span>
+          }
         </button>
 
         @for (folder of folders; track folder) {
-          <button (click)="selectFolder(folder)" class="folder-btn" [class.folder-active]="activeFolder() === folder">
+          <button (click)="selectFolder(folder)" class="folder-btn" [class.folder-active]="activeFolder() === folder && !isHistorical()">
             <span class="h-2 w-2 rounded-full flex-shrink-0" [ngClass]="folderDotClass(folder)"></span>
-            <span class="ml-2 text-sm">{{ folderLabel(folder) }}</span>
+            <span class="ml-2 text-sm flex-1 text-left">{{ folderLabel(folder) }}</span>
+            @if (!isHistorical() && folderUnreadCount(folder) > 0) {
+              <span class="text-xs bg-teal-100 text-teal-700 rounded-full px-1.5 leading-5">{{ folderUnreadCount(folder) }}</span>
+            }
           </button>
         }
 
         <div class="flex-1"></div>
 
-        @if (isTicom) {
-          <div class="p-2 border-t border-gray-200">
+        <div class="p-2 border-t border-gray-200 space-y-1.5">
+          <button (click)="toggleHistorical()"
+            class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            [class.bg-amber-600]="isHistorical()"
+            [class.text-white]="isHistorical()"
+            [class.bg-amber-50]="!isHistorical()"
+            [class.text-amber-700]="!isHistorical()">
+            <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Históricos
+          </button>
+
+          @if (isTicom) {
             <button (click)="openCompose()"
               class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium text-white transition-colors"
               style="background:#0f766e">
@@ -63,8 +83,8 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               </svg>
               Redactar
             </button>
-          </div>
-        }
+          }
+        </div>
       </aside>
 
       <!-- ── Email list ────────────────────────────────── -->
@@ -470,6 +490,7 @@ export class MailComponent implements OnInit {
   readonly activeEmail = signal<Email | null>(null);
   readonly detailLoading = signal(false);
   readonly isSearchMode = signal(false);
+  readonly isHistorical = signal(false);
 
   // Historial de navegación por referencias
   readonly navHistory = signal<Email[]>([]);
@@ -518,15 +539,28 @@ export class MailComponent implements OnInit {
   ngOnInit(): void {
     this.mailService.connect();
     this.mailService.loadEmails();
+    this.mailService.loadUnreadCounts();
   }
 
   selectFolder(folder: MailFolder | null): void {
+    this.isHistorical.set(false);
     this.activeFolder.set(folder);
     this.currentPage.set(1);
     this.activeEmail.set(null);
     this.isSearchMode.set(false);
     this.searchQuery = '';
     this.mailService.loadEmails(folder ?? undefined, 1);
+  }
+
+  toggleHistorical(): void {
+    const next = !this.isHistorical();
+    this.isHistorical.set(next);
+    this.activeFolder.set(null);
+    this.currentPage.set(1);
+    this.activeEmail.set(null);
+    this.isSearchMode.set(false);
+    this.searchQuery = '';
+    this.mailService.loadEmails(undefined, 1, 30, next);
   }
 
   selectEmail(email: Email): void {
@@ -554,7 +588,9 @@ export class MailComponent implements OnInit {
                 : e,
             ),
           );
-          this.mailService.unreadCount.update((n) => Math.max(0, n - 1));
+          if (!this.isHistorical()) {
+            this.mailService.decrementUnread(email.folder);
+          }
         },
       });
     }
@@ -593,21 +629,21 @@ export class MailComponent implements OnInit {
   clearSearch(): void {
     this.searchQuery = '';
     this.isSearchMode.set(false);
-    this.mailService.loadEmails(this.activeFolder() ?? undefined, this.currentPage());
+    this.mailService.loadEmails(this.activeFolder() ?? undefined, this.currentPage(), 30, this.isHistorical());
   }
 
   prevPage(): void {
     if (this.currentPage() <= 1) return;
     const p = this.currentPage() - 1;
     this.currentPage.set(p);
-    this.mailService.loadEmails(this.activeFolder() ?? undefined, p);
+    this.mailService.loadEmails(this.activeFolder() ?? undefined, p, 30, this.isHistorical());
   }
 
   nextPage(): void {
     if (this.currentPage() >= this.totalPages()) return;
     const p = this.currentPage() + 1;
     this.currentPage.set(p);
-    this.mailService.loadEmails(this.activeFolder() ?? undefined, p);
+    this.mailService.loadEmails(this.activeFolder() ?? undefined, p, 30, this.isHistorical());
   }
 
   openCompose(): void {
@@ -820,6 +856,11 @@ export class MailComponent implements OnInit {
   }
 
   folderLabel(folder: MailFolder): string { return FOLDER_LABELS[folder]; }
+
+  folderUnreadCount(folder: MailFolder): number {
+    const c = this.mailService.unreadCounts();
+    return c[folder] ?? 0;
+  }
 
   folderDotClass(folder: MailFolder): string {
     const map: Record<MailFolder, string> = {

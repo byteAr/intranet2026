@@ -46,6 +46,13 @@ export class MailService {
       qb.andWhere('e.folder = :folder', { folder: dto.folder });
     }
 
+    const currentYear = new Date().getFullYear();
+    if (dto.historical) {
+      qb.andWhere('EXTRACT(YEAR FROM e.date) < :year', { year: currentYear });
+    } else if (!dto.q?.trim()) {
+      qb.andWhere('EXTRACT(YEAR FROM e.date) = :year', { year: currentYear });
+    }
+
     if (dto.q?.trim()) {
       const term = dto.q.trim();
       qb.andWhere(
@@ -127,6 +134,29 @@ export class MailService {
         readAt: new Date(),
       }),
     );
+  }
+
+  async getUnreadCounts(userId: string): Promise<{ total: number; informativos: number; ejecutivos: number; redgen: number; tx: number }> {
+    const currentYear = new Date().getFullYear();
+    const rows = await this.emailRepo
+      .createQueryBuilder('e')
+      .select('e.folder', 'folder')
+      .addSelect('COUNT(*)', 'count')
+      .leftJoin('e.readStatuses', 'rs', 'rs.userId = :userId', { userId })
+      .where('EXTRACT(YEAR FROM e.date) = :year', { year: currentYear })
+      .andWhere('(rs.id IS NULL OR rs."isRead" = false)')
+      .groupBy('e.folder')
+      .getRawMany<{ folder: string; count: string }>();
+
+    const map: Record<string, number> = {};
+    for (const row of rows) {
+      map[row.folder] = parseInt(row.count, 10);
+    }
+    const informativos = map['informativos'] ?? 0;
+    const ejecutivos = map['ejecutivos'] ?? 0;
+    const redgen = map['redgen'] ?? 0;
+    const tx = map['tx'] ?? 0;
+    return { total: informativos + ejecutivos + redgen + tx, informativos, ejecutivos, redgen, tx };
   }
 
   async getAttachment(emailId: string, attachmentId: string): Promise<Attachment> {

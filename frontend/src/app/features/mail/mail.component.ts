@@ -4,6 +4,7 @@ import {
   signal,
   computed,
   OnInit,
+  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -131,10 +132,12 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
             @for (email of mailService.emails(); track email.id) {
               <button
                 (click)="selectEmail(email)"
-                class="w-full text-left px-3 py-3 border-b border-gray-50 transition-colors hover:bg-gray-50"
-                [class.bg-teal-50]="activeEmail()?.id === email.id"
-                [class.border-l-2]="!isRead(email)"
-                [class.border-l-teal-500]="!isRead(email)">
+                [attr.data-email-id]="email.id"
+                class="w-full text-left px-3 py-3 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50"
+                [ngClass]="{
+                  'bg-teal-50 -translate-y-0.5 shadow-md relative z-10': activeEmail()?.id === email.id,
+                  'border-l-2 border-l-teal-500': !isRead(email)
+                }">
                 <div class="flex items-start justify-between gap-1">
                   <p class="text-xs font-medium text-gray-700 truncate flex-1"
                      [class.font-semibold]="!isRead(email)">
@@ -537,6 +540,36 @@ export class MailComponent implements OnInit {
     this.mailService.connect();
     this.mailService.loadEmails();
     this.mailService.loadUnreadCounts();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    if (this.showCompose()) return;
+    const tag = (event.target as HTMLElement).tagName.toLowerCase();
+    if (tag === 'input' || tag === 'textarea') return;
+
+    event.preventDefault();
+    const emails = this.mailService.emails();
+    if (emails.length === 0) return;
+
+    const currentId = this.activeEmail()?.id;
+    const currentIndex = currentId ? emails.findIndex((e) => e.id === currentId) : -1;
+
+    let nextIndex: number;
+    if (event.key === 'ArrowDown') {
+      nextIndex = currentIndex < emails.length - 1 ? currentIndex + 1 : currentIndex;
+      if (currentIndex === -1) nextIndex = 0;
+    } else {
+      nextIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+    }
+
+    if (nextIndex === currentIndex && currentIndex !== -1) return;
+    const email = emails[nextIndex];
+    this.selectEmail(email);
+    setTimeout(() => {
+      document.querySelector(`[data-email-id="${email.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
   }
 
   selectFolder(folder: MailFolder | null): void {

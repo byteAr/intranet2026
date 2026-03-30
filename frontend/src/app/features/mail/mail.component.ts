@@ -557,6 +557,7 @@ export class MailComponent implements OnInit {
   );
 
   readonly copyTooltip = signal<{ x: number; y: number; copied: boolean } | null>(null);
+  private suppressTooltip = false;
 
   // Computed para evitar re-render del innerHTML en cada CD (perdería la selección de texto)
   readonly highlightedBodyHtml = computed(() => {
@@ -965,6 +966,7 @@ export class MailComponent implements OnInit {
   }
 
   onBodyMouseUp(event: MouseEvent): void {
+    if (this.suppressTooltip) return;
     const text = window.getSelection()?.toString().trim() ?? '';
     if (text.length > 0) {
       this.copyTooltip.set({ x: event.clientX, y: event.clientY, copied: false });
@@ -1009,6 +1011,10 @@ export class MailComponent implements OnInit {
     const target = event.target as HTMLElement;
     if (!target.closest('[data-copy-tooltip]')) {
       this.copyTooltip.set(null);
+      // Suprimir el próximo onBodyMouseUp para que no re-muestre el tooltip
+      // al hacer click para deseleccionar (mousedown siempre precede al mouseup)
+      this.suppressTooltip = true;
+      setTimeout(() => { this.suppressTooltip = false; }, 0);
     }
   }
 

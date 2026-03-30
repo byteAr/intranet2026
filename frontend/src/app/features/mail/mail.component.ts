@@ -594,6 +594,7 @@ export class MailComponent implements OnInit {
   }
 
   isRead(email: Email): boolean {
+    if (this.isHistorical()) return true;
     const rs = email.readStatuses;
     return !!rs && rs.length > 0 && rs[0].isRead;
   }

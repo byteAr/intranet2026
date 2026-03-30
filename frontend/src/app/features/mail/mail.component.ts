@@ -107,14 +107,11 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
         </div>
 
         <!-- List header -->
-        <div class="px-3 py-2 flex items-center justify-between border-b border-gray-100">
-          <span class="text-xs text-gray-400">
-            {{ mailService.totalEmails() }} correo{{ mailService.totalEmails() !== 1 ? 's' : '' }}
-          </span>
-          @if (isSearchMode()) {
+        @if (isSearchMode()) {
+          <div class="px-3 py-2 flex items-center justify-end border-b border-gray-100">
             <button (click)="clearSearch()" class="text-xs text-teal-600 hover:text-teal-800">Limpiar</button>
-          }
-        </div>
+          </div>
+        }
 
         <!-- Email rows -->
         <div class="flex-1 overflow-y-auto">

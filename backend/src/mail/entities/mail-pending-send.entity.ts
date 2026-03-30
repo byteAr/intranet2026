@@ -6,7 +6,7 @@ export class MailPendingSend {
   id: string;
 
   /** ID del email ya ingresado en DB (para actualizar internetMessageId luego) */
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   emailId: string | null;
 
   @Column()
@@ -40,12 +40,12 @@ export class MailPendingSend {
   @CreateDateColumn()
   createdAt: Date;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   processedAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   messageId: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   errorMessage: string | null;
 }

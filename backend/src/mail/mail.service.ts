@@ -36,11 +36,15 @@ export class MailService {
         'e.fromAddress', 'e.toAddresses', 'e.ccAddresses',
         'e.date', 'e.folder', 'e.isFromPstImport', 'e.createdAt',
       ])
-      .leftJoin('e.readStatuses', 'rs', 'rs.userId = :userId', { userId })
-      .addSelect(['rs.isRead', 'rs.readAt'])
       .orderBy('e.date', 'DESC')
       .skip(offset)
       .take(limit);
+
+    // No cargar readStatuses para históricos — no se trackea lectura y evita JOIN costoso
+    if (!dto.historical) {
+      qb.leftJoin('e.readStatuses', 'rs', 'rs.userId = :userId', { userId })
+        .addSelect(['rs.isRead', 'rs.readAt']);
+    }
 
     if (dto.folder) {
       qb.andWhere('e.folder = :folder', { folder: dto.folder });

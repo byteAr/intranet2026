@@ -78,7 +78,7 @@ export class MailGateway
     this.server.emit('new_email', {
       id: email.id,
       subject: email.subject,
-      from: email.fromAddress,
+      fromAddress: email.fromAddress,
       folder: email.folder,
       date: email.date,
       mailCode: email.mailCode,

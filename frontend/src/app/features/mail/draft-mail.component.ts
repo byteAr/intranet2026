@@ -358,6 +358,22 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
                   }
                 }
 
+                <!-- Creator: print when approved -->
+                @if (isCreator(activeDraft()!) && activeDraft()!.status === 'approved' && activeDraft()!.hash) {
+                  <button (click)="printDraft(activeDraft()!)"
+                    class="px-4 py-2 rounded-lg text-sm font-medium text-teal-700 border border-teal-300 hover:bg-teal-50 flex items-center gap-2">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Imprimir para firmar
+                  </button>
+                  <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200 text-sm">
+                    <span class="text-xs text-teal-600 font-medium">Hash:</span>
+                    <span class="font-mono font-bold text-teal-800 tracking-widest">{{ activeDraft()!.hash }}</span>
+                  </div>
+                }
+
                 <!-- Authorizer actions: pending_review -->
                 @if (isAuthorizer() && activeDraft()!.status === 'pending_review') {
                   <button (click)="approveDraft()" [disabled]="saving()"
@@ -507,6 +523,31 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadDrafts();
+
+    // React to real-time status changes from other users
+    this.draftMailService.draftStatusChanged$.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(({ id }) => {
+      this.draftMailService.getOne(id).subscribe({
+        next: (updated) => {
+          const inList = this.drafts().some((d) => d.id === id);
+          if (inList) {
+            this.drafts.update((list) => list.map((d) => d.id === id ? updated : d));
+          } else {
+            // Draft just became visible (e.g. new submitted draft for authorizer)
+            this.drafts.update((list) => [updated, ...list]);
+          }
+          if (this.activeDraft()?.id === id) {
+            this.activeDraft.set(updated);
+          }
+        },
+        error: () => {
+          // Draft no longer accessible (e.g. cancelled by authorizer) — remove from list
+          this.drafts.update((list) => list.filter((d) => d.id !== id));
+          if (this.activeDraft()?.id === id) this.activeDraft.set(null);
+        },
+      });
+    });
 
     this.toSearchSubject.pipe(
       debounceTime(250),
@@ -761,13 +802,98 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     const map: Record<string, string> = {
       created: 'Creado',
       submitted: 'Enviado a revisión',
+      resubmitted: 'Reenviado a revisión',
       approved: 'Aprobado',
       rejected: 'Devuelto para corrección',
       cancelled: 'Cancelado',
-      ticom_cancelled: 'Cancelado',
+      ticom_cancelled: 'Cancelado por TICOM',
       sent: 'Enviado',
-      updated: 'Editado',
+      edited: 'Editado',
+      delegated: 'Delegado',
     };
     return map[type] ?? type;
+  }
+
+  printDraft(draft: DraftEmail): void {
+    const w = window.open('', '_blank', 'width=850,height=1100');
+    if (!w) return;
+    w.document.write(this.buildPrintHtml(draft));
+    w.document.close();
+    w.onload = () => { w.focus(); w.print(); };
+  }
+
+  private buildPrintHtml(draft: DraftEmail): string {
+    const toList = draft.toAddresses.join('<br>') || '-';
+    const ccList = draft.ccAddresses.length ? draft.ccAddresses.join('<br>') : '-';
+    const approvedDate = draft.approvedAt ? new Date(draft.approvedAt) : new Date();
+    const hash = draft.hash ?? '';
+    const body = this.escapeHtml(draft.bodyText);
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>MTO - ${this.escapeHtml(draft.subject)}</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Courier New', monospace; font-size: 11pt; color: #000; margin: 0; }
+  .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; }
+  .header h1 { font-size: 13pt; font-weight: bold; margin: 0; letter-spacing: 2px; }
+  .header h2 { font-size: 10pt; font-weight: bold; margin: 4px 0 0; letter-spacing: 1px; }
+  .meta-row { display: flex; gap: 10px; margin-bottom: 6px; }
+  .meta-label { font-weight: bold; width: 120px; flex-shrink: 0; }
+  .body-section { border: 1px solid #000; padding: 10px; min-height: 180px; margin: 14px 0; white-space: pre-wrap; font-size: 11pt; line-height: 1.5; }
+  .footer-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  .footer-table td { border: 1px solid #000; padding: 6px 10px; vertical-align: top; }
+  .footer-table .label { font-weight: bold; width: 40px; white-space: nowrap; }
+  .hash-block { margin-top: 30px; border-top: 1px dashed #555; padding-top: 8px; text-align: center; font-size: 9pt; color: #444; }
+  .hash-value { font-size: 14pt; font-weight: bold; letter-spacing: 4px; color: #000; }
+  @media print {
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>GENDARMERÍA NACIONAL</h1>
+    <h2>MENSAJE DE TRÁFICO OFICIAL</h2>
+  </div>
+
+  <div class="meta-row"><span class="meta-label">Z O P R</span><span>${this.fmtDateGroup(approvedDate)}</span></div>
+  <div class="meta-row"><span class="meta-label">PROMOTOR:</span><span>${this.escapeHtml(draft.creatorName)}</span></div>
+  <div class="meta-row"><span class="meta-label">EJECUTIVOS:</span><span>${toList}</span></div>
+  <div class="meta-row"><span class="meta-label">INFORMATIVOS:</span><span>${ccList}</span></div>
+
+  <div class="body-section">${body}</div>
+
+  <table class="footer-table">
+    <tr>
+      <td class="label">BT:</td><td>&nbsp;</td>
+      <td class="label">FDO:</td><td>${this.escapeHtml(draft.approvedByName ?? '')}</td>
+      <td class="label">TX:</td><td>${this.escapeHtml(draft.creatorName)}</td>
+    </tr>
+  </table>
+
+  <div class="hash-block">
+    <div>HASH DE VERIFICACIÓN (no se envía con el correo)</div>
+    <div class="hash-value">${hash}</div>
+  </div>
+</body>
+</html>`;
+  }
+
+  private fmtDateGroup(d: Date): string {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const months = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+    const mon = months[d.getMonth()];
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${dd}${hh}${mm}${mon}${yy}`;
+  }
+
+  private escapeHtml(text: string): string {
+    return (text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 }

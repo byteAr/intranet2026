@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
 
@@ -83,6 +83,7 @@ export class DraftMailService {
 
   readonly pendingCount = signal(0);
   readonly approvedCount = signal(0);
+  readonly draftStatusChanged$ = new Subject<{ id: string; event: string }>();
 
   constructor() {
     this.authService.onBeforeLogout(() => this.disconnect());
@@ -94,13 +95,25 @@ export class DraftMailService {
     if (!token) return;
     this.socket = io('/draft-mail', { auth: { token }, transports: ['websocket', 'polling'] });
 
-    this.socket.on('draft_submitted', () => this.loadPendingCount());
-    this.socket.on('draft_approved', (_payload: { id: string; subject: string; hash: string }) => {
-      this.loadApprovedCount();
+    this.socket.on('draft_submitted', (p: { id: string }) => {
+      this.loadPendingCount();
+      this.draftStatusChanged$.next({ id: p.id, event: 'draft_submitted' });
     });
-    this.socket.on('draft_ready_to_send', () => this.loadApprovedCount());
-    this.socket.on('draft_rejected', () => {});
-    this.socket.on('draft_sent', () => this.loadApprovedCount());
+    this.socket.on('draft_approved', (p: { id: string; subject: string; hash: string }) => {
+      this.loadApprovedCount();
+      this.draftStatusChanged$.next({ id: p.id, event: 'draft_approved' });
+    });
+    this.socket.on('draft_ready_to_send', (p: { id: string }) => {
+      this.loadApprovedCount();
+      this.draftStatusChanged$.next({ id: p.id, event: 'draft_ready_to_send' });
+    });
+    this.socket.on('draft_rejected', (p: { id: string }) => {
+      this.draftStatusChanged$.next({ id: p.id, event: 'draft_rejected' });
+    });
+    this.socket.on('draft_sent', (p: { id: string }) => {
+      this.loadApprovedCount();
+      this.draftStatusChanged$.next({ id: p.id, event: 'draft_sent' });
+    });
   }
 
   disconnect(): void {

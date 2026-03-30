@@ -152,9 +152,6 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                   {{ email.subject }}
                 </p>
                 <div class="flex items-center gap-1.5 mt-1">
-                  @if (email.mailCode) {
-                    <span class="text-xs font-mono bg-gray-100 text-gray-500 px-1 rounded">{{ email.mailCode }}</span>
-                  }
                   <span class="text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
                     {{ folderLabel(email.folder) }}
                   </span>
@@ -411,9 +408,6 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                   {{ folderLabel(activeEmail()!.folder) }}
                 </span>
               </div>
-              @if (activeEmail()!.mailCode) {
-                <p class="text-xs font-mono text-gray-500 mb-2">{{ activeEmail()!.mailCode }}</p>
-              }
               <div class="space-y-0.5 text-xs text-gray-500">
                 <p><span class="font-medium text-gray-600">De:</span> {{ activeEmail()!.fromAddress }}</p>
                 <p><span class="font-medium text-gray-600">Para:</span> {{ activeEmail()!.toAddresses?.join(', ') }}</p>

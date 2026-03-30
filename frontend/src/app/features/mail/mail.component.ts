@@ -450,7 +450,20 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 
             <!-- Body — codes highlighted green (exists) / red (not found) -->
             <div (click)="onBodyCodeClick($event)"
-                 [innerHTML]="highlightedBody(activeEmail()!)"></div>
+                 (mouseup)="onBodyMouseUp($event)"
+                 [innerHTML]="highlightedBodyHtml()"></div>
+
+            <!-- Copy tooltip -->
+            @if (copyTooltip()) {
+              <div data-copy-tooltip
+                   class="fixed z-50 bg-gray-800 text-white text-xs px-2.5 py-1.5 rounded shadow-lg cursor-pointer select-none"
+                   [style.left.px]="copyTooltip()!.x"
+                   [style.top.px]="copyTooltip()!.y - 36"
+                   (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+                   (click)="copySelection()">
+                Copiar
+              </div>
+            }
 
             <!-- Reference tree -->
           </div>
@@ -531,6 +544,15 @@ export class MailComponent implements OnInit {
   readonly totalPages = computed(() =>
     Math.max(1, Math.ceil(this.mailService.totalEmails() / 30))
   );
+
+  readonly copyTooltip = signal<{ x: number; y: number } | null>(null);
+
+  // Computed para evitar re-render del innerHTML en cada CD (perdería la selección de texto)
+  readonly highlightedBodyHtml = computed(() => {
+    const email = this.activeEmail();
+    if (!email) return this.sanitizer.bypassSecurityTrustHtml('');
+    return this.buildHighlightedBody(email);
+  });
 
   get isTicom(): boolean {
     return this.mailService.isTicom;
@@ -931,8 +953,29 @@ export class MailComponent implements OnInit {
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   }
 
+  onBodyMouseUp(event: MouseEvent): void {
+    const text = window.getSelection()?.toString().trim() ?? '';
+    if (text.length > 0) {
+      this.copyTooltip.set({ x: event.clientX, y: event.clientY });
+    }
+  }
+
+  copySelection(): void {
+    const text = window.getSelection()?.toString() ?? '';
+    if (text) navigator.clipboard.writeText(text);
+    this.copyTooltip.set(null);
+  }
+
+  @HostListener('document:mousedown', ['$event'])
+  onDocumentMouseDown(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('[data-copy-tooltip]')) {
+      this.copyTooltip.set(null);
+    }
+  }
+
   /** Renders body with mail codes highlighted: green=exists, red=not found. */
-  highlightedBody(email: Email): SafeHtml {
+  private buildHighlightedBody(email: Email): SafeHtml {
     const refs = email.outgoingRefs ?? [];
     const refMap = new Map<string, string | null>();
     for (const r of refs) {

@@ -151,16 +151,16 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                    [class.text-gray-600]="isRead(email)">
                   {{ email.subject }}
                 </p>
-                <div class="flex items-center gap-1.5 mt-1">
-                  <span class="text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
-                    {{ folderLabel(email.folder) }}
-                  </span>
+                <div class="flex items-center justify-end gap-1.5 mt-1">
                   @if (email.attachmentCount) {
-                    <svg class="h-3 w-3 text-gray-400 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Tiene adjuntos">
+                    <svg class="h-3 w-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Tiene adjuntos">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                     </svg>
                   }
+                  <span class="text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
+                    {{ folderLabel(email.folder) }}
+                  </span>
                 </div>
               </button>
             }

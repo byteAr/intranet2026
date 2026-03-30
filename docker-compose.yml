@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:16
     container_name: pac_postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -17,6 +18,7 @@ services:
   openldap:
     image: osixia/openldap:latest
     container_name: pac_openldap
+    restart: unless-stopped
     environment:
       LDAP_ORGANISATION: 'Example Corp'
       LDAP_DOMAIN: example.com
@@ -60,6 +62,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: pac_backend
+    restart: unless-stopped
     env_file: .env
     environment:
       NODE_ENV: ${NODE_ENV}
@@ -83,6 +86,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: pac_frontend
+    restart: unless-stopped
     ports:
       - '4200:80'
     depends_on:

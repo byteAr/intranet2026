@@ -318,6 +318,7 @@ export class ParaEnviarComponent implements OnInit {
 
   editableMailCode = '';
   editableSubject = '';
+  private unlockedAt: Date | null = null;
 
   readonly showCancelForm = signal(false);
   cancelNotes = '';
@@ -365,6 +366,7 @@ export class ParaEnviarComponent implements OnInit {
         this.hashNotFound.set(false);
         this.activeEmail.set(email);
         this.unlockedEmailId.set(email.id);
+        this.unlockedAt = email.hashEnteredAt ? null : new Date();
         this.prepareEditFields(email);
       },
       error: () => {
@@ -380,6 +382,7 @@ export class ParaEnviarComponent implements OnInit {
     if (this.activeEmail()?.id === email.id && this.unlockedEmailId() === email.id) return;
     this.activeEmail.set(email);
     this.unlockedEmailId.set(null);
+    this.unlockedAt = null;
     this.unlockHash = '';
     this.unlockError.set(null);
     this.showCancelForm.set(false);
@@ -401,6 +404,7 @@ export class ParaEnviarComponent implements OnInit {
         this.unlocking.set(false);
         this.activeEmail.set(updated);
         this.unlockedEmailId.set(updated.id);
+        this.unlockedAt = updated.hashEnteredAt ? null : new Date();
         this.prepareEditFields(updated);
       },
       error: (err: { error?: { message?: string } }) => {
@@ -413,14 +417,14 @@ export class ParaEnviarComponent implements OnInit {
   private prepareEditFields(email: DraftEmail): void {
     if (email.mailCode) {
       this.editableMailCode = email.mailCode;
-      this.editableSubject = `${email.mailCode} - ${email.subject ?? ''}`;
+      this.editableSubject = email.mailCode;
     } else {
-      this.editableSubject = email.subject ?? '';
+      this.editableSubject = '';
       this.loadingNextCode.set(true);
       this.draftMailService.getNextMailCode().subscribe({
         next: (r) => {
           this.editableMailCode = r.code;
-          this.editableSubject = `${r.code} - ${email.subject ?? ''}`;
+          this.editableSubject = r.code;
           this.loadingNextCode.set(false);
         },
         error: () => { this.editableMailCode = ''; this.loadingNextCode.set(false); },
@@ -442,7 +446,9 @@ export class ParaEnviarComponent implements OnInit {
       }
     }
     const fdo = email.approvedAt ? this.fmtDateGroup(new Date(email.approvedAt)) : '------';
-    const bt = email.hashEnteredAt ? this.fmtDateGroup(new Date(email.hashEnteredAt)) : '------';
+    const bt = email.hashEnteredAt
+      ? this.fmtDateGroup(new Date(email.hashEnteredAt))
+      : (this.unlockedAt ? this.fmtDateGroup(this.unlockedAt) : '------');
     const user = this.authService.currentUser();
     const rank = user?.rank ?? '';
     const lastName = (user?.lastName ?? user?.displayName ?? '').toUpperCase();

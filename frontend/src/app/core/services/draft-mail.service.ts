@@ -114,6 +114,12 @@ export class DraftMailService {
       this.loadApprovedCount();
       this.draftStatusChanged$.next({ id: p.id, event: 'draft_sent' });
     });
+    this.socket.on('draft_cancelled', (p: { id: string }) => {
+      this.draftStatusChanged$.next({ id: p.id, event: 'draft_cancelled' });
+    });
+    this.socket.on('draft_status_changed', (p: { id: string }) => {
+      this.draftStatusChanged$.next({ id: p.id, event: 'draft_status_changed' });
+    });
   }
 
   disconnect(): void {

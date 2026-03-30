@@ -823,62 +823,125 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   }
 
   private buildPrintHtml(draft: DraftEmail): string {
-    const toList = draft.toAddresses.join('<br>') || '-';
-    const ccList = draft.ccAddresses.length ? draft.ccAddresses.join('<br>') : '-';
+    const toList = draft.toAddresses.join(' \u2013 ') || '-';
+    const ccList = draft.ccAddresses.length ? draft.ccAddresses.join(' \u2013 ') : '-';
     const approvedDate = draft.approvedAt ? new Date(draft.approvedAt) : new Date();
     const hash = draft.hash ?? '';
     const body = this.escapeHtml(draft.bodyText);
+    const zoprDate = this.fmtDateGroup(approvedDate);
+    const months = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+    const fechaLarga = `${months[approvedDate.getMonth()]} ${approvedDate.getFullYear()}`;
+    const approvedBy = this.escapeHtml(draft.approvedByName ?? '');
+    const creator = this.escapeHtml(draft.creatorName);
 
     return `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>MTO - ${this.escapeHtml(draft.subject)}</title>
+<title>MTO</title>
 <style>
-  @page { size: A4; margin: 20mm; }
-  * { box-sizing: border-box; }
-  body { font-family: 'Courier New', monospace; font-size: 11pt; color: #000; margin: 0; }
-  .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; }
-  .header h1 { font-size: 13pt; font-weight: bold; margin: 0; letter-spacing: 2px; }
-  .header h2 { font-size: 10pt; font-weight: bold; margin: 4px 0 0; letter-spacing: 1px; }
-  .meta-row { display: flex; gap: 10px; margin-bottom: 6px; }
-  .meta-label { font-weight: bold; width: 120px; flex-shrink: 0; }
-  .body-section { border: 1px solid #000; padding: 10px; min-height: 180px; margin: 14px 0; white-space: pre-wrap; font-size: 11pt; line-height: 1.5; }
-  .footer-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-  .footer-table td { border: 1px solid #000; padding: 6px 10px; vertical-align: top; }
-  .footer-table .label { font-weight: bold; width: 40px; white-space: nowrap; }
-  .hash-block { margin-top: 30px; border-top: 1px dashed #555; padding-top: 8px; text-align: center; font-size: 9pt; color: #444; }
-  .hash-value { font-size: 14pt; font-weight: bold; letter-spacing: 4px; color: #000; }
-  @media print {
-    .no-print { display: none !important; }
-  }
+  @page { size: A4; margin: 15mm 15mm 20mm 15mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 9pt; color: #000; }
+  .page-border { border: 1px solid #000; padding: 6px; min-height: 257mm; display: flex; flex-direction: column; }
+
+  /* TOP HEADER TABLE */
+  .top-header { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+  .top-header td { border: 1px solid #000; padding: 4px 8px; }
+  .td-gn { font-size: 10pt; font-weight: normal; width: 45%; }
+  .td-mto { font-size: 12pt; font-weight: bold; text-align: center; }
+
+  /* ZOPR ROW */
+  .zopr-row { width: 100%; border-collapse: collapse; }
+  .zopr-row td { border: 1px solid #000; border-top: 0; padding: 3px 8px; }
+  .td-zopr { font-size: 11pt; font-weight: bold; letter-spacing: 4px; width: 45%; }
+  .td-date { text-align: right; font-size: 10pt; }
+
+  /* META ROWS */
+  .meta { width: 100%; border-collapse: collapse; }
+  .meta td { border: 1px solid #000; border-top: 0; padding: 3px 8px; }
+  .meta .lbl { font-weight: bold; white-space: nowrap; width: 1%; padding-right: 6px; }
+
+  /* BODY */
+  .body-cell { border: 1px solid #000; border-top: 0; padding: 6px 8px; min-height: 100px; white-space: pre-wrap; font-size: 9pt; line-height: 1.5; flex: 1; }
+
+  /* FOOTER TABLE */
+  .footer-tbl { width: 100%; border-collapse: collapse; margin-top: 0; }
+  .footer-tbl td { border: 1px solid #000; border-top: 0; padding: 3px 6px; font-size: 8.5pt; vertical-align: top; }
+  .ft-labels { width: 22%; }
+  .ft-middle { width: 40%; }
+  .ft-right { width: 38%; }
+
+  /* SIGNATURE */
+  .signature { text-align: center; margin-top: 10px; font-size: 9pt; line-height: 1.6; }
+
+  /* HASH FOOTER */
+  .hash-footer { margin-top: auto; border-top: 1px dashed #666; padding-top: 4px; text-align: center; font-size: 7.5pt; color: #444; }
+  .hash-value { font-size: 13pt; font-weight: bold; letter-spacing: 5px; color: #000; font-family: 'Courier New', monospace; }
+
+  @media print { .no-print { display: none !important; } }
 </style>
 </head>
 <body>
-  <div class="header">
-    <h1>GENDARMERÍA NACIONAL</h1>
-    <h2>MENSAJE DE TRÁFICO OFICIAL</h2>
-  </div>
+<div class="page-border">
 
-  <div class="meta-row"><span class="meta-label">Z O P R</span><span>${this.fmtDateGroup(approvedDate)}</span></div>
-  <div class="meta-row"><span class="meta-label">PROMOTOR:</span><span>${this.escapeHtml(draft.creatorName)}</span></div>
-  <div class="meta-row"><span class="meta-label">EJECUTIVOS:</span><span>${toList}</span></div>
-  <div class="meta-row"><span class="meta-label">INFORMATIVOS:</span><span>${ccList}</span></div>
-
-  <div class="body-section">${body}</div>
-
-  <table class="footer-table">
+  <table class="top-header">
     <tr>
-      <td class="label">BT:</td><td>&nbsp;</td>
-      <td class="label">FDO:</td><td>${this.escapeHtml(draft.approvedByName ?? '')}</td>
-      <td class="label">TX:</td><td>${this.escapeHtml(draft.creatorName)}</td>
+      <td class="td-gn">GENDARMERÍA NACIONAL</td>
+      <td class="td-mto">MENSAJE DE TRAFICO OFICIAL</td>
     </tr>
   </table>
 
-  <div class="hash-block">
-    <div>HASH DE VERIFICACIÓN (no se envía con el correo)</div>
-    <div class="hash-value">${hash}</div>
+  <table class="zopr-row">
+    <tr>
+      <td class="td-zopr">Z &nbsp; O &nbsp; P &nbsp; R</td>
+      <td class="td-date">&hellip;&hellip;&hellip;&hellip;&hellip;${zoprDate}</td>
+    </tr>
+  </table>
+
+  <table class="meta">
+    <tr><td class="lbl">PROMOTOR (S):</td><td>${creator}</td></tr>
+    <tr><td class="lbl">EJECUTIVO (S):</td><td>${this.escapeHtml(toList)}</td></tr>
+    <tr><td class="lbl">INFORMATIVO(S):</td><td>${this.escapeHtml(ccList)}</td></tr>
+    <tr><td class="lbl">EXCEPTUADO (S):</td><td>&nbsp;</td></tr>
+  </table>
+
+  <div class="body-cell">${body}</div>
+
+  <table class="footer-tbl">
+    <tr>
+      <td class="ft-labels" rowspan="5">
+        <div style="margin-bottom:8px">BT:</div>
+        <div style="margin-bottom:8px">RECIBO:</div>
+        <div style="margin-bottom:8px">RETRANSMITIDO:</div>
+        <div style="margin-bottom:8px">TRANSMITIDO:</div>
+        <div>ENT. CENTRAL:</div>
+      </td>
+      <td class="ft-middle" rowspan="2">
+        <div>Lugar: BUENOS AIRES</div>
+        <div>Fecha: ${fechaLarga}</div>
+      </td>
+      <td class="ft-right" style="font-weight:bold; text-align:center">CLASIFICACIÓN</td>
+    </tr>
+    <tr>
+      <td class="ft-right" style="text-align:center">SELLO: &nbsp;/&nbsp; TRAMÍTESE</td>
+    </tr>
+    <tr><td class="ft-middle" colspan="1">&nbsp;</td><td class="ft-right">&nbsp;</td></tr>
+    <tr><td class="ft-middle" colspan="1">&nbsp;</td><td class="ft-right">&nbsp;</td></tr>
+    <tr><td class="ft-middle" colspan="1">&nbsp;</td><td class="ft-right">&nbsp;</td></tr>
+  </table>
+
+  <div class="signature">
+    ${approvedBy}<br>
+    <strong></strong>
   </div>
+
+  <div class="hash-footer">
+    HASH DE VERIFICACIÓN (no se envía con el correo)<br>
+    <span class="hash-value">${hash}</span>
+  </div>
+
+</div>
 </body>
 </html>`;
   }

@@ -3,9 +3,11 @@ import {
   inject,
   signal,
   OnInit,
+  DestroyRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   DraftMailService,
   DraftEmail,
@@ -270,6 +272,7 @@ import {
 })
 export class ParaEnviarComponent implements OnInit {
   readonly draftMailService = inject(DraftMailService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(false);
   readonly sending = signal(false);
@@ -296,6 +299,25 @@ export class ParaEnviarComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadEmails();
+
+    this.draftMailService.draftStatusChanged$.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(({ id, event }) => {
+      if (event === 'draft_ready_to_send' || event === 'draft_status_changed') {
+        // A draft was approved → may need to appear in the list
+        this.draftMailService.getApproved().subscribe({
+          next: (list) => this.emails.set(list),
+          error: () => {},
+        });
+      } else if (event === 'draft_sent' || event === 'draft_cancelled') {
+        // Remove from list if present
+        this.emails.update((list) => list.filter((e) => e.id !== id));
+        if (this.activeEmail()?.id === id) {
+          this.activeEmail.set(null);
+          this.unlockedEmailId.set(null);
+        }
+      }
+    });
   }
 
   loadEmails(): void {

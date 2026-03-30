@@ -7,6 +7,7 @@ import { readFileSync } from 'fs';
 import { DraftEmail, DraftHistoryEntry } from './entities/draft-email.entity';
 import { DraftEmailAttachment } from './entities/draft-email-attachment.entity';
 import { DraftMailAuthorizer } from './entities/draft-mail-authorizer.entity';
+import { Email } from '../mail/entities/email.entity';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
 import { ReviewActionDto } from './dto/review-action.dto';
@@ -28,6 +29,7 @@ export class DraftMailService {
     @InjectRepository(DraftEmail) private readonly draftRepo: Repository<DraftEmail>,
     @InjectRepository(DraftEmailAttachment) private readonly attachmentRepo: Repository<DraftEmailAttachment>,
     @InjectRepository(DraftMailAuthorizer) private readonly authorizerRepo: Repository<DraftMailAuthorizer>,
+    @InjectRepository(Email) private readonly emailRepo: Repository<Email>,
     private readonly configService: ConfigService,
     private readonly smtpSender: SmtpSenderService,
     @Inject(forwardRef(() => DraftMailGateway)) private readonly gateway: DraftMailGateway,
@@ -213,8 +215,8 @@ export class DraftMailService {
       byName: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName,
     }];
     const saved = await this.draftRepo.save(draft);
-    // Notify all MTOSAUTORIZADOS (broadcast — frontend filters by role)
-    this.gateway.notifyRole('MTOSAUTORIZADOS', 'draft_submitted', { id: draft.id, subject: draft.subject, creatorName: draft.creatorName });
+    this.gateway.notifyRole('', 'draft_submitted', { id: draft.id, subject: draft.subject, creatorName: draft.creatorName });
+    this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
     return saved;
   }
 
@@ -236,9 +238,9 @@ export class DraftMailService {
       byName: draft.approvedByName,
     }];
     const saved = await this.draftRepo.save(draft);
-    // Notify creator and TICOM
     this.gateway.notifyUser(draft.creatorId, 'draft_approved', { id: draft.id, subject: draft.subject, hash: draft.hash });
-    this.gateway.notifyRole('TICOM', 'draft_ready_to_send', { id: draft.id, subject: draft.subject });
+    this.gateway.notifyRole('', 'draft_ready_to_send', { id: draft.id, subject: draft.subject });
+    this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
     return saved;
   }
 
@@ -259,8 +261,8 @@ export class DraftMailService {
       detail: dto.notes,
     }];
     const saved = await this.draftRepo.save(draft);
-    // Notify creator
     this.gateway.notifyUser(draft.creatorId, 'draft_rejected', { id: draft.id, subject: draft.subject, notes: dto.notes });
+    this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
     return saved;
   }
 
@@ -284,7 +286,10 @@ export class DraftMailService {
       byName,
       detail: dto.notes,
     }];
-    return this.draftRepo.save(draft);
+    const saved = await this.draftRepo.save(draft);
+    this.gateway.notifyUser(draft.creatorId, 'draft_cancelled', { id: draft.id });
+    this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
+    return saved;
   }
 
   async ticomCancel(id: string, dto: ReviewActionDto, user: User): Promise<DraftEmail> {
@@ -305,7 +310,10 @@ export class DraftMailService {
       byName,
       detail: dto.notes,
     }];
-    return this.draftRepo.save(draft);
+    const saved = await this.draftRepo.save(draft);
+    this.gateway.notifyUser(draft.creatorId, 'draft_rejected', { id: draft.id, subject: draft.subject, notes: dto.notes });
+    this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
+    return saved;
   }
 
   async delegate(id: string, dto: DelegateDto, user: User): Promise<DraftEmail> {
@@ -352,20 +360,35 @@ export class DraftMailService {
 
   async getNextMailCode(): Promise<string> {
     const currentYear = new Date().getFullYear().toString().slice(-2);
-    // Find last sent DEI X/YY
-    const last = await this.draftRepo
+    const pattern = `DEI %/${currentYear}`;
+
+    // Check sent drafts
+    const lastDraft = await this.draftRepo
       .createQueryBuilder('d')
       .where('d.status = :status', { status: 'sent' })
-      .andWhere("d.\"mailCode\" LIKE :pattern", { pattern: `DEI %/${currentYear}` })
+      .andWhere("d.\"mailCode\" LIKE :pattern", { pattern })
       .orderBy('d."sentAt"', 'DESC')
       .getOne();
 
-    let nextNum = 1;
-    if (last?.mailCode) {
-      const match = last.mailCode.match(/DEI (\d+)\//);
-      if (match) nextNum = parseInt(match[1], 10) + 1;
-    }
-    return `DEI ${nextNum}/${currentYear}`;
+    // Also check main emails table (PST imports / received)
+    const lastEmail = await this.emailRepo
+      .createQueryBuilder('e')
+      .where("e.\"mailCode\" LIKE :pattern", { pattern })
+      .orderBy('e.date', 'DESC')
+      .getOne();
+
+    const extractNum = (code: string | null | undefined): number => {
+      if (!code) return 0;
+      const m = code.match(/DEI\s+(\d+)\//);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+
+    const maxNum = Math.max(
+      extractNum(lastDraft?.mailCode),
+      extractNum(lastEmail?.mailCode),
+    );
+
+    return `DEI ${maxNum + 1}/${currentYear}`;
   }
 
   private fmtDateGroup(d: Date): string {
@@ -434,8 +457,8 @@ export class DraftMailService {
     }];
     const saved = await this.draftRepo.save(draft);
 
-    // Notify creator
     this.gateway.notifyUser(draft.creatorId, 'draft_sent', { id: draft.id, mailCode: dto.mailCode });
+    this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
     return saved;
   }
 

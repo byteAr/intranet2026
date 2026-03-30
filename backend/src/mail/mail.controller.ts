@@ -9,7 +9,6 @@ import {
   Body,
   NotFoundException,
   BadRequestException,
-  InternalServerErrorException,
   UseInterceptors,
   UseGuards,
   UploadedFiles,
@@ -18,10 +17,10 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Response } from 'express';
 import { existsSync } from 'fs';
-import { ConfigService } from '@nestjs/config';
 import { MailService } from './mail.service';
 import { SmtpSenderService } from './smtp-sender.service';
 import { MailIngestService } from './mail-ingest.service';
+import { LdapRecipientsService } from './ldap-recipients.service';
 import { BridgeSecretGuard } from './guards/bridge-secret.guard';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 import { SendEmailDto } from './dto/send-email.dto';
@@ -35,7 +34,7 @@ export class MailController {
     private readonly mailService: MailService,
     private readonly smtpSender: SmtpSenderService,
     private readonly mailIngestService: MailIngestService,
-    private readonly configService: ConfigService,
+    private readonly ldapRecipientsService: LdapRecipientsService,
   ) {}
 
   @Get('unread-counts')
@@ -115,15 +114,6 @@ export class MailController {
   @Get('bridge/recipients')
   async bridgeRecipients(@Query('q') q: string) {
     if (!q?.trim()) throw new BadRequestException('Parámetro q requerido');
-    const bridgeUrl = this.configService.get<string>('MAIL_BRIDGE_URL');
-    if (!bridgeUrl) return [];
-
-    const secret = this.configService.get<string>('MAIL_BRIDGE_SECRET') ?? '';
-    const res = await fetch(
-      `${bridgeUrl}/ldap-search?q=${encodeURIComponent(q.trim())}`,
-      { headers: { Authorization: `Bearer ${secret}` } },
-    );
-    if (!res.ok) throw new InternalServerErrorException('Error al consultar la libreta');
-    return res.json();
+    return this.ldapRecipientsService.search(q.trim());
   }
 }

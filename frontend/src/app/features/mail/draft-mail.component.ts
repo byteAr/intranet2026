@@ -343,7 +343,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
               </div><!-- /MTO document -->
 
               <!-- Attachments -->
-              @if (activeDraft()!.attachments?.length > 0) {
+              @if (activeDraft()!.attachments.length > 0) {
                 <div>
                   <p class="text-xs font-medium text-gray-400 mb-1">Adjuntos:</p>
                   @for (att of activeDraft()!.attachments; track att.id) {

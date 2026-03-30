@@ -138,12 +138,20 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                   'bg-teal-50 -translate-y-0.5 shadow-md relative z-10': activeEmail()?.id === email.id,
                   'border-l-2 border-l-teal-500': !isRead(email)
                 }">
-                <div class="flex items-start justify-between gap-1">
+                <div class="flex items-center justify-between gap-1">
                   <p class="text-xs font-medium text-gray-700 truncate flex-1"
                      [class.font-semibold]="!isRead(email)">
                     {{ email.fromAddress }}
                   </p>
-                  <span class="text-xs text-gray-400 flex-shrink-0">{{ formatDate(email.date) }}</span>
+                  <div class="flex items-center gap-1 flex-shrink-0">
+                    @if (email.attachmentCount) {
+                      <svg class="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Tiene adjuntos">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                    }
+                    <span class="text-xs text-gray-400">{{ formatDate(email.date) }}</span>
+                  </div>
                 </div>
                 <p class="text-sm truncate mt-0.5"
                    [class.font-semibold]="!isRead(email)"
@@ -151,13 +159,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                    [class.text-gray-600]="isRead(email)">
                   {{ email.subject }}
                 </p>
-                <div class="flex items-center justify-end gap-1.5 mt-1">
-                  @if (email.attachmentCount) {
-                    <svg class="h-3 w-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Tiene adjuntos">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                  }
+                <div class="flex items-center justify-end mt-1">
                   <span class="text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
                     {{ folderLabel(email.folder) }}
                   </span>

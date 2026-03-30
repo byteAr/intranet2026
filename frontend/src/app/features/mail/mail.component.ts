@@ -133,7 +133,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               <button
                 (click)="selectEmail(email)"
                 [attr.data-email-id]="email.id"
-                class="w-full text-left px-3 py-3 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50"
+                class="w-full text-left px-3 py-3 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50 focus:outline-none"
                 [ngClass]="{
                   'bg-teal-50 -translate-y-0.5 shadow-md relative z-10': activeEmail()?.id === email.id,
                   'border-l-2 border-l-teal-500': !isRead(email)

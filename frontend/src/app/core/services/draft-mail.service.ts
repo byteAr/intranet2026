@@ -48,6 +48,7 @@ export interface DraftEmail {
   assignedReviewerName: string | null;
   approvedById: string | null;
   approvedByName: string | null;
+  approvedByRank: string | null;
   approvedAt: string | null;
   correctionNotes: string | null;
   mailCode: string | null;

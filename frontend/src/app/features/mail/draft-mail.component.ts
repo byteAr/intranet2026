@@ -127,13 +127,13 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                       <div class="border-r border-black p-1 flex justify-around items-center font-bold">
                         <span>Z</span><span>O</span><span>P</span><span>R</span>
                       </div>
-                      <div class="p-1 flex items-center justify-center text-xs">...........{{ formDateGroup() }}</div>
+                      <div class="p-1 flex items-center justify-center text-xs">{{ formDateGroup() }}</div>
                     </div>
                   </div>
                 </div>
                 <!-- PROMOTOR -->
                 <div class="border-b border-black p-2">
-                  <span class="font-bold">PROMOTOR (S):</span> {{ promotorName() }}
+                  <span class="font-bold">PROMOTOR (S):</span> DIREDTOS@MTO.GNA
                 </div>
                 <!-- EJECUTIVO (S) -->
                 <div class="border-b border-black p-2 relative">
@@ -227,16 +227,17 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
               </div><!-- /MTO document -->
 
               <!-- Attachments -->
-              @if (!editingDraft()) {
-                <div class="mt-3">
-                  <label class="text-xs text-gray-400">Adjuntos (opcional):</label>
-                  <input type="file" multiple (change)="onFilesSelected($event)"
-                    class="mt-1 block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100" />
-                  @for (f of selectedFiles(); track f.name) {
-                    <div class="text-xs text-gray-400 mt-0.5">• {{ f.name }}</div>
-                  }
-                </div>
-              }
+              <div class="mt-3">
+                <label class="text-xs text-gray-400">Adjuntos (opcional, máx. 5 MB por archivo):</label>
+                <input type="file" multiple (change)="onFilesSelected($event)"
+                  class="mt-1 block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100" />
+                @if (fileError()) {
+                  <div class="mt-2 rounded-lg bg-amber-50 border border-amber-300 px-3 py-2 text-xs text-amber-800">{{ fileError() }}</div>
+                }
+                @for (f of selectedFiles(); track f.name) {
+                  <div class="text-xs text-gray-400 mt-0.5">• {{ f.name }}</div>
+                }
+              </div>
 
               @if (formError()) {
                 <div class="mt-3 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{{ formError() }}</div>
@@ -289,13 +290,13 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                       <div class="border-r border-black p-1 flex justify-around items-center font-bold">
                         <span>Z</span><span>O</span><span>P</span><span>R</span>
                       </div>
-                      <div class="p-1 flex items-center justify-center text-xs">...........{{ draftDateGroup(activeDraft()!) }}</div>
+                      <div class="p-1 flex items-center justify-center text-xs">{{ draftDateGroup(activeDraft()!) }}</div>
                     </div>
                   </div>
                 </div>
                 <!-- Fields -->
                 <div class="border-b border-black p-2">
-                  <span class="font-bold">PROMOTOR (S):</span> {{ activeDraft()!.creatorName }}
+                  <span class="font-bold">PROMOTOR (S):</span> DIREDTOS@MTO.GNA
                 </div>
                 <div class="border-b border-black p-2 leading-tight">
                   <span class="font-bold">EJECUTIVO (S):</span> {{ activeDraft()!.toAddresses.join(' \u2013 ') || '\u2014' }}
@@ -328,6 +329,8 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                     <div class="p-4 text-center text-[11px] min-h-[60px]">
                       @if (activeDraft()!.approvedByName) {
                         <span class="font-bold uppercase block">{{ activeDraft()!.approvedByName }}</span>
+                        <span class="uppercase block">{{ activeDraft()!.approvedByRank ?? '' }}</span>
+                        <span class="uppercase block">DIRECCIÓN DE EDUCACIÓN E INSTITUTOS</span>
                       } @else {
                         <span class="text-gray-400 italic">[Firma del autorizador]</span>
                       }
@@ -509,6 +512,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   formBody = '';
   readonly selectedFiles = signal<File[]>([]);
   readonly formError = signal<string | null>(null);
+  readonly fileError = signal<string | null>(null);
 
   // Review actions
   readonly showRejectForm = signal(false);
@@ -589,14 +593,16 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   }
 
   openNew(): void {
+    const yr = String(new Date().getFullYear()).slice(-2);
     this.editingDraft.set(null);
     this.activeDraft.set(null);
     this.toAddresses.set([]);
     this.ccAddresses.set([]);
     this.formSubject = '';
-    this.formBody = '';
+    this.formBody = `DEI  /${yr}\n\n`;
     this.selectedFiles.set([]);
     this.formError.set(null);
+    this.fileError.set(null);
     this.showForm.set(true);
   }
 
@@ -657,8 +663,18 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   }
 
   onFilesSelected(event: Event): void {
-    const files = Array.from((event.target as HTMLInputElement).files ?? []);
-    this.selectedFiles.set(files.slice(0, 10));
+    const MAX_SIZE = 5 * 1024 * 1024;
+    const all = Array.from((event.target as HTMLInputElement).files ?? []);
+    const oversized = all.filter(f => f.size > MAX_SIZE);
+    const valid = all.filter(f => f.size <= MAX_SIZE);
+    if (oversized.length > 0) {
+      this.fileError.set(
+        `El archivo que intenta adjuntar pesa más de 5 MB. Si desea enviar MTO's con adjuntos de mayor peso considere enviarlos por el sistema de SASS o en el caso de encriptados por el sistema SIENA.`
+      );
+    } else {
+      this.fileError.set(null);
+    }
+    this.selectedFiles.set(valid.slice(0, 10));
   }
 
   saveDraft(): void {
@@ -848,14 +864,14 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 
   private buildPrintHtml(draft: DraftEmail): string {
     const toList = draft.toAddresses.join(' \u2013 ') || '\u2014';
-    const ccList = draft.ccAddresses.length ? draft.ccAddresses.join(' \u2013 ') : '\u2014';
+    const ccList = draft.ccAddresses.length ? draft.ccAddresses.join(' \u2013 ') : '';
     const approvedDate = draft.approvedAt ? new Date(draft.approvedAt) : new Date();
     const hash = draft.hash ?? '';
     const body = this.escapeHtml(draft.bodyText);
     const zoprDate = this.fmtDateGroup(approvedDate);
     const fechaLarga = `${MONTHS_LONG[approvedDate.getMonth()]} ${approvedDate.getFullYear()}`;
-    const approvedBy = this.escapeHtml(draft.approvedByName ?? '');
-    const creator = this.escapeHtml(draft.creatorName);
+    const approvedByName = this.escapeHtml(draft.approvedByName ?? '');
+    const approvedByRank = this.escapeHtml(draft.approvedByRank ?? '');
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -863,78 +879,82 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 <meta charset="UTF-8">
 <title>MTO</title>
 <style>
-  @page { size: A4; margin: 15mm; }
+  @page { size: A4; margin: 12mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #000; }
-  .doc { border: 2px solid #000; min-height: 267mm; display: flex; flex-direction: column; }
-  table { width: 100%; border-collapse: collapse; }
-  td { border: 1px solid #000; padding: 5px 10px; }
-  .td-gn { width: 42%; font-weight: bold; font-size: 10pt; }
-  .td-mto { font-size: 13pt; font-weight: bold; text-align: center; }
-  .td-zopr { font-weight: bold; letter-spacing: 7px; font-size: 12pt; }
-  .td-zoprdate { text-align: right; font-size: 10pt; }
-  .lbl { font-weight: bold; white-space: nowrap; width: 1%; }
-  .body-area { border: 1px solid #000; border-top: 0; padding: 8px 10px; flex: 1; min-height: 120px; white-space: pre-wrap; line-height: 1.7; font-size: 10pt; }
-  .ft-labels { width: 20%; vertical-align: top; font-size: 9pt; line-height: 2.2; }
-  .ft-mid { width: 38%; vertical-align: top; font-size: 9pt; line-height: 1.9; }
-  .ft-cls { text-align: center; font-weight: bold; font-size: 9pt; }
-  .ft-sello { text-align: center; font-size: 9pt; }
-  .ft-empty { padding: 10px; }
-  .sig { border: 1px solid #000; border-top: 0; padding: 14px; text-align: center; font-size: 9.5pt; min-height: 54px; }
-  .hash-section { border-top: 1px dashed #666; margin-top: auto; padding: 6px; text-align: center; font-size: 8.5pt; color: #444; }
-  .hash-val { font-size: 15pt; font-weight: bold; letter-spacing: 5px; font-family: 'Courier New', monospace; color: #000; }
-  .no-top { border-top: 0; }
+  body { font-family: 'Courier New', Courier, monospace; font-size: 9pt; color: #000; }
+  .doc { border: 2px solid #000; display: flex; flex-direction: column; }
+  .b { font-weight: bold; }
+  .uc { text-transform: uppercase; }
+  .center { text-align: center; }
+  /* Header */
+  .hdr { display: grid; grid-template-columns: 40% 60%; border-bottom: 1px solid #000; }
+  .hdr-gn { padding: 6px 10px; border-right: 1px solid #000; font-weight: bold; display: flex; align-items: center; }
+  .hdr-right { display: flex; flex-direction: column; }
+  .hdr-mto { padding: 4px 8px; text-align: center; font-weight: bold; border-bottom: 1px solid #000; }
+  .hdr-zopr-row { display: grid; grid-template-columns: 50% 50%; }
+  .hdr-zopr { padding: 4px 8px; font-weight: bold; letter-spacing: 6px; border-right: 1px solid #000; }
+  .hdr-date { padding: 4px 8px; text-align: center; font-size: 8pt; }
+  /* Fields */
+  .field-row { border-bottom: 1px solid #000; padding: 4px 10px; min-height: 1.6em; }
+  /* Body */
+  .body-area { border-bottom: 1px solid #000; padding: 10px; min-height: 160px; white-space: pre-wrap; line-height: 1.7; text-transform: uppercase; }
+  /* Footer */
+  .ftr { display: grid; grid-template-columns: 25% 17% 33% 25%; }
+  .ftr-bt { border-right: 1px solid #000; padding: 6px 8px; font-size: 8pt; line-height: 2; }
+  .ftr-empty { border-right: 1px solid #000; }
+  .ftr-mid { border-right: 1px solid #000; display: flex; flex-direction: column; justify-content: space-between; }
+  .ftr-loc { border-bottom: 1px solid #000; }
+  .ftr-loc div { padding: 3px 8px; font-size: 8pt; font-style: italic; }
+  .ftr-loc div + div { border-top: 1px solid #000; }
+  .ftr-sig { padding: 12px 8px; text-align: center; font-size: 8pt; min-height: 60px; }
+  .ftr-cls { padding: 6px 8px; font-size: 8pt; text-align: center; }
+  .ftr-cls div { border-bottom: 1px solid #000; padding: 4px; font-weight: bold; font-style: italic; }
+  .ftr-cls div:last-child { border-bottom: none; padding-top: 4px; min-height: 40px; }
+  /* Hash */
+  .hash-section { border-top: 1px dashed #666; padding: 5px; text-align: center; font-size: 7.5pt; color: #444; }
+  .hash-val { font-size: 14pt; font-weight: bold; letter-spacing: 5px; color: #000; }
 </style>
 </head>
 <body>
 <div class="doc">
-  <table>
-    <tr>
-      <td class="td-gn">GENDARMERÍA NACIONAL</td>
-      <td class="td-mto">MENSAJE DE TRAFICO OFICIAL</td>
-    </tr>
-    <tr>
-      <td class="td-zopr no-top">Z &nbsp; O &nbsp; P &nbsp; R</td>
-      <td class="td-zoprdate no-top">&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;${zoprDate}</td>
-    </tr>
-  </table>
-  <table>
-    <tr>
-      <td class="lbl no-top">PROMOTOR (S):</td>
-      <td class="no-top">${creator}</td>
-    </tr>
-    <tr>
-      <td class="lbl no-top">EJECUTIVO (S):</td>
-      <td class="no-top">${this.escapeHtml(toList)}</td>
-    </tr>
-    <tr>
-      <td class="lbl no-top">INFORMATIVO(S):</td>
-      <td class="no-top">${this.escapeHtml(ccList)}</td>
-    </tr>
-    <tr>
-      <td class="lbl no-top">EXCEPTUADO (S):</td>
-      <td class="no-top">&nbsp;</td>
-    </tr>
-  </table>
-  <div class="body-area">${body}</div>
-  <table>
-    <tr>
-      <td class="ft-labels no-top" rowspan="5">BT:<br>RECIBO:<br>RETRANSMITIDO:<br>TRANSMITIDO:<br>ENT. CENTRAL:</td>
-      <td class="ft-mid no-top" rowspan="2">Lugar: BUENOS AIRES<br>Fecha: ${fechaLarga}</td>
-      <td class="ft-cls no-top">CLASIFICACIÓN</td>
-    </tr>
-    <tr>
-      <td class="ft-sello no-top">SELLO: &nbsp;/&nbsp; TRAMÍTESE</td>
-    </tr>
-    <tr><td colspan="2" class="ft-empty no-top">&nbsp;</td></tr>
-    <tr><td colspan="2" class="ft-empty no-top">&nbsp;</td></tr>
-    <tr><td colspan="2" class="ft-empty no-top">&nbsp;</td></tr>
-  </table>
-  <div class="sig">${approvedBy}</div>
-  <div class="hash-section">
-    HASH DE VERIFICACIÓN (no se envía con el correo)<br>
-    <span class="hash-val">${hash}</span>
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-gn">GENDARMERÍA NACIONAL</div>
+    <div class="hdr-right">
+      <div class="hdr-mto">MENSAJE DE TRAFICO OFICIAL</div>
+      <div class="hdr-zopr-row">
+        <div class="hdr-zopr">Z &nbsp; O &nbsp; P &nbsp; R</div>
+        <div class="hdr-date">${zoprDate}</div>
+      </div>
+    </div>
   </div>
+  <!-- Fields -->
+  <div class="field-row"><span class="b">PROMOTOR (S):</span> DIREDTOS@MTO.GNA</div>
+  <div class="field-row"><span class="b">EJECUTIVO (S):</span> ${this.escapeHtml(toList)}</div>
+  <div class="field-row"><span class="b">INFORMATIVO(S):</span> ${this.escapeHtml(ccList)}</div>
+  <div class="field-row"><span class="b">EXCEPTUADO (S):</span></div>
+  <!-- Body -->
+  <div class="body-area">${body}</div>
+  <!-- Footer -->
+  <div class="ftr">
+    <div class="ftr-bt"><span class="b">BT:</span><br>INICIAL:<br>RECIBIDO:<br>RETRANSMITIDO:<br>TRASMITIDO:<br>ENT. CENTRAL:</div>
+    <div class="ftr-empty"></div>
+    <div class="ftr-mid">
+      <div class="ftr-loc">
+        <div>Lugar: <span style="font-style:normal">BUENOS AIRES</span></div>
+        <div>Fecha: <span style="font-style:normal;text-transform:uppercase">${fechaLarga}</span></div>
+      </div>
+      <div class="ftr-sig">
+        ${approvedByName ? `<strong class="uc">${approvedByName}</strong><br>${approvedByRank ? `<span class="uc">${approvedByRank}</span><br>` : ''}<span class="uc">DIRECCIÓN DE EDUCACIÓN E INSTITUTOS</span>` : ''}
+      </div>
+    </div>
+    <div class="ftr-cls">
+      <div>CLASIFICACION:</div>
+      <div>SELLO:</div>
+      <div>TRAMITESE:</div>
+    </div>
+  </div>
+  ${hash ? `<div class="hash-section">HASH DE VERIFICACIÓN (no se envía con el correo)<br><span class="hash-val">${hash}</span></div>` : ''}
 </div>
 </body>
 </html>`;

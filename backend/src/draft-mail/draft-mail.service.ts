@@ -229,6 +229,7 @@ export class DraftMailService {
     draft.status = 'approved';
     draft.approvedById = user.id;
     draft.approvedByName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
+    draft.approvedByRank = (user as User & { rank?: string }).rank ?? user.title ?? '';
     draft.approvedAt = new Date();
     draft.hash = await this.generateUniqueHash();
     draft.history = [...draft.history, {
@@ -413,7 +414,14 @@ export class DraftMailService {
     const fdoGroup = this.fmtDateGroup(draft.approvedAt ?? now);
     const btGroup = this.fmtDateGroup(draft.hashEnteredAt ?? now);
     const lastName = (user.lastName ?? user.displayName).toUpperCase();
-    const finalBody = `${dto.mailCode}.- ${draft.bodyText}\n\nFDO: ${fdoGroup}     BT: ${btGroup}     TX: ${rank} ${lastName}`;
+    let composedBody = draft.bodyText;
+    const deiPlaceholder = /^DEI\s+\/\d{2}/;
+    if (deiPlaceholder.test(composedBody)) {
+      composedBody = composedBody.replace(deiPlaceholder, `${dto.mailCode}.-`);
+    } else {
+      composedBody = `${dto.mailCode}.- ${composedBody}`;
+    }
+    const finalBody = `${composedBody}\n\nFDO: ${fdoGroup}     BT: ${btGroup}     TX: ${rank} ${lastName}`;
     const finalSubject = dto.subject ?? dto.mailCode;
 
     // Read attachment files from disk as buffers for SMTP

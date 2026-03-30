@@ -48,6 +48,7 @@ export class DraftEmail {
   // Approval info
   @Column({ type: 'varchar', nullable: true }) approvedById: string | null;
   @Column({ type: 'varchar', nullable: true }) approvedByName: string | null;
+  @Column({ type: 'varchar', nullable: true }) approvedByRank: string | null;
   @Column({ type: 'timestamp', nullable: true }) approvedAt: Date | null;
 
   // Correction notes (from MTOSAUTORIZADOS or TICOM)

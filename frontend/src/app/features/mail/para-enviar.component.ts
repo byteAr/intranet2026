@@ -141,13 +141,13 @@ import { AuthService } from '../../core/services/auth.service';
                       <div class="border-r border-black p-1 flex justify-around items-center font-bold">
                         <span>Z</span><span>O</span><span>P</span><span>R</span>
                       </div>
-                      <div class="p-1 flex items-center justify-center text-xs">...........{{ draftDateGroup(activeEmail()!) }}</div>
+                      <div class="p-1 flex items-center justify-center text-xs">{{ draftDateGroup(activeEmail()!) }}</div>
                     </div>
                   </div>
                 </div>
                 <!-- Fields -->
                 <div class="border-b border-black p-2">
-                  <span class="font-bold">PROMOTOR (S):</span> {{ activeEmail()!.creatorName }}
+                  <span class="font-bold">PROMOTOR (S):</span> DIREDTOS@MTO.GNA
                 </div>
                 <div class="border-b border-black p-2 leading-tight">
                   <span class="font-bold">EJECUTIVO (S):</span> {{ activeEmail()!.toAddresses.join(' \u2013 ') || '\u2014' }}
@@ -180,6 +180,8 @@ import { AuthService } from '../../core/services/auth.service';
                     <div class="p-4 text-center text-[11px] min-h-[60px]">
                       @if (activeEmail()!.approvedByName) {
                         <span class="font-bold uppercase block">{{ activeEmail()!.approvedByName }}</span>
+                        <span class="uppercase block">{{ activeEmail()!.approvedByRank ?? '' }}</span>
+                        <span class="uppercase block">DIRECCIÓN DE EDUCACIÓN E INSTITUTOS</span>
                       }
                     </div>
                   </div>
@@ -430,15 +432,22 @@ export class ParaEnviarComponent implements OnInit {
     const email = this.activeEmail();
     if (!email) return '';
     const code = this.editableMailCode.trim();
-    const body = email.bodyText ?? '';
+    let body = email.bodyText ?? '';
+    if (code) {
+      const deiPlaceholder = /^DEI\s+\/\d{2}/;
+      if (deiPlaceholder.test(body)) {
+        body = body.replace(deiPlaceholder, `${code}.-`);
+      } else {
+        body = `${code}.- ${body}`;
+      }
+    }
     const fdo = email.approvedAt ? this.fmtDateGroup(new Date(email.approvedAt)) : '------';
     const bt = email.hashEnteredAt ? this.fmtDateGroup(new Date(email.hashEnteredAt)) : '------';
     const user = this.authService.currentUser();
     const rank = user?.rank ?? '';
     const lastName = (user?.lastName ?? user?.displayName ?? '').toUpperCase();
     const tx = [rank, lastName].filter(Boolean).join(' ');
-    const prefix = code ? `${code}.- ` : '';
-    return `${prefix}${body}\n\nFDO: ${fdo}     BT: ${bt}     TX: ${tx}`;
+    return `${body}\n\nFDO: ${fdo}     BT: ${bt}     TX: ${tx}`;
   }
 
   draftDateGroup(email: DraftEmail): string {

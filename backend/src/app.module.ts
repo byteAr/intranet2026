@@ -30,6 +30,7 @@ import { Attachment } from './mail/entities/attachment.entity';
 import { EmailReadStatus } from './mail/entities/email-read-status.entity';
 import { EmailReference } from './mail/entities/email-reference.entity';
 import { PstImportLog } from './mail/entities/pst-import-log.entity';
+import { MailPendingSend } from './mail/entities/mail-pending-send.entity';
 
 @Module({
   imports: [
@@ -48,7 +49,7 @@ import { PstImportLog } from './mail/entities/pst-import-log.entity';
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog],
+        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),

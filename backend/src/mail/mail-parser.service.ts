@@ -17,7 +17,7 @@ const PARTIAL_CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)\b/;
 
 // Prefixes that are NEVER email codes — just institutional indicators in the body.
 // PON = encryption indicator for attachments ("PON 33/96" is a crypto key, not an email ref).
-const EXCLUDED_PREFIXES = new Set(['PON']);
+const EXCLUDED_PREFIXES = new Set(['PON', 'DDNG']);
 
 // Service/correction message prefixes — the actual mail code follows after them.
 // "SVC AB 123/22" → mailCode is "AB 123/22" (SVC = corrige un envío anterior)

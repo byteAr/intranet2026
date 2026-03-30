@@ -49,10 +49,10 @@ export class MailParserService {
     toAddresses: string[],
     ccAddresses: string[],
   ): MailFolder {
-    const normalize = (addr: string) => addr.toUpperCase().trim();
+    const normalize = (addr: string) => (addr ?? '').toUpperCase().trim();
     const from = normalize(fromAddress);
-    const toList = toAddresses.map(normalize);
-    const ccList = ccAddresses.map(normalize);
+    const toList = (toAddresses ?? []).filter(Boolean).map(normalize);
+    const ccList = (ccAddresses ?? []).filter(Boolean).map(normalize);
 
     // Match full address OR just the username part (handles PST display names)
     const matchAddr = (list: string[], target: string): boolean => {

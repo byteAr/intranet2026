@@ -369,13 +369,13 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.reservationsService.connect();
     this.reservationsService.loadReservations(this.reservationsService.hasPrivilegedView ? false : true);
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
-    this.isOnMailPage.set(this.router.url.startsWith('/correo'));
+    this.isOnMailPage.set(this.router.url === '/correo');
     this.routerSub = this.router.events
       .pipe(filter((e) => e instanceof NavigationEnd))
       .subscribe((e) => {
         const url = (e as NavigationEnd).urlAfterRedirects;
         this.isOnChatPage.set(url.startsWith('/chat'));
-        this.isOnMailPage.set(url.startsWith('/correo'));
+        this.isOnMailPage.set(url === '/correo');
       });
 
     this.popupSearchSubject.pipe(

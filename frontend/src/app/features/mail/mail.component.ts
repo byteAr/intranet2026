@@ -103,14 +103,71 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               (keydown.enter)="runSearch()"
               type="text"
               placeholder="Buscar..."
-              class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+              class="w-full pl-8 pr-8 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+            <button (click)="toggleAdvanced()" title="Búsqueda avanzada"
+              class="absolute right-2 top-1.5 transition-colors"
+              [class.text-teal-600]="showAdvanced() || isAdvancedMode()"
+              [class.text-gray-400]="!showAdvanced() && !isAdvancedMode()">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+            </button>
           </div>
+
+          @if (showAdvanced()) {
+            <div class="mt-2 p-2 bg-gray-50 rounded-md border border-gray-200 space-y-2">
+              <div class="flex gap-1.5">
+                <div class="flex-1">
+                  <label class="block text-[10px] font-medium text-gray-500 mb-0.5">Desde</label>
+                  <input type="date" [(ngModel)]="advDateFrom"
+                    class="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white" />
+                </div>
+                <div class="flex-1">
+                  <label class="block text-[10px] font-medium text-gray-500 mb-0.5">Hasta</label>
+                  <input type="date" [(ngModel)]="advDateTo"
+                    class="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-[10px] font-medium text-gray-500 mb-0.5">Año exacto</label>
+                <input type="number" [(ngModel)]="advYear" placeholder="ej: 2024" min="2000" max="2100"
+                  class="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-medium text-gray-500 mb-0.5">Tipo</label>
+                <div class="flex flex-wrap gap-1">
+                  @for (f of folders; track f) {
+                    <button (click)="toggleAdvFolder(f)"
+                      class="text-xs px-2 py-0.5 rounded-full border transition-colors"
+                      [ngClass]="advFolder() === f ? folderBadgeClass(f) : 'border-gray-200 text-gray-500 hover:border-gray-300'">
+                      {{ folderLabel(f) }}
+                    </button>
+                  }
+                </div>
+              </div>
+              <div class="flex gap-1.5 pt-0.5">
+                <button (click)="runAdvancedSearch()"
+                  class="flex-1 text-xs py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-700 font-medium">
+                  Buscar
+                </button>
+                <button (click)="clearAdvancedSearch()"
+                  class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-100">
+                  Limpiar
+                </button>
+              </div>
+            </div>
+          }
         </div>
 
         <!-- List header -->
-        @if (isSearchMode()) {
-          <div class="px-3 py-2 flex items-center justify-end border-b border-gray-100">
-            <button (click)="clearSearch()" class="text-xs text-teal-600 hover:text-teal-800">Limpiar</button>
+        @if (isSearchMode() || isAdvancedMode()) {
+          <div class="px-3 py-2 flex items-center justify-between border-b border-gray-100">
+            <span class="text-xs text-gray-400">
+              @if (isAdvancedMode()) { Búsqueda avanzada } @else { Resultados }
+            </span>
+            <button (click)="isAdvancedMode() ? clearAdvancedSearch() : clearSearch()"
+              class="text-xs text-teal-600 hover:text-teal-800">Limpiar</button>
           </div>
         }
 
@@ -511,6 +568,12 @@ export class MailComponent implements OnInit {
   readonly detailLoading = signal(false);
   readonly isSearchMode = signal(false);
   readonly isHistorical = signal(false);
+  readonly showAdvanced = signal(false);
+  readonly isAdvancedMode = signal(false);
+  advDateFrom = '';
+  advDateTo = '';
+  advYear = '';
+  readonly advFolder = signal<MailFolder | null>(null);
 
   // Historial de navegación por referencias
   readonly navHistory = signal<Email[]>([]);
@@ -608,6 +671,8 @@ export class MailComponent implements OnInit {
     this.currentPage.set(1);
     this.activeEmail.set(null);
     this.isSearchMode.set(false);
+    this.isAdvancedMode.set(false);
+    this.showAdvanced.set(false);
     this.searchQuery = '';
     this.mailService.loadEmails(folder ?? undefined, 1);
   }
@@ -619,6 +684,8 @@ export class MailComponent implements OnInit {
     this.currentPage.set(1);
     this.activeEmail.set(null);
     this.isSearchMode.set(false);
+    this.isAdvancedMode.set(false);
+    this.showAdvanced.set(false);
     this.searchQuery = '';
     this.mailService.loadEmails(undefined, 1, 30, next);
   }
@@ -691,6 +758,46 @@ export class MailComponent implements OnInit {
     this.searchQuery = '';
     this.isSearchMode.set(false);
     this.mailService.loadEmails(this.activeFolder() ?? undefined, this.currentPage(), 30, this.isHistorical());
+  }
+
+  toggleAdvanced(): void {
+    this.showAdvanced.update((v) => !v);
+  }
+
+  toggleAdvFolder(f: MailFolder): void {
+    this.advFolder.update((cur) => cur === f ? null : f);
+  }
+
+  runAdvancedSearch(): void {
+    const year = this.advYear ? parseInt(this.advYear, 10) : undefined;
+    const folder = this.advFolder() ?? undefined;
+    this.isAdvancedMode.set(true);
+    this.isSearchMode.set(false);
+    this.showAdvanced.set(false);
+    this.currentPage.set(1);
+    this.activeEmail.set(null);
+    this.mailService.loadEmails(
+      folder,
+      1,
+      30,
+      false,
+      {
+        q: this.searchQuery.trim() || undefined,
+        dateFrom: this.advDateFrom || undefined,
+        dateTo: this.advDateTo || undefined,
+        year,
+      },
+    );
+  }
+
+  clearAdvancedSearch(): void {
+    this.advDateFrom = '';
+    this.advDateTo = '';
+    this.advYear = '';
+    this.advFolder.set(null);
+    this.isAdvancedMode.set(false);
+    this.showAdvanced.set(false);
+    this.mailService.loadEmails(this.activeFolder() ?? undefined, 1, 30, this.isHistorical());
   }
 
   prevPage(): void {

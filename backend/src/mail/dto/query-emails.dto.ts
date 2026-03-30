@@ -29,4 +29,22 @@ export class QueryEmailsDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   historical?: boolean;
+
+  /** Filtro por año exacto (anula historical y el filtro de año actual) */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number;
+
+  /** Fecha desde (YYYY-MM-DD) */
+  @IsOptional()
+  @IsString()
+  dateFrom?: string;
+
+  /** Fecha hasta (YYYY-MM-DD) */
+  @IsOptional()
+  @IsString()
+  dateTo?: string;
 }

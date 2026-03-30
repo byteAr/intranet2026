@@ -51,10 +51,23 @@ export class MailService {
     }
 
     const currentYear = new Date().getFullYear();
-    if (dto.historical) {
-      qb.andWhere('EXTRACT(YEAR FROM e.date) < :year', { year: currentYear });
-    } else if (!dto.q?.trim()) {
-      qb.andWhere('EXTRACT(YEAR FROM e.date) = :year', { year: currentYear });
+    const hasAdvancedDate = !!(dto.year || dto.dateFrom || dto.dateTo);
+
+    if (dto.year) {
+      qb.andWhere('EXTRACT(YEAR FROM e.date) = :exactYear', { exactYear: dto.year });
+    } else if (!hasAdvancedDate) {
+      if (dto.historical) {
+        qb.andWhere('EXTRACT(YEAR FROM e.date) < :year', { year: currentYear });
+      } else if (!dto.q?.trim()) {
+        qb.andWhere('EXTRACT(YEAR FROM e.date) = :year', { year: currentYear });
+      }
+    }
+
+    if (dto.dateFrom) {
+      qb.andWhere('e.date >= :dateFrom', { dateFrom: new Date(dto.dateFrom + 'T00:00:00') });
+    }
+    if (dto.dateTo) {
+      qb.andWhere('e.date <= :dateTo', { dateTo: new Date(dto.dateTo + 'T23:59:59') });
     }
 
     if (dto.q?.trim()) {

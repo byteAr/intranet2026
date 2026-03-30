@@ -154,11 +154,21 @@ export class MailService {
     return this.socket?.connected ?? false;
   }
 
-  loadEmails(folder?: MailFolder, page = 1, limit = 30, historical = false): void {
+  loadEmails(
+    folder?: MailFolder,
+    page = 1,
+    limit = 30,
+    historical = false,
+    advanced?: { q?: string; dateFrom?: string; dateTo?: string; year?: number },
+  ): void {
     this.loading.set(true);
     let params = new HttpParams().set('page', page).set('limit', limit);
     if (folder) params = params.set('folder', folder);
     if (historical) params = params.set('historical', 'true');
+    if (advanced?.q?.trim()) params = params.set('q', advanced.q.trim());
+    if (advanced?.dateFrom) params = params.set('dateFrom', advanced.dateFrom);
+    if (advanced?.dateTo) params = params.set('dateTo', advanced.dateTo);
+    if (advanced?.year) params = params.set('year', advanced.year);
 
     this.http.get<EmailListResponse>('/api/mail/emails', { params }).subscribe({
       next: (res) => {

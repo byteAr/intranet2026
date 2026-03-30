@@ -119,7 +119,7 @@ export class UsersService {
       .getMany();
   }
 
-  async updateProfile(id: string, data: { recoveryEmail?: string; avatar?: string }): Promise<User> {
+  async updateProfile(id: string, data: { recoveryEmail?: string; avatar?: string; rank?: string }): Promise<User> {
     await this.userRepo.update(id, data);
     return this.userRepo.findOne({ where: { id } }) as Promise<User>;
   }

@@ -71,6 +71,9 @@ export class User {
   @Column({ type: 'text', nullable: true })
   avatar: string;
 
+  @Column({ nullable: true, type: 'varchar' })
+  rank: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

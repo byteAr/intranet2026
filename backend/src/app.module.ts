@@ -17,6 +17,7 @@ import { IncidentsModule } from './incidents/incidents.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { PushModule } from './push/push.module';
 import { MailModule } from './mail/mail.module';
+import { DraftMailModule } from './draft-mail/draft-mail.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { User } from './users/entities/user.entity';
@@ -31,6 +32,9 @@ import { EmailReadStatus } from './mail/entities/email-read-status.entity';
 import { EmailReference } from './mail/entities/email-reference.entity';
 import { PstImportLog } from './mail/entities/pst-import-log.entity';
 import { MailPendingSend } from './mail/entities/mail-pending-send.entity';
+import { DraftEmail } from './draft-mail/entities/draft-email.entity';
+import { DraftEmailAttachment } from './draft-mail/entities/draft-email-attachment.entity';
+import { DraftMailAuthorizer } from './draft-mail/entities/draft-mail-authorizer.entity';
 
 @Module({
   imports: [
@@ -49,7 +53,7 @@ import { MailPendingSend } from './mail/entities/mail-pending-send.entity';
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend],
+        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),
@@ -68,6 +72,7 @@ import { MailPendingSend } from './mail/entities/mail-pending-send.entity';
     ReservationsModule,
     PushModule,
     MailModule,
+    DraftMailModule,
   ],
   providers: [
     // Apply JwtAuthGuard globally; routes marked @Public() bypass it

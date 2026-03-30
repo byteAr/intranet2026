@@ -456,12 +456,23 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
             <!-- Copy tooltip -->
             @if (copyTooltip()) {
               <div data-copy-tooltip
-                   class="fixed z-50 bg-gray-800 text-white text-xs px-2.5 py-1.5 rounded shadow-lg cursor-pointer select-none"
+                   class="fixed z-50 text-white text-xs px-2.5 py-1.5 rounded shadow-lg cursor-pointer select-none flex items-center gap-1"
+                   [class.bg-gray-800]="!copyTooltip()!.copied"
+                   [class.bg-green-600]="copyTooltip()!.copied"
                    [style.left.px]="copyTooltip()!.x"
                    [style.top.px]="copyTooltip()!.y - 36"
+                   [style.opacity]="copyTooltip()!.copied ? '0' : '1'"
+                   [style.transition]="copyTooltip()!.copied ? 'opacity 0.7s ease 0.3s' : 'none'"
                    (mousedown)="$event.preventDefault(); $event.stopPropagation()"
                    (click)="copySelection()">
-                Copiar
+                @if (copyTooltip()!.copied) {
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                  </svg>
+                  Copiado
+                } @else {
+                  Copiar
+                }
               </div>
             }
 
@@ -545,7 +556,7 @@ export class MailComponent implements OnInit {
     Math.max(1, Math.ceil(this.mailService.totalEmails() / 30))
   );
 
-  readonly copyTooltip = signal<{ x: number; y: number } | null>(null);
+  readonly copyTooltip = signal<{ x: number; y: number; copied: boolean } | null>(null);
 
   // Computed para evitar re-render del innerHTML en cada CD (perdería la selección de texto)
   readonly highlightedBodyHtml = computed(() => {
@@ -956,14 +967,41 @@ export class MailComponent implements OnInit {
   onBodyMouseUp(event: MouseEvent): void {
     const text = window.getSelection()?.toString().trim() ?? '';
     if (text.length > 0) {
-      this.copyTooltip.set({ x: event.clientX, y: event.clientY });
+      this.copyTooltip.set({ x: event.clientX, y: event.clientY, copied: false });
     }
   }
 
   copySelection(): void {
-    const text = window.getSelection()?.toString() ?? '';
-    if (text) navigator.clipboard.writeText(text);
-    this.copyTooltip.set(null);
+    const sel = window.getSelection();
+    const text = sel?.toString() ?? '';
+    if (!text) return;
+
+    const pos = this.copyTooltip();
+    if (!pos) return;
+
+    // Copiar al clipboard (con fallback para HTTP)
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).catch(() => this.fallbackCopy(text));
+    } else {
+      this.fallbackCopy(text);
+    }
+
+    // Mostrar estado "copiado" → fondo verde, fade out en 1s
+    this.copyTooltip.set({ ...pos, copied: true });
+    setTimeout(() => {
+      sel?.removeAllRanges();
+      this.copyTooltip.set(null);
+    }, 1000);
+  }
+
+  private fallbackCopy(text: string): void {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    Object.assign(ta.style, { position: 'fixed', opacity: '0', top: '0', left: '0' });
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch { /* ignorar */ }
+    document.body.removeChild(ta);
   }
 
   @HostListener('document:mousedown', ['$event'])

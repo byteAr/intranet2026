@@ -103,18 +103,18 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               (keydown.enter)="runSearch()"
               type="text"
               placeholder="Buscar..."
-              class="w-full pl-8 pr-8 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
-            <button (click)="toggleAdvanced()" title="Búsqueda avanzada"
-              class="absolute right-2 top-1.5 transition-colors"
-              [class.text-teal-600]="showAdvanced() || isAdvancedMode()"
-              [class.text-gray-400]="!showAdvanced() && !isAdvancedMode()">
-              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-            </button>
+              class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
           </div>
-
+          <button (click)="toggleAdvanced()"
+            class="mt-1 text-xs font-medium transition-colors flex items-center gap-1"
+            [class.text-teal-600]="showAdvanced() || isAdvancedMode()"
+            [class.text-gray-400]="!showAdvanced() && !isAdvancedMode()">
+            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Búsqueda avanzada
+          </button>
           @if (showAdvanced()) {
             <div class="mt-2 p-2 bg-gray-50 rounded-md border border-gray-200 space-y-2">
               <div class="flex gap-1.5">

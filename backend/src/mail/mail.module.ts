@@ -5,6 +5,7 @@ import { Attachment } from './entities/attachment.entity';
 import { EmailReadStatus } from './entities/email-read-status.entity';
 import { EmailReference } from './entities/email-reference.entity';
 import { PstImportLog } from './entities/pst-import-log.entity';
+import { MailPendingSend } from './entities/mail-pending-send.entity';
 import { MailParserService } from './mail-parser.service';
 import { ImapPollerService } from './imap-poller.service';
 import { MailIngestService } from './mail-ingest.service';
@@ -27,6 +28,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       EmailReadStatus,
       EmailReference,
       PstImportLog,
+      MailPendingSend,
     ]),
     JwtModule.registerAsync({
       imports: [ConfigModule],

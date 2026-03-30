@@ -1,8 +1,12 @@
-import { Injectable, InternalServerErrorException, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
+import { randomUUID } from 'crypto';
 import { Email } from './entities/email.entity';
+import { MailPendingSend } from './entities/mail-pending-send.entity';
 import { MailIngestService } from './mail-ingest.service';
 import { SendEmailDto } from './dto/send-email.dto';
 
@@ -14,6 +18,10 @@ export class SmtpSenderService implements OnModuleInit {
   constructor(
     private readonly configService: ConfigService,
     private readonly mailIngestService: MailIngestService,
+    @InjectRepository(MailPendingSend)
+    private readonly pendingSendRepo: Repository<MailPendingSend>,
+    @InjectRepository(Email)
+    private readonly emailRepo: Repository<Email>,
   ) {}
 
   onModuleInit(): void {
@@ -39,48 +47,22 @@ export class SmtpSenderService implements OnModuleInit {
     return this.sendDirect(dto, files);
   }
 
+  /**
+   * En modo bridge el envío es asíncrono: guarda el email en DB (aparece
+   * en Enviados de inmediato) y encola la entrega SMTP para que el bridge
+   * lo recoja en el próximo ciclo de polling.
+   */
   private async sendViaBridge(
-    bridgeUrl: string,
+    _bridgeUrl: string,
     dto: SendEmailDto,
     files: Express.Multer.File[],
   ): Promise<Email> {
-    const secret = this.configService.get<string>('MAIL_BRIDGE_SECRET') ?? '';
     const from = this.configService.get<string>('MAIL_SMTP_FROM')!;
+    const tempId = `bridge-queued-${randomUUID()}`;
 
-    const attachments = files.map((f) => ({
-      filename: f.originalname,
-      contentType: f.mimetype,
-      base64: f.buffer.toString('base64'),
-    }));
-
-    const res = await fetch(`${bridgeUrl}/send`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${secret}`,
-      },
-      body: JSON.stringify({
-        from,
-        to: dto.to,
-        cc: dto.cc ?? [],
-        bcc: dto.bcc ?? [],
-        subject: dto.subject,
-        text: dto.bodyText,
-        html: dto.bodyHtml,
-        attachments,
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => res.statusText);
-      throw new InternalServerErrorException(`Bridge send error: ${body}`);
-    }
-
-    const { messageId } = (await res.json()) as { messageId: string };
-    const internetMessageId = messageId ?? `sent-bridge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
+    // Ingestar inmediatamente con ID temporal → aparece en Enviados al instante
     const result = await this.mailIngestService.ingest({
-      internetMessageId,
+      internetMessageId: tempId,
       subject: dto.subject,
       fromAddress: from,
       toAddresses: dto.to,
@@ -96,8 +78,61 @@ export class SmtpSenderService implements OnModuleInit {
       })),
     });
 
-    this.logger.log(`Sent via bridge "${dto.subject}" to ${dto.to.join(', ')}`);
+    // Encolar entrega SMTP para el bridge
+    await this.pendingSendRepo.save(
+      this.pendingSendRepo.create({
+        emailId: result.saved!.id,
+        fromAddr: from,
+        to: dto.to,
+        cc: dto.cc ?? null,
+        bcc: dto.bcc ?? null,
+        subject: dto.subject,
+        bodyText: dto.bodyText,
+        bodyHtml: dto.bodyHtml ?? null,
+        attachments: files.length
+          ? files.map((f) => ({
+              filename: f.originalname,
+              contentType: f.mimetype,
+              base64: f.buffer.toString('base64'),
+            }))
+          : null,
+      }),
+    );
+
+    this.logger.log(`Queued "${dto.subject}" for bridge SMTP delivery to ${dto.to.join(', ')}`);
     return result.saved!;
+  }
+
+  /** El bridge llama a GET /bridge/next-send para obtener el próximo envío pendiente */
+  async getNextPendingSend(): Promise<MailPendingSend | null> {
+    return this.pendingSendRepo.findOne({
+      where: { status: 'pending' },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  /** El bridge llama a POST /bridge/send-done para reportar el resultado */
+  async processSendResult(id: string, messageId?: string, error?: string): Promise<void> {
+    const pending = await this.pendingSendRepo.findOne({ where: { id } });
+    if (!pending) return;
+
+    if (messageId && pending.emailId) {
+      // Actualizar el internetMessageId para que el IMAP poller no duplique
+      await this.emailRepo.update(pending.emailId, { internetMessageId: messageId });
+    }
+
+    await this.pendingSendRepo.update(id, {
+      status: error ? 'failed' : 'sent',
+      processedAt: new Date(),
+      messageId: messageId ?? null,
+      errorMessage: error ?? null,
+    });
+
+    if (error) {
+      this.logger.error(`Bridge SMTP delivery failed for "${pending.subject}": ${error}`);
+    } else {
+      this.logger.log(`Bridge SMTP delivered "${pending.subject}" → ${messageId}`);
+    }
   }
 
   private async sendDirect(dto: SendEmailDto, files: Express.Multer.File[]): Promise<Email> {

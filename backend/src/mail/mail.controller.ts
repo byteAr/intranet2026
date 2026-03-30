@@ -92,6 +92,22 @@ export class MailController {
     return this.smtpSender.send(dto, files ?? []);
   }
 
+  @Get('bridge/next-send')
+  @Public()
+  @UseGuards(BridgeSecretGuard)
+  async getNextSend() {
+    const pending = await this.smtpSender.getNextPendingSend();
+    return pending ?? null;
+  }
+
+  @Post('bridge/send-done')
+  @Public()
+  @UseGuards(BridgeSecretGuard)
+  async sendDone(@Body() body: { id: string; messageId?: string; error?: string }) {
+    await this.smtpSender.processSendResult(body.id, body.messageId, body.error);
+    return { ok: true };
+  }
+
   @Post('bridge/ingest')
   @Public()
   @UseGuards(BridgeSecretGuard)

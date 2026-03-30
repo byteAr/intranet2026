@@ -2,6 +2,7 @@
 
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
+const nodemailer = require('nodemailer');
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
@@ -30,6 +31,43 @@ function saveState(state) {
   } catch (err) {
     // non-fatal — will retry saving on next cycle
   }
+}
+
+function requestBackend(backendUrl, secret, method, path, payload) {
+  return new Promise((resolve, reject) => {
+    const body = payload ? JSON.stringify(payload) : null;
+    const url = new URL(backendUrl + path);
+    const lib = url.protocol === 'https:' ? https : http;
+
+    const headers = { Authorization: `Bearer ${secret}` };
+    if (body) {
+      headers['Content-Type'] = 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(body);
+    }
+
+    const req = lib.request(
+      {
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: url.pathname,
+        method,
+        headers,
+        timeout: 30000,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => (data += chunk));
+        res.on('end', () => {
+          resolve({ status: res.statusCode, body: data });
+        });
+      },
+    );
+
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Backend request timeout')); });
+    if (body) req.write(body);
+    req.end();
+  });
 }
 
 function postToBackend(backendUrl, secret, payload) {
@@ -102,6 +140,9 @@ class ImapPoller {
   }
 
   async _poll() {
+    // Procesar envíos pendientes primero (no requiere conexión IMAP)
+    await this._pollPendingSends();
+
     const client = new ImapFlow({
       host: this.config.imap.host,
       port: this.config.imap.port,
@@ -122,6 +163,74 @@ class ImapPoller {
     }
 
     this._schedule();
+  }
+
+  async _pollPendingSends() {
+    try {
+      const res = await requestBackend(
+        this.config.backendUrl,
+        this.config.secret,
+        'GET',
+        '/api/mail/bridge/next-send',
+        null,
+      );
+
+      if (res.status !== 200) return;
+
+      let pending;
+      try { pending = JSON.parse(res.body); } catch { return; }
+      if (!pending || !pending.id) return;
+
+      this.log(`Processing pending send id=${pending.id} subject="${pending.subject}"`);
+
+      try {
+        const transporter = nodemailer.createTransport({
+          host: this.config.smtp.host,
+          port: this.config.smtp.port,
+          secure: false,
+          auth: { user: this.config.smtp.user, pass: this.config.smtp.password },
+          tls: { rejectUnauthorized: false },
+        });
+
+        const attachments = (pending.attachments || []).map((a) => ({
+          filename: a.filename,
+          contentType: a.contentType,
+          content: Buffer.from(a.base64, 'base64'),
+        }));
+
+        const info = await transporter.sendMail({
+          from: pending.fromAddr,
+          to: pending.to.join(', '),
+          cc: pending.cc?.length ? pending.cc.join(', ') : undefined,
+          bcc: pending.bcc?.length ? pending.bcc.join(', ') : undefined,
+          subject: pending.subject,
+          text: pending.bodyText,
+          html: pending.bodyHtml || undefined,
+          attachments,
+        });
+
+        this.log(`Sent id=${pending.id} → messageId: ${info.messageId}`);
+
+        await requestBackend(
+          this.config.backendUrl,
+          this.config.secret,
+          'POST',
+          '/api/mail/bridge/send-done',
+          { id: pending.id, messageId: info.messageId },
+        );
+      } catch (err) {
+        this.log(`SMTP send error id=${pending.id}: ${err.message}`);
+        await requestBackend(
+          this.config.backendUrl,
+          this.config.secret,
+          'POST',
+          '/api/mail/bridge/send-done',
+          { id: pending.id, error: err.message },
+        ).catch(() => {});
+      }
+    } catch (err) {
+      this.log(`_pollPendingSends error: ${err.message}`);
+    }
   }
 
   async _fetchFromSent(client) {

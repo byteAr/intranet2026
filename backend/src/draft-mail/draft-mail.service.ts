@@ -407,13 +407,13 @@ export class DraftMailService {
     }
 
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
-    const rank = (user as User & { rank?: string }).rank ?? '';
+    const rank = (user as User & { rank?: string }).rank ?? user.title ?? '';
     const now = new Date();
 
     const fdoGroup = this.fmtDateGroup(draft.approvedAt ?? now);
     const btGroup = this.fmtDateGroup(draft.hashEnteredAt ?? now);
     const lastName = (user.lastName ?? user.displayName).toUpperCase();
-    const finalBody = `${dto.mailCode} - ${draft.bodyText}\n\nFDO: ${fdoGroup}\nBT: ${btGroup}\nTX: ${rank} ${lastName}`;
+    const finalBody = `${dto.mailCode}.- ${draft.bodyText}\n\nFDO: ${fdoGroup}     BT: ${btGroup}     TX: ${rank} ${lastName}`;
     const finalSubject = dto.subject ?? dto.mailCode;
 
     // Read attachment files from disk as buffers for SMTP

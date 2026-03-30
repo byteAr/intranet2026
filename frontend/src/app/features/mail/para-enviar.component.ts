@@ -12,6 +12,7 @@ import {
   DraftMailService,
   DraftEmail,
 } from '../../core/services/draft-mail.service';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-para-enviar',
@@ -114,25 +115,9 @@ import {
           </div>
 
         } @else if (activeEmail() && unlockedEmailId()) {
-          <!-- ── Unlocked: full detail + send form ─────────── -->
-          <div class="flex-1 overflow-y-auto p-5">
-            <div class="max-w-2xl mx-auto space-y-5">
-
-              <!-- Header -->
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <h3 class="text-lg font-semibold text-gray-900 break-words">
-                    {{ editableSubject || activeEmail()!.subject || '(sin asunto)' }}
-                  </h3>
-                  <p class="text-xs text-gray-400 mt-0.5">
-                    Por {{ activeEmail()!.creatorName }}
-                    @if (activeEmail()!.approvedAt) {
-                      · Aprobado {{ activeEmail()!.approvedAt | date:'dd/MM/yy HH:mm' }}
-                    }
-                  </p>
-                </div>
-                <span class="text-xs px-2.5 py-1 rounded-full bg-teal-100 text-teal-700 font-medium flex-shrink-0">Aprobado</span>
-              </div>
+          <!-- ── Unlocked: MTO document + send form ─────────── -->
+          <div class="flex-1 overflow-y-auto bg-gray-300 p-5">
+            <div class="max-w-4xl mx-auto space-y-4">
 
               <!-- Encryption indicator -->
               @if (activeEmail()!.requiresEncryption || activeEmail()!.encryptionManualOverride) {
@@ -145,36 +130,71 @@ import {
                 </div>
               }
 
-              <!-- Recipients -->
-              <div class="space-y-2 text-sm">
-                <div class="flex gap-2">
-                  <span class="text-xs font-medium text-gray-400 w-20 flex-shrink-0 pt-0.5">Para:</span>
-                  <div class="flex flex-wrap gap-1">
-                    @for (a of activeEmail()!.toAddresses; track a) {
-                      <span class="bg-teal-50 text-teal-700 text-xs px-2 py-0.5 rounded-full">{{ a }}</span>
-                    }
+              <!-- ═══ MTO DOCUMENT ═══ -->
+              <div class="bg-white border-2 border-black font-mono text-sm text-black shadow-md">
+                <!-- Header -->
+                <div class="grid grid-cols-10 border-b border-black">
+                  <div class="col-span-4 p-2 border-r border-black font-bold flex items-center">GENDARMERÍA NACIONAL</div>
+                  <div class="col-span-6 flex flex-col">
+                    <div class="border-b border-black p-1 text-center font-bold">MENSAJE DE TRAFICO OFICIAL</div>
+                    <div class="grid grid-cols-2 h-full">
+                      <div class="border-r border-black p-1 flex justify-around items-center font-bold">
+                        <span>Z</span><span>O</span><span>P</span><span>R</span>
+                      </div>
+                      <div class="p-1 flex items-center justify-center text-xs">...........{{ draftDateGroup(activeEmail()!) }}</div>
+                    </div>
                   </div>
                 </div>
-                @if (activeEmail()!.ccAddresses.length > 0) {
-                  <div class="flex gap-2">
-                    <span class="text-xs font-medium text-gray-400 w-20 flex-shrink-0 pt-0.5">CC:</span>
-                    <div class="flex flex-wrap gap-1">
-                      @for (a of activeEmail()!.ccAddresses; track a) {
-                        <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">{{ a }}</span>
+                <!-- Fields -->
+                <div class="border-b border-black p-2">
+                  <span class="font-bold">PROMOTOR (S):</span> {{ activeEmail()!.creatorName }}
+                </div>
+                <div class="border-b border-black p-2 leading-tight">
+                  <span class="font-bold">EJECUTIVO (S):</span> {{ activeEmail()!.toAddresses.join(' \u2013 ') || '\u2014' }}
+                </div>
+                <div class="border-b border-black p-2 min-h-[2rem]">
+                  <span class="font-bold">INFORMATIVO(S):</span>
+                  @if (activeEmail()!.ccAddresses.length) { {{ activeEmail()!.ccAddresses.join(' \u2013 ') }} }
+                </div>
+                <div class="border-b border-black p-2 min-h-[2rem]">
+                  <span class="font-bold">EXCEPTUADO (S):</span>
+                </div>
+                <!-- Body preview: mailCode + body + FDO/BT/TX -->
+                <div class="border-b border-black p-4 min-h-[250px] whitespace-pre-wrap leading-relaxed uppercase">{{ previewBody() }}</div>
+                <!-- Footer -->
+                <div class="grid grid-cols-12">
+                  <div class="col-span-3 border-r border-black">
+                    <div class="border-b border-black p-1 text-center font-bold text-xs italic">BT:</div>
+                    <div class="text-[10px] p-1 border-b border-black">INICIAL:</div>
+                    <div class="text-[10px] p-1 border-b border-black">RECIBIDO:</div>
+                    <div class="text-[10px] p-1 border-b border-black">RETRANSMITIDO:</div>
+                    <div class="text-[10px] p-1 border-b border-black">TRASMITIDO:</div>
+                    <div class="text-[10px] p-1">ENT. CENTRAL:</div>
+                  </div>
+                  <div class="col-span-2 border-r border-black"></div>
+                  <div class="col-span-4 flex flex-col justify-between border-r border-black">
+                    <div class="border-b border-black">
+                      <div class="text-[10px] p-1 border-b border-black text-center italic">Lugar: <span class="not-italic">BUENOS AIRES</span></div>
+                      <div class="text-[10px] p-1 text-center italic">Fecha: <span class="not-italic">{{ draftFechaLarga(activeEmail()!) }}</span></div>
+                    </div>
+                    <div class="p-4 text-center text-[11px] min-h-[60px]">
+                      @if (activeEmail()!.approvedByName) {
+                        <span class="font-bold uppercase block">{{ activeEmail()!.approvedByName }}</span>
                       }
                     </div>
                   </div>
-                }
-              </div>
-
-              <!-- Body -->
-              <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap font-mono border border-gray-100">
-                {{ activeEmail()!.bodyText }}
+                  <div class="col-span-3 border-l border-black">
+                    <div class="border-b border-black p-1 text-center font-bold text-[10px] italic">CLASIFICACION:</div>
+                    <div class="border-b border-black p-1 text-center font-bold text-[10px] italic">SELLO:</div>
+                    <div class="p-1 text-center font-bold text-[10px] italic">TRAMITESE:</div>
+                    <div class="h-16"></div>
+                  </div>
+                </div>
               </div>
 
               <!-- Attachments -->
               @if (activeEmail()!.attachments.length > 0) {
-                <div>
+                <div class="bg-white rounded-lg p-3 border border-gray-200">
                   <p class="text-xs font-medium text-gray-500 mb-2">Adjuntos:</p>
                   <div class="space-y-1">
                     @for (att of activeEmail()!.attachments; track att.id) {
@@ -201,13 +221,13 @@ import {
                     Código de nota (mailCode)
                     @if (loadingNextCode()) { <span class="text-gray-400">(calculando...)</span> }
                   </label>
-                  <input [(ngModel)]="editableMailCode" type="text" placeholder="Ej: DE 131/25"
-                    class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" />
+                  <input [(ngModel)]="editableMailCode" type="text" placeholder="Ej: DEI 131/25"
+                    class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white font-mono" />
                 </div>
 
-                <!-- Subject (editable) -->
+                <!-- Subject -->
                 <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">Asunto (editable antes del envío)</label>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Asunto</label>
                   <input [(ngModel)]="editableSubject" type="text" [placeholder]="activeEmail()!.subject"
                     class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" />
                 </div>
@@ -272,7 +292,11 @@ import {
 })
 export class ParaEnviarComponent implements OnInit {
   readonly draftMailService = inject(DraftMailService);
+  private readonly authService = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+
+  private readonly MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  private readonly MONTHS_LONG = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 
   readonly loading = signal(false);
   readonly sending = signal(false);
@@ -385,16 +409,53 @@ export class ParaEnviarComponent implements OnInit {
   }
 
   private prepareEditFields(email: DraftEmail): void {
-    this.editableSubject = email.subject ?? '';
     if (email.mailCode) {
       this.editableMailCode = email.mailCode;
+      this.editableSubject = `${email.mailCode} - ${email.subject ?? ''}`;
     } else {
+      this.editableSubject = email.subject ?? '';
       this.loadingNextCode.set(true);
       this.draftMailService.getNextMailCode().subscribe({
-        next: (r) => { this.editableMailCode = r.code; this.loadingNextCode.set(false); },
+        next: (r) => {
+          this.editableMailCode = r.code;
+          this.editableSubject = `${r.code} - ${email.subject ?? ''}`;
+          this.loadingNextCode.set(false);
+        },
         error: () => { this.editableMailCode = ''; this.loadingNextCode.set(false); },
       });
     }
+  }
+
+  previewBody(): string {
+    const email = this.activeEmail();
+    if (!email) return '';
+    const code = this.editableMailCode.trim();
+    const body = email.bodyText ?? '';
+    const fdo = email.approvedAt ? this.fmtDateGroup(new Date(email.approvedAt)) : '------';
+    const bt = email.hashEnteredAt ? this.fmtDateGroup(new Date(email.hashEnteredAt)) : '------';
+    const user = this.authService.currentUser();
+    const rank = user?.rank ?? '';
+    const lastName = (user?.lastName ?? user?.displayName ?? '').toUpperCase();
+    const tx = [rank, lastName].filter(Boolean).join(' ');
+    const prefix = code ? `${code}.- ` : '';
+    return `${prefix}${body}\n\nFDO: ${fdo}     BT: ${bt}     TX: ${tx}`;
+  }
+
+  draftDateGroup(email: DraftEmail): string {
+    const d = email.approvedAt ? new Date(email.approvedAt) : new Date(email.createdAt);
+    return this.fmtDateGroup(d);
+  }
+
+  draftFechaLarga(email: DraftEmail): string {
+    const d = email.approvedAt ? new Date(email.approvedAt) : new Date(email.createdAt);
+    return `${this.MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  private fmtDateGroup(d: Date): string {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}${hh}${mm}${this.MONTHS_SHORT[d.getMonth()]}${String(d.getFullYear()).slice(-2)}`;
   }
 
   sendEmail(): void {

@@ -5,12 +5,12 @@ import {
   computed,
   OnInit,
   OnDestroy,
+  DestroyRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { DestroyRef } from '@angular/core';
 import {
   DraftMailService,
   DraftEmail,
@@ -37,6 +37,9 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
   cancelled: 'bg-gray-200 text-gray-500',
 };
 
+const MONTHS_LONG = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+
 @Component({
   selector: 'app-draft-mail',
   standalone: true,
@@ -47,7 +50,6 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
       <!-- ── Left sidebar: draft list ────────────────────── -->
       <aside class="w-80 flex-shrink-0 border-r border-gray-100 flex flex-col">
 
-        <!-- Header -->
         <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
           <h2 class="text-sm font-semibold text-gray-700">
             @if (isAuthorizer()) { Revisión de borradores } @else { Mis borradores }
@@ -64,7 +66,6 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
           }
         </div>
 
-        <!-- List -->
         <div class="flex-1 overflow-y-auto">
           @if (loading()) {
             <div class="flex items-center justify-center h-20">
@@ -77,7 +78,7 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
                   d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
               <p class="text-sm text-center">
-                @if (isAuthorizer()) { No hay borradores pendientes de revisión } @else { No tenés borradores }
+                @if (isAuthorizer()) { No hay borradores pendientes } @else { No tenés borradores }
               </p>
             </div>
           } @else {
@@ -104,136 +105,144 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
       <div class="flex-1 flex flex-col overflow-hidden">
 
         @if (showForm()) {
-          <!-- ── New / Edit form ───────────────────────────── -->
-          <div class="flex-1 overflow-y-auto p-5">
-            <div class="max-w-2xl mx-auto space-y-4">
+          <!-- ── Editable MTO Document ──────────────────── -->
+          <div class="flex-1 overflow-y-auto bg-gray-300 p-5">
+            <div class="max-w-3xl mx-auto">
 
-              <div class="flex items-center justify-between">
-                <h3 class="text-base font-semibold text-gray-800">
-                  {{ editingDraft() ? 'Editar borrador' : 'Nuevo borrador' }}
-                </h3>
-                <button (click)="closeForm()" class="text-gray-400 hover:text-gray-600">
-                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                  {{ editingDraft() ? 'Editando borrador' : 'Nuevo borrador' }}
+                </span>
+                <button (click)="closeForm()" class="text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>
               </div>
 
-              <!-- TO (Ejecutivos) -->
-              <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Ejecutivos (Para)</label>
-                <div class="border border-gray-200 rounded-lg p-2 flex flex-wrap gap-1.5 min-h-[2.5rem] bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-transparent">
-                  @for (addr of toAddresses(); track addr) {
-                    <span class="flex items-center gap-1 bg-teal-100 text-teal-800 text-xs px-2 py-0.5 rounded-full">
-                      {{ addr }}
-                      <button (click)="removeAddress('to', addr)" class="hover:text-teal-600 leading-none">×</button>
-                    </span>
-                  }
-                  <div class="relative flex-1 min-w-[12rem]">
-                    <input
-                      [(ngModel)]="toInput"
-                      (ngModelChange)="onRecipientChange($event, 'to')"
-                      (keydown.enter)="addManualAddress('to')"
+              <!-- ═══ MTO DOCUMENT ═══ -->
+              <div class="bg-white border-2 border-black font-mono text-sm text-black shadow-md">
+                <!-- Header -->
+                <div class="grid grid-cols-10 border-b border-black">
+                  <div class="col-span-4 p-2 border-r border-black font-bold flex items-center">GENDARMERÍA NACIONAL</div>
+                  <div class="col-span-6 flex flex-col">
+                    <div class="border-b border-black p-1 text-center font-bold">MENSAJE DE TRAFICO OFICIAL</div>
+                    <div class="grid grid-cols-2 h-full">
+                      <div class="border-r border-black p-1 flex justify-around items-center font-bold">
+                        <span>Z</span><span>O</span><span>P</span><span>R</span>
+                      </div>
+                      <div class="p-1 flex items-center justify-center text-xs">...........{{ formDateGroup() }}</div>
+                    </div>
+                  </div>
+                </div>
+                <!-- PROMOTOR -->
+                <div class="border-b border-black p-2">
+                  <span class="font-bold">PROMOTOR (S):</span> {{ promotorName() }}
+                </div>
+                <!-- EJECUTIVO (S) -->
+                <div class="border-b border-black p-2 relative">
+                  <span class="font-bold">EJECUTIVO (S):</span>
+                  <span class="inline-flex flex-wrap items-baseline gap-0">
+                    @for (addr of toAddresses(); track addr; let i = $index) {
+                      @if (i > 0) {<span class="mx-1">–</span>}
+                      <span>{{ addr }}</span><button type="button" (click)="removeAddress('to', addr)" class="text-gray-300 hover:text-red-400 bg-transparent border-0 cursor-pointer px-0.5 text-xs leading-none">&times;</button>
+                    }
+                    @if (toAddresses().length > 0) {<span class="mx-1">–</span>}
+                    <input [(ngModel)]="toInput" (ngModelChange)="onRecipientChange($event,'to')"
+                      (keydown.enter)="$event.preventDefault();addManualAddress('to')"
                       (keydown.tab)="addManualAddress('to')"
-                      (keydown.comma)="addManualAddress('to')"
-                      type="text"
-                      placeholder="Escribir destinatario..."
-                      class="w-full text-sm outline-none bg-transparent py-0.5" />
-                    @if (toSuggestions().length > 0) {
-                      <div class="absolute top-full left-0 z-20 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        @for (r of toSuggestions(); track r.email) {
-                          <button (click)="selectRecipient('to', r)"
-                            class="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 flex flex-col">
-                            <span class="font-medium text-gray-800">{{ r.displayName }}</span>
-                            <span class="text-xs text-gray-400">{{ r.email }}</span>
-                          </button>
-                        }
-                      </div>
-                    }
-                  </div>
-                </div>
-              </div>
-
-              <!-- CC (Informativos) -->
-              <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Informativos (CC)</label>
-                <div class="border border-gray-200 rounded-lg p-2 flex flex-wrap gap-1.5 min-h-[2.5rem] bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-transparent">
-                  @for (addr of ccAddresses(); track addr) {
-                    <span class="flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
-                      {{ addr }}
-                      <button (click)="removeAddress('cc', addr)" class="hover:text-gray-500 leading-none">×</button>
-                    </span>
-                  }
-                  <div class="relative flex-1 min-w-[12rem]">
-                    <input
-                      [(ngModel)]="ccInput"
-                      (ngModelChange)="onRecipientChange($event, 'cc')"
-                      (keydown.enter)="addManualAddress('cc')"
-                      (keydown.tab)="addManualAddress('cc')"
-                      (keydown.comma)="addManualAddress('cc')"
-                      type="text"
-                      placeholder="Escribir CC..."
-                      class="w-full text-sm outline-none bg-transparent py-0.5" />
-                    @if (ccSuggestions().length > 0) {
-                      <div class="absolute top-full left-0 z-20 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        @for (r of ccSuggestions(); track r.email) {
-                          <button (click)="selectRecipient('cc', r)"
-                            class="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 flex flex-col">
-                            <span class="font-medium text-gray-800">{{ r.displayName }}</span>
-                            <span class="text-xs text-gray-400">{{ r.email }}</span>
-                          </button>
-                        }
-                      </div>
-                    }
-                  </div>
-                </div>
-              </div>
-
-              <!-- Subject -->
-              <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Asunto</label>
-                <input [(ngModel)]="formSubject" type="text" placeholder="Asunto del correo"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
-              </div>
-
-              <!-- Body -->
-              <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Cuerpo</label>
-                <textarea [(ngModel)]="formBody" rows="10" placeholder="Escribí el contenido del correo..."
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none font-mono"></textarea>
-              </div>
-
-              <!-- Attachments -->
-              @if (!editingDraft()) {
-                <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">Adjuntos</label>
-                  <input type="file" multiple (change)="onFilesSelected($event)"
-                    class="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100" />
-                  @if (selectedFiles().length > 0) {
-                    <div class="mt-2 space-y-1">
-                      @for (f of selectedFiles(); track f.name) {
-                        <div class="flex items-center gap-2 text-xs text-gray-600">
-                          <svg class="h-3.5 w-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                          </svg>
-                          {{ f.name }}
-                        </div>
+                      (keydown.comma)="$event.preventDefault();addManualAddress('to')"
+                      type="text" [placeholder]="toAddresses().length===0 ? 'Agregar ejecutivo...' : ''"
+                      class="border-0 outline-none bg-transparent min-w-[120px] font-mono text-sm p-0" />
+                  </span>
+                  @if (toSuggestions().length > 0) {
+                    <div class="absolute top-full left-0 z-50 min-w-72 bg-white border border-gray-300 shadow-lg rounded mt-0.5 max-h-48 overflow-y-auto">
+                      @for (r of toSuggestions(); track r.email) {
+                        <button type="button" (click)="selectRecipient('to',r)" class="block w-full text-left px-3 py-2 border-0 border-b border-gray-100 bg-transparent cursor-pointer text-xs hover:bg-gray-50">
+                          <div class="font-semibold text-gray-900">{{ r.displayName }}</div>
+                          <div class="text-gray-500">{{ r.email }}</div>
+                        </button>
                       }
                     </div>
                   }
                 </div>
-              }
+                <!-- INFORMATIVO(S) -->
+                <div class="border-b border-black p-2 relative">
+                  <span class="font-bold">INFORMATIVO(S):</span>
+                  <span class="inline-flex flex-wrap items-baseline gap-0">
+                    @for (addr of ccAddresses(); track addr; let i = $index) {
+                      @if (i > 0) {<span class="mx-1">–</span>}
+                      <span>{{ addr }}</span><button type="button" (click)="removeAddress('cc', addr)" class="text-gray-300 hover:text-red-400 bg-transparent border-0 cursor-pointer px-0.5 text-xs leading-none">&times;</button>
+                    }
+                    @if (ccAddresses().length > 0) {<span class="mx-1">–</span>}
+                    <input [(ngModel)]="ccInput" (ngModelChange)="onRecipientChange($event,'cc')"
+                      (keydown.enter)="$event.preventDefault();addManualAddress('cc')"
+                      (keydown.tab)="addManualAddress('cc')"
+                      (keydown.comma)="$event.preventDefault();addManualAddress('cc')"
+                      type="text" [placeholder]="ccAddresses().length===0 ? 'Agregar informativo...' : ''"
+                      class="border-0 outline-none bg-transparent min-w-[120px] font-mono text-sm p-0" />
+                  </span>
+                  @if (ccSuggestions().length > 0) {
+                    <div class="absolute top-full left-0 z-50 min-w-72 bg-white border border-gray-300 shadow-lg rounded mt-0.5 max-h-48 overflow-y-auto">
+                      @for (r of ccSuggestions(); track r.email) {
+                        <button type="button" (click)="selectRecipient('cc',r)" class="block w-full text-left px-3 py-2 border-0 border-b border-gray-100 bg-transparent cursor-pointer text-xs hover:bg-gray-50">
+                          <div class="font-semibold text-gray-900">{{ r.displayName }}</div>
+                          <div class="text-gray-500">{{ r.email }}</div>
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+                <!-- EXCEPTUADO (S) -->
+                <div class="border-b border-black p-2 min-h-[2rem]">
+                  <span class="font-bold">EXCEPTUADO (S):</span>
+                </div>
+                <!-- Body -->
+                <div class="border-b border-black min-h-[250px]">
+                  <textarea [(ngModel)]="formBody" rows="10"
+                    placeholder="Escribir el contenido del mensaje..."
+                    class="block w-full border-0 outline-none bg-transparent p-4 font-mono text-sm leading-relaxed resize-y min-h-[250px] uppercase placeholder:normal-case placeholder:text-gray-400"></textarea>
+                </div>
+                <!-- Footer -->
+                <div class="grid grid-cols-12">
+                  <div class="col-span-3 border-r border-black">
+                    <div class="border-b border-black p-1 text-center font-bold text-xs italic">BT:</div>
+                    <div class="text-[10px] p-1 border-b border-black">INICIAL:</div>
+                    <div class="text-[10px] p-1 border-b border-black">RECIBIDO:</div>
+                    <div class="text-[10px] p-1 border-b border-black">RETRANSMITIDO:</div>
+                    <div class="text-[10px] p-1 border-b border-black">TRASMITIDO:</div>
+                    <div class="text-[10px] p-1">ENT. CENTRAL:</div>
+                  </div>
+                  <div class="col-span-2 border-r border-black"></div>
+                  <div class="col-span-4 flex flex-col justify-between border-r border-black">
+                    <div class="border-b border-black">
+                      <div class="text-[10px] p-1 border-b border-black text-center italic">Lugar: <span class="not-italic">BUENOS AIRES</span></div>
+                      <div class="text-[10px] p-1 text-center italic">Fecha: <span class="not-italic">{{ formFechaLarga() }}</span></div>
+                    </div>
+                    <div class="p-4 text-center text-[11px] min-h-[60px] text-gray-400 italic">[Firma del autorizador]</div>
+                  </div>
+                  <div class="col-span-3 border-l border-black">
+                    <div class="border-b border-black p-1 text-center font-bold text-[10px] italic">CLASIFICACION:</div>
+                    <div class="border-b border-black p-1 text-center font-bold text-[10px] italic">SELLO:</div>
+                    <div class="p-1 text-center font-bold text-[10px] italic">TRAMITESE:</div>
+                    <div class="h-16"></div>
+                  </div>
+                </div>
+              </div><!-- /MTO document -->
 
-              <!-- Error -->
-              @if (formError()) {
-                <div class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                  {{ formError() }}
+              <!-- Attachments -->
+              @if (!editingDraft()) {
+                <div class="mt-3">
+                  <label class="text-xs text-gray-400">Adjuntos (opcional):</label>
+                  <input type="file" multiple (change)="onFilesSelected($event)"
+                    class="mt-1 block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100" />
+                  @for (f of selectedFiles(); track f.name) {
+                    <div class="text-xs text-gray-400 mt-0.5">• {{ f.name }}</div>
+                  }
                 </div>
               }
 
-              <!-- Actions -->
-              <div class="flex items-center gap-3">
+              @if (formError()) {
+                <div class="mt-3 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{{ formError() }}</div>
+              }
+
+              <div class="mt-4 flex items-center gap-3">
                 <button (click)="saveDraft()" [disabled]="saving()"
                   class="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
                   style="background:#0f766e">
@@ -245,120 +254,121 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
                     Reenviar a revisión
                   </button>
                 }
-                <button (click)="closeForm()" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">
-                  Cancelar
-                </button>
+                <button (click)="closeForm()" class="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">Cancelar</button>
               </div>
+
             </div>
           </div>
 
         } @else if (activeDraft()) {
-          <!-- ── Draft detail ───────────────────────────────── -->
-          <div class="flex-1 overflow-y-auto p-5">
-            <div class="max-w-2xl mx-auto space-y-5">
+          <!-- ── MTO Document (read-only) + actions ────── -->
+          <div class="flex-1 overflow-y-auto bg-gray-300 p-5">
+            <div class="max-w-3xl mx-auto space-y-3">
 
-              <!-- Header row -->
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex-1 min-w-0">
-                  <h3 class="text-lg font-semibold text-gray-900 break-words">
-                    {{ activeDraft()!.subject || '(sin asunto)' }}
-                  </h3>
-                  <p class="text-xs text-gray-400 mt-0.5">
-                    Por {{ activeDraft()!.creatorName }} · {{ activeDraft()!.createdAt | date:'dd/MM/yy HH:mm' }}
-                  </p>
-                </div>
-                <span class="text-xs px-2.5 py-1 rounded-full flex-shrink-0 font-medium"
-                  [ngClass]="statusClass(activeDraft()!.status)">
+              <!-- Status + hash bar -->
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <span class="text-xs px-3 py-1 rounded-full font-medium" [ngClass]="statusClass(activeDraft()!.status)">
                   {{ statusLabel(activeDraft()!.status) }}
                 </span>
-              </div>
-
-              <!-- Recipients -->
-              <div class="grid grid-cols-1 gap-2 text-sm">
-                <div class="flex gap-2">
-                  <span class="text-xs font-medium text-gray-400 w-20 flex-shrink-0 pt-0.5">Para:</span>
-                  <div class="flex flex-wrap gap-1">
-                    @for (a of activeDraft()!.toAddresses; track a) {
-                      <span class="bg-teal-50 text-teal-700 text-xs px-2 py-0.5 rounded-full">{{ a }}</span>
-                    }
-                    @if (activeDraft()!.toAddresses.length === 0) {
-                      <span class="text-gray-400 text-xs italic">Sin destinatarios</span>
-                    }
-                  </div>
-                </div>
-                @if (activeDraft()!.ccAddresses.length > 0) {
-                  <div class="flex gap-2">
-                    <span class="text-xs font-medium text-gray-400 w-20 flex-shrink-0 pt-0.5">CC:</span>
-                    <div class="flex flex-wrap gap-1">
-                      @for (a of activeDraft()!.ccAddresses; track a) {
-                        <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">{{ a }}</span>
-                      }
-                    </div>
+                @if (activeDraft()!.hash) {
+                  <div class="flex items-center gap-2 text-xs bg-teal-50 border border-teal-200 rounded-lg px-3 py-1.5">
+                    <span class="text-teal-600">Hash:</span>
+                    <span class="font-mono font-bold text-teal-900 tracking-widest">{{ activeDraft()!.hash }}</span>
                   </div>
                 }
               </div>
 
-              <!-- Body -->
-              <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap font-mono border border-gray-100">
-                {{ activeDraft()!.bodyText || '(sin contenido)' }}
-              </div>
+              <!-- ═══ MTO DOCUMENT ═══ -->
+              <div class="bg-white border-2 border-black font-mono text-sm text-black shadow-md">
+                <!-- Header -->
+                <div class="grid grid-cols-10 border-b border-black">
+                  <div class="col-span-4 p-2 border-r border-black font-bold flex items-center">GENDARMERÍA NACIONAL</div>
+                  <div class="col-span-6 flex flex-col">
+                    <div class="border-b border-black p-1 text-center font-bold">MENSAJE DE TRAFICO OFICIAL</div>
+                    <div class="grid grid-cols-2 h-full">
+                      <div class="border-r border-black p-1 flex justify-around items-center font-bold">
+                        <span>Z</span><span>O</span><span>P</span><span>R</span>
+                      </div>
+                      <div class="p-1 flex items-center justify-center text-xs">...........{{ draftDateGroup(activeDraft()!) }}</div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Fields -->
+                <div class="border-b border-black p-2">
+                  <span class="font-bold">PROMOTOR (S):</span> {{ activeDraft()!.creatorName }}
+                </div>
+                <div class="border-b border-black p-2 leading-tight">
+                  <span class="font-bold">EJECUTIVO (S):</span> {{ activeDraft()!.toAddresses.join(' \u2013 ') || '\u2014' }}
+                </div>
+                <div class="border-b border-black p-2 min-h-[2rem]">
+                  <span class="font-bold">INFORMATIVO(S):</span>
+                  @if (activeDraft()!.ccAddresses.length) { {{ activeDraft()!.ccAddresses.join(' \u2013 ') }} }
+                </div>
+                <div class="border-b border-black p-2 min-h-[2rem]">
+                  <span class="font-bold">EXCEPTUADO (S):</span>
+                </div>
+                <!-- Body -->
+                <div class="border-b border-black p-4 min-h-[250px] whitespace-pre-wrap leading-relaxed uppercase">{{ activeDraft()!.bodyText }}</div>
+                <!-- Footer -->
+                <div class="grid grid-cols-12">
+                  <div class="col-span-3 border-r border-black">
+                    <div class="border-b border-black p-1 text-center font-bold text-xs italic">BT:</div>
+                    <div class="text-[10px] p-1 border-b border-black">INICIAL:</div>
+                    <div class="text-[10px] p-1 border-b border-black">RECIBIDO:</div>
+                    <div class="text-[10px] p-1 border-b border-black">RETRANSMITIDO:</div>
+                    <div class="text-[10px] p-1 border-b border-black">TRASMITIDO:</div>
+                    <div class="text-[10px] p-1">ENT. CENTRAL:</div>
+                  </div>
+                  <div class="col-span-2 border-r border-black"></div>
+                  <div class="col-span-4 flex flex-col justify-between border-r border-black">
+                    <div class="border-b border-black">
+                      <div class="text-[10px] p-1 border-b border-black text-center italic">Lugar: <span class="not-italic">BUENOS AIRES</span></div>
+                      <div class="text-[10px] p-1 text-center italic">Fecha: <span class="not-italic">{{ draftFechaLarga(activeDraft()!) }}</span></div>
+                    </div>
+                    <div class="p-4 text-center text-[11px] min-h-[60px]">
+                      @if (activeDraft()!.approvedByName) {
+                        <span class="font-bold uppercase block">{{ activeDraft()!.approvedByName }}</span>
+                      } @else {
+                        <span class="text-gray-400 italic">[Firma del autorizador]</span>
+                      }
+                    </div>
+                  </div>
+                  <div class="col-span-3 border-l border-black">
+                    <div class="border-b border-black p-1 text-center font-bold text-[10px] italic">CLASIFICACION:</div>
+                    <div class="border-b border-black p-1 text-center font-bold text-[10px] italic">SELLO:</div>
+                    <div class="p-1 text-center font-bold text-[10px] italic">TRAMITESE:</div>
+                    <div class="h-16"></div>
+                  </div>
+                </div>
+              </div><!-- /MTO document -->
 
               <!-- Attachments -->
-              @if (activeDraft()!.attachments.length > 0) {
+              @if (activeDraft()!.attachments?.length > 0) {
                 <div>
-                  <p class="text-xs font-medium text-gray-500 mb-2">Adjuntos:</p>
-                  <div class="space-y-1">
-                    @for (att of activeDraft()!.attachments; track att.id) {
-                      <a [href]="draftMailService.getAttachmentUrl(activeDraft()!.id, att.id)" target="_blank"
-                        class="flex items-center gap-2 text-xs text-teal-700 hover:text-teal-900 hover:underline">
-                        <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                        </svg>
-                        {{ att.filename }}
-                      </a>
-                    }
-                  </div>
+                  <p class="text-xs font-medium text-gray-400 mb-1">Adjuntos:</p>
+                  @for (att of activeDraft()!.attachments; track att.id) {
+                    <a [href]="draftMailService.getAttachmentUrl(activeDraft()!.id, att.id)" target="_blank"
+                      class="flex items-center gap-1.5 text-xs text-teal-700 hover:underline mb-0.5">
+                      <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                      {{ att.filename }}
+                    </a>
+                  }
                 </div>
               }
 
               <!-- Correction notes -->
               @if (activeDraft()!.correctionNotes) {
-                <div class="rounded-lg bg-rose-50 border border-rose-200 p-4">
+                <div class="rounded-lg bg-rose-50 border border-rose-200 p-3">
                   <p class="text-xs font-semibold text-rose-700 mb-1">Notas de corrección:</p>
                   <p class="text-sm text-rose-800 whitespace-pre-wrap">{{ activeDraft()!.correctionNotes }}</p>
                 </div>
               }
 
               <!-- Action buttons -->
-              <div class="flex flex-wrap gap-2 pt-2">
-
-                <!-- Creator actions: draft or needs_correction -->
-                @if (isCreator(activeDraft()!) && (activeDraft()!.status === 'draft' || activeDraft()!.status === 'needs_correction')) {
-                  <button (click)="openEdit(activeDraft()!)"
-                    class="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50">
-                    Editar
-                  </button>
-                }
-                @if (isCreator(activeDraft()!) && activeDraft()!.status === 'draft') {
-                  <button (click)="submitDraft(activeDraft()!.id)" [disabled]="saving()"
-                    class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
-                    Enviar a revisión
-                  </button>
-                  <button (click)="promptDelete(activeDraft()!.id)" [disabled]="saving()"
-                    class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50 disabled:opacity-50">
-                    Eliminar
-                  </button>
-                }
-                @if (isCreator(activeDraft()!) && ['draft','pending_review','needs_correction'].includes(activeDraft()!.status)) {
-                  @if (activeDraft()!.status !== 'draft') {
-                    <button (click)="promptCancel()" class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">
-                      Cancelar
-                    </button>
-                  }
-                }
-
-                <!-- Creator: print when approved -->
+              <div class="flex flex-wrap gap-2">
                 @if (isCreator(activeDraft()!) && activeDraft()!.status === 'approved' && activeDraft()!.hash) {
                   <button (click)="printDraft(activeDraft()!)"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-teal-700 border border-teal-300 hover:bg-teal-50 flex items-center gap-2">
@@ -368,27 +378,33 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
                     </svg>
                     Imprimir para firmar
                   </button>
-                  <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200 text-sm">
-                    <span class="text-xs text-teal-600 font-medium">Hash:</span>
-                    <span class="font-mono font-bold text-teal-800 tracking-widest">{{ activeDraft()!.hash }}</span>
-                  </div>
                 }
-
-                <!-- Authorizer actions: pending_review -->
+                @if (isCreator(activeDraft()!) && (activeDraft()!.status === 'draft' || activeDraft()!.status === 'needs_correction')) {
+                  <button (click)="openEdit(activeDraft()!)"
+                    class="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50">Editar</button>
+                }
+                @if (isCreator(activeDraft()!) && activeDraft()!.status === 'draft') {
+                  <button (click)="submitDraft(activeDraft()!.id)" [disabled]="saving()"
+                    class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
+                    Enviar a revisión
+                  </button>
+                  <button (click)="promptDelete(activeDraft()!.id)"
+                    class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Eliminar</button>
+                }
+                @if (isCreator(activeDraft()!) && ['pending_review','needs_correction'].includes(activeDraft()!.status)) {
+                  <button (click)="promptCancel()"
+                    class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Cancelar</button>
+                }
                 @if (isAuthorizer() && activeDraft()!.status === 'pending_review') {
                   <button (click)="approveDraft()" [disabled]="saving()"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-                    style="background:#0f766e">
-                    Aprobar
-                  </button>
+                    style="background:#0f766e">Aprobar</button>
                   <button (click)="showRejectForm.set(true)"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-amber-700 border border-amber-300 hover:bg-amber-50">
                     Devolver para corrección
                   </button>
                   <button (click)="promptTicomCancel()"
-                    class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">
-                    Cancelar
-                  </button>
+                    class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Cancelar</button>
                 }
               </div>
 
@@ -405,9 +421,7 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
                       Confirmar devolución
                     </button>
                     <button (click)="showRejectForm.set(false); rejectNotes = ''"
-                      class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:text-gray-700">
-                      Cancelar
-                    </button>
+                      class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
                   </div>
                 </div>
               }
@@ -425,21 +439,19 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
                       Confirmar cancelación
                     </button>
                     <button (click)="showCancelForm.set(false); cancelNotes = ''"
-                      class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:text-gray-700">
-                      Cancelar
-                    </button>
+                      class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cerrar</button>
                   </div>
                 </div>
               }
 
               <!-- History -->
               @if (activeDraft()!.history.length > 0) {
-                <div class="border-t border-gray-100 pt-4">
+                <div class="border-t border-gray-300 pt-3">
                   <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Historial</p>
                   <div class="space-y-2">
                     @for (entry of activeDraft()!.history; track entry.at) {
                       <div class="flex gap-3 text-sm">
-                        <div class="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-gray-300 mt-1.5"></div>
+                        <div class="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-gray-400 mt-1.5"></div>
                         <div class="flex-1 min-w-0">
                           <div class="flex items-baseline gap-2">
                             <span class="font-medium text-gray-700">{{ historyLabel(entry.type) }}</span>
@@ -472,9 +484,6 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
       </div>
     </div>
   `,
-  styles: [`
-    .folder-btn { @apply flex items-center w-full px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-100 transition-colors; }
-  `],
 })
 export class DraftMailComponent implements OnInit, OnDestroy {
   readonly draftMailService = inject(DraftMailService);
@@ -524,7 +533,6 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadDrafts();
 
-    // React to real-time status changes from other users
     this.draftMailService.draftStatusChanged$.pipe(
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(({ id }) => {
@@ -534,7 +542,6 @@ export class DraftMailComponent implements OnInit, OnDestroy {
           if (inList) {
             this.drafts.update((list) => list.map((d) => d.id === id ? updated : d));
           } else {
-            // Draft just became visible (e.g. new submitted draft for authorizer)
             this.drafts.update((list) => [updated, ...list]);
           }
           if (this.activeDraft()?.id === id) {
@@ -542,7 +549,6 @@ export class DraftMailComponent implements OnInit, OnDestroy {
           }
         },
         error: () => {
-          // Draft no longer accessible (e.g. cancelled by authorizer) — remove from list
           this.drafts.update((list) => list.filter((d) => d.id !== id));
           if (this.activeDraft()?.id === id) this.activeDraft.set(null);
         },
@@ -657,10 +663,11 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 
   saveDraft(): void {
     this.formError.set(null);
+    const subject = this.formSubject || this.formBody.split('\n')[0]?.trim().slice(0, 120) || '(sin asunto)';
     if (this.editingDraft()) {
       this.saving.set(true);
       this.draftMailService.update(this.editingDraft()!.id, {
-        subject: this.formSubject,
+        subject,
         bodyText: this.formBody,
         toAddresses: this.toAddresses(),
         ccAddresses: this.ccAddresses(),
@@ -679,7 +686,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
       });
     } else {
       const fd = new FormData();
-      fd.append('subject', this.formSubject);
+      fd.append('subject', subject);
       fd.append('bodyText', this.formBody);
       this.toAddresses().forEach((a) => fd.append('toAddresses[]', a));
       this.ccAddresses().forEach((a) => fd.append('ccAddresses[]', a));
@@ -790,29 +797,46 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     return draft.creatorId === this.authService.currentUser()?.id;
   }
 
-  statusLabel(s: DraftStatus): string {
-    return STATUS_LABELS[s] ?? s;
-  }
-
-  statusClass(s: DraftStatus): string {
-    return STATUS_CLASSES[s] ?? 'bg-gray-100 text-gray-500';
-  }
+  statusLabel(s: DraftStatus): string { return STATUS_LABELS[s] ?? s; }
+  statusClass(s: DraftStatus): string { return STATUS_CLASSES[s] ?? 'bg-gray-100 text-gray-500'; }
 
   historyLabel(type: string): string {
     const map: Record<string, string> = {
-      created: 'Creado',
-      submitted: 'Enviado a revisión',
-      resubmitted: 'Reenviado a revisión',
-      approved: 'Aprobado',
-      rejected: 'Devuelto para corrección',
-      cancelled: 'Cancelado',
-      ticom_cancelled: 'Cancelado por TICOM',
-      sent: 'Enviado',
-      edited: 'Editado',
-      delegated: 'Delegado',
+      created: 'Creado', submitted: 'Enviado a revisión', resubmitted: 'Reenviado a revisión',
+      approved: 'Aprobado', rejected: 'Devuelto para corrección', cancelled: 'Cancelado',
+      ticom_cancelled: 'Cancelado por TICOM', sent: 'Enviado', edited: 'Editado', delegated: 'Delegado',
     };
     return map[type] ?? type;
   }
+
+  // ── MTO document helpers ──────────────────────────────────
+
+  promotorName(): string {
+    const u = this.authService.currentUser();
+    return u ? (u.displayName || u.username) : '';
+  }
+
+  formDateGroup(): string {
+    const d = this.editingDraft() ? new Date(this.editingDraft()!.createdAt) : new Date();
+    return this.fmtDateGroup(d);
+  }
+
+  formFechaLarga(): string {
+    const d = this.editingDraft() ? new Date(this.editingDraft()!.createdAt) : new Date();
+    return `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  draftDateGroup(draft: DraftEmail): string {
+    const d = draft.approvedAt ? new Date(draft.approvedAt) : new Date(draft.createdAt);
+    return this.fmtDateGroup(d);
+  }
+
+  draftFechaLarga(draft: DraftEmail): string {
+    const d = draft.approvedAt ? new Date(draft.approvedAt) : new Date(draft.createdAt);
+    return `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  // ── Print ────────────────────────────────────────────────
 
   printDraft(draft: DraftEmail): void {
     const w = window.open('', '_blank', 'width=850,height=1100');
@@ -823,14 +847,13 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   }
 
   private buildPrintHtml(draft: DraftEmail): string {
-    const toList = draft.toAddresses.join(' \u2013 ') || '-';
-    const ccList = draft.ccAddresses.length ? draft.ccAddresses.join(' \u2013 ') : '-';
+    const toList = draft.toAddresses.join(' \u2013 ') || '\u2014';
+    const ccList = draft.ccAddresses.length ? draft.ccAddresses.join(' \u2013 ') : '\u2014';
     const approvedDate = draft.approvedAt ? new Date(draft.approvedAt) : new Date();
     const hash = draft.hash ?? '';
     const body = this.escapeHtml(draft.bodyText);
     const zoprDate = this.fmtDateGroup(approvedDate);
-    const months = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-    const fechaLarga = `${months[approvedDate.getMonth()]} ${approvedDate.getFullYear()}`;
+    const fechaLarga = `${MONTHS_LONG[approvedDate.getMonth()]} ${approvedDate.getFullYear()}`;
     const approvedBy = this.escapeHtml(draft.approvedByName ?? '');
     const creator = this.escapeHtml(draft.creatorName);
 
@@ -840,107 +863,78 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 <meta charset="UTF-8">
 <title>MTO</title>
 <style>
-  @page { size: A4; margin: 15mm 15mm 20mm 15mm; }
+  @page { size: A4; margin: 15mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 9pt; color: #000; }
-  .page-border { border: 1px solid #000; padding: 6px; min-height: 257mm; display: flex; flex-direction: column; }
-
-  /* TOP HEADER TABLE */
-  .top-header { width: 100%; border-collapse: collapse; margin-bottom: 0; }
-  .top-header td { border: 1px solid #000; padding: 4px 8px; }
-  .td-gn { font-size: 10pt; font-weight: normal; width: 45%; }
-  .td-mto { font-size: 12pt; font-weight: bold; text-align: center; }
-
-  /* ZOPR ROW */
-  .zopr-row { width: 100%; border-collapse: collapse; }
-  .zopr-row td { border: 1px solid #000; border-top: 0; padding: 3px 8px; }
-  .td-zopr { font-size: 11pt; font-weight: bold; letter-spacing: 4px; width: 45%; }
-  .td-date { text-align: right; font-size: 10pt; }
-
-  /* META ROWS */
-  .meta { width: 100%; border-collapse: collapse; }
-  .meta td { border: 1px solid #000; border-top: 0; padding: 3px 8px; }
-  .meta .lbl { font-weight: bold; white-space: nowrap; width: 1%; padding-right: 6px; }
-
-  /* BODY */
-  .body-cell { border: 1px solid #000; border-top: 0; padding: 6px 8px; min-height: 100px; white-space: pre-wrap; font-size: 9pt; line-height: 1.5; flex: 1; }
-
-  /* FOOTER TABLE */
-  .footer-tbl { width: 100%; border-collapse: collapse; margin-top: 0; }
-  .footer-tbl td { border: 1px solid #000; border-top: 0; padding: 3px 6px; font-size: 8.5pt; vertical-align: top; }
-  .ft-labels { width: 22%; }
-  .ft-middle { width: 40%; }
-  .ft-right { width: 38%; }
-
-  /* SIGNATURE */
-  .signature { text-align: center; margin-top: 10px; font-size: 9pt; line-height: 1.6; }
-
-  /* HASH FOOTER */
-  .hash-footer { margin-top: auto; border-top: 1px dashed #666; padding-top: 4px; text-align: center; font-size: 7.5pt; color: #444; }
-  .hash-value { font-size: 13pt; font-weight: bold; letter-spacing: 5px; color: #000; font-family: 'Courier New', monospace; }
-
-  @media print { .no-print { display: none !important; } }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #000; }
+  .doc { border: 2px solid #000; min-height: 267mm; display: flex; flex-direction: column; }
+  table { width: 100%; border-collapse: collapse; }
+  td { border: 1px solid #000; padding: 5px 10px; }
+  .td-gn { width: 42%; font-weight: bold; font-size: 10pt; }
+  .td-mto { font-size: 13pt; font-weight: bold; text-align: center; }
+  .td-zopr { font-weight: bold; letter-spacing: 7px; font-size: 12pt; }
+  .td-zoprdate { text-align: right; font-size: 10pt; }
+  .lbl { font-weight: bold; white-space: nowrap; width: 1%; }
+  .body-area { border: 1px solid #000; border-top: 0; padding: 8px 10px; flex: 1; min-height: 120px; white-space: pre-wrap; line-height: 1.7; font-size: 10pt; }
+  .ft-labels { width: 20%; vertical-align: top; font-size: 9pt; line-height: 2.2; }
+  .ft-mid { width: 38%; vertical-align: top; font-size: 9pt; line-height: 1.9; }
+  .ft-cls { text-align: center; font-weight: bold; font-size: 9pt; }
+  .ft-sello { text-align: center; font-size: 9pt; }
+  .ft-empty { padding: 10px; }
+  .sig { border: 1px solid #000; border-top: 0; padding: 14px; text-align: center; font-size: 9.5pt; min-height: 54px; }
+  .hash-section { border-top: 1px dashed #666; margin-top: auto; padding: 6px; text-align: center; font-size: 8.5pt; color: #444; }
+  .hash-val { font-size: 15pt; font-weight: bold; letter-spacing: 5px; font-family: 'Courier New', monospace; color: #000; }
+  .no-top { border-top: 0; }
 </style>
 </head>
 <body>
-<div class="page-border">
-
-  <table class="top-header">
+<div class="doc">
+  <table>
     <tr>
       <td class="td-gn">GENDARMERÍA NACIONAL</td>
       <td class="td-mto">MENSAJE DE TRAFICO OFICIAL</td>
     </tr>
-  </table>
-
-  <table class="zopr-row">
     <tr>
-      <td class="td-zopr">Z &nbsp; O &nbsp; P &nbsp; R</td>
-      <td class="td-date">&hellip;&hellip;&hellip;&hellip;&hellip;${zoprDate}</td>
+      <td class="td-zopr no-top">Z &nbsp; O &nbsp; P &nbsp; R</td>
+      <td class="td-zoprdate no-top">&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;${zoprDate}</td>
     </tr>
   </table>
-
-  <table class="meta">
-    <tr><td class="lbl">PROMOTOR (S):</td><td>${creator}</td></tr>
-    <tr><td class="lbl">EJECUTIVO (S):</td><td>${this.escapeHtml(toList)}</td></tr>
-    <tr><td class="lbl">INFORMATIVO(S):</td><td>${this.escapeHtml(ccList)}</td></tr>
-    <tr><td class="lbl">EXCEPTUADO (S):</td><td>&nbsp;</td></tr>
-  </table>
-
-  <div class="body-cell">${body}</div>
-
-  <table class="footer-tbl">
+  <table>
     <tr>
-      <td class="ft-labels" rowspan="5">
-        <div style="margin-bottom:8px">BT:</div>
-        <div style="margin-bottom:8px">RECIBO:</div>
-        <div style="margin-bottom:8px">RETRANSMITIDO:</div>
-        <div style="margin-bottom:8px">TRANSMITIDO:</div>
-        <div>ENT. CENTRAL:</div>
-      </td>
-      <td class="ft-middle" rowspan="2">
-        <div>Lugar: BUENOS AIRES</div>
-        <div>Fecha: ${fechaLarga}</div>
-      </td>
-      <td class="ft-right" style="font-weight:bold; text-align:center">CLASIFICACIÓN</td>
+      <td class="lbl no-top">PROMOTOR (S):</td>
+      <td class="no-top">${creator}</td>
     </tr>
     <tr>
-      <td class="ft-right" style="text-align:center">SELLO: &nbsp;/&nbsp; TRAMÍTESE</td>
+      <td class="lbl no-top">EJECUTIVO (S):</td>
+      <td class="no-top">${this.escapeHtml(toList)}</td>
     </tr>
-    <tr><td class="ft-middle" colspan="1">&nbsp;</td><td class="ft-right">&nbsp;</td></tr>
-    <tr><td class="ft-middle" colspan="1">&nbsp;</td><td class="ft-right">&nbsp;</td></tr>
-    <tr><td class="ft-middle" colspan="1">&nbsp;</td><td class="ft-right">&nbsp;</td></tr>
+    <tr>
+      <td class="lbl no-top">INFORMATIVO(S):</td>
+      <td class="no-top">${this.escapeHtml(ccList)}</td>
+    </tr>
+    <tr>
+      <td class="lbl no-top">EXCEPTUADO (S):</td>
+      <td class="no-top">&nbsp;</td>
+    </tr>
   </table>
-
-  <div class="signature">
-    ${approvedBy}<br>
-    <strong></strong>
-  </div>
-
-  <div class="hash-footer">
+  <div class="body-area">${body}</div>
+  <table>
+    <tr>
+      <td class="ft-labels no-top" rowspan="5">BT:<br>RECIBO:<br>RETRANSMITIDO:<br>TRANSMITIDO:<br>ENT. CENTRAL:</td>
+      <td class="ft-mid no-top" rowspan="2">Lugar: BUENOS AIRES<br>Fecha: ${fechaLarga}</td>
+      <td class="ft-cls no-top">CLASIFICACIÓN</td>
+    </tr>
+    <tr>
+      <td class="ft-sello no-top">SELLO: &nbsp;/&nbsp; TRAMÍTESE</td>
+    </tr>
+    <tr><td colspan="2" class="ft-empty no-top">&nbsp;</td></tr>
+    <tr><td colspan="2" class="ft-empty no-top">&nbsp;</td></tr>
+    <tr><td colspan="2" class="ft-empty no-top">&nbsp;</td></tr>
+  </table>
+  <div class="sig">${approvedBy}</div>
+  <div class="hash-section">
     HASH DE VERIFICACIÓN (no se envía con el correo)<br>
-    <span class="hash-value">${hash}</span>
+    <span class="hash-val">${hash}</span>
   </div>
-
 </div>
 </body>
 </html>`;
@@ -950,10 +944,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     const dd = String(d.getDate()).padStart(2, '0');
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
-    const months = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-    const mon = months[d.getMonth()];
-    const yy = String(d.getFullYear()).slice(-2);
-    return `${dd}${hh}${mm}${mon}${yy}`;
+    return `${dd}${hh}${mm}${MONTHS_SHORT[d.getMonth()]}${String(d.getFullYear()).slice(-2)}`;
   }
 
   private escapeHtml(text: string): string {

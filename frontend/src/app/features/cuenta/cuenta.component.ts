@@ -1,14 +1,14 @@
 import { Component, inject, signal, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 
-type Panel = 'info' | 'password' | 'recovery';
+type Panel = 'info' | 'password' | 'recovery' | 'rank';
 
 @Component({
   selector: 'app-cuenta',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, DatePipe],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, DatePipe],
   template: `
     <div class="space-y-6 max-w-3xl mx-auto">
 
@@ -191,6 +191,49 @@ type Panel = 'info' | 'password' | 'recovery';
         </div>
       }
 
+      <!-- Panel: Jerarquía -->
+      @if (activePanel() === 'rank') {
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-1">Jerarquía</h3>
+          <p class="text-sm text-gray-500 mb-4">
+            Seleccioná tu grado jerárquico para que figure correctamente en los documentos.
+          </p>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Grado</label>
+              <select [(ngModel)]="selectedRank"
+                class="w-full rounded-lg border-gray-300 shadow-sm text-sm focus:ring-teal-500 focus:border-teal-500">
+                <option value="">— Sin especificar —</option>
+                <optgroup label="Oficiales">
+                  <option value="SUBALF">SUBALFEREZ</option>
+                  <option value="ALF">ALFEREZ</option>
+                  <option value="1ER ALF">PRIMER ALFEREZ</option>
+                  <option value="2DO CTE">SEGUNDO COMANDANTE</option>
+                  <option value="CTE">COMANDANTE</option>
+                  <option value="CTE PR">COMANDANTE PRINCIPAL</option>
+                  <option value="CTE MY">COMANDANTE MAYOR</option>
+                  <option value="CTE GRL">COMANDANTE GENERAL</option>
+                </optgroup>
+                <optgroup label="Suboficiales">
+                  <option value="GEND">GENDARME</option>
+                  <option value="CBO">CABO</option>
+                  <option value="CRO">CABO PRIMERO</option>
+                  <option value="SARG">SARGENTO</option>
+                  <option value="SAY">SARGENTO AYUDANTE</option>
+                  <option value="SPR">SUBOFICIAL PRINCIPAL</option>
+                  <option value="SMY">SUBOFICIAL MAYOR</option>
+                </optgroup>
+              </select>
+            </div>
+            <button (click)="saveRank()" [disabled]="savingRank()"
+              class="px-6 py-2 rounded-lg text-sm font-medium text-white shadow disabled:opacity-50"
+              style="background: linear-gradient(to right, #14B8A5, #22C562)">
+              {{ savingRank() ? 'Guardando...' : 'Guardar jerarquía' }}
+            </button>
+          </div>
+        </div>
+      }
+
     </div>
   `,
 })
@@ -207,13 +250,16 @@ export class CuentaComponent {
   savingAvatar = signal(false);
   savingPwd = signal(false);
   savingRecovery = signal(false);
+  savingRank = signal(false);
   avatarChanged = signal(false);
   pendingAvatar = signal<string | null>(null);
+  selectedRank = this.authService.currentUser()?.rank ?? '';
 
   panels = [
     { id: 'info' as Panel, label: 'Información', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
     { id: 'password' as Panel, label: 'Contraseña', icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' },
     { id: 'recovery' as Panel, label: 'Recuperación', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+    { id: 'rank' as Panel, label: 'Jerarquía', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
   ];
 
   passwordForm: FormGroup = this.fb.group({
@@ -324,6 +370,21 @@ export class CuentaComponent {
       error: () => {
         this.savingRecovery.set(false);
         this.errorMsg.set('Error al guardar el correo de recuperación.');
+      },
+    });
+  }
+
+  saveRank(): void {
+    this.clear();
+    this.savingRank.set(true);
+    this.authService.updateProfile({ rank: this.selectedRank }).subscribe({
+      next: () => {
+        this.savingRank.set(false);
+        this.successMsg.set('Jerarquía guardada correctamente.');
+      },
+      error: () => {
+        this.savingRank.set(false);
+        this.errorMsg.set('Error al guardar la jerarquía.');
       },
     });
   }

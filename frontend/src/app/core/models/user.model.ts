@@ -12,6 +12,7 @@ export interface User {
   updatedAt: string;
   recoveryEmail?: string;
   avatar?: string;
+  rank?: string;
   upn?: string;
   title?: string;
   department?: string;

@@ -77,6 +77,27 @@ export const routes: Routes = [
             (m) => m.PstAdminComponent,
           ),
       },
+      {
+        path: 'correo/redactar-mto',
+        loadComponent: () =>
+          import('./features/mail/draft-mail.component').then(
+            (m) => m.DraftMailComponent,
+          ),
+      },
+      {
+        path: 'correo/para-enviar',
+        loadComponent: () =>
+          import('./features/mail/para-enviar.component').then(
+            (m) => m.ParaEnviarComponent,
+          ),
+      },
+      {
+        path: 'correo/autorizadores',
+        loadComponent: () =>
+          import('./features/mail/autorizadores.component').then(
+            (m) => m.AutorizadoresComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: 'cuenta' },

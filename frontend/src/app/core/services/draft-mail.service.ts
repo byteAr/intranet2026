@@ -216,6 +216,20 @@ export class DraftMailService {
     return `/api/draft-mail/${draftId}/attachments/${attId}`;
   }
 
+  downloadAttachment(draftId: string, attId: string): Observable<Blob> {
+    return this.http.get(`/api/draft-mail/${draftId}/attachments/${attId}`, { responseType: 'blob' });
+  }
+
+  deleteAttachment(draftId: string, attId: string): Observable<DraftEmail> {
+    return this.http.delete<DraftEmail>(`/api/draft-mail/${draftId}/attachments/${attId}`);
+  }
+
+  addAttachments(draftId: string, files: File[]): Observable<DraftEmail> {
+    const fd = new FormData();
+    files.forEach((f) => fd.append('files', f, f.name));
+    return this.http.post<DraftEmail>(`/api/draft-mail/${draftId}/attachments`, fd);
+  }
+
   // Authorizers
   getAuthorizers(): Observable<DraftMailAuthorizer[]> {
     return this.http.get<DraftMailAuthorizer[]>('/api/draft-mail/authorizers');

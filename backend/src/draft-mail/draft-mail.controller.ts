@@ -6,7 +6,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
-import { existsSync, mkdirSync, createReadStream } from 'fs';
+import { existsSync, mkdirSync, createReadStream, unlinkSync } from 'fs';
 import { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -171,6 +171,52 @@ export class DraftMailController {
   @Post(':id/send')
   send(@Param('id') id: string, @Body() dto: SendDraftDto, @Request() req: { user: User }) {
     return this.service.send(id, dto, req.user);
+  }
+
+  @Post(':id/attachments')
+  @UseInterceptors(FilesInterceptor('files', 10, {
+    storage: diskStorage({
+      destination: (req, file, cb) => {
+        if (!existsSync(STORAGE_PATH)) mkdirSync(STORAGE_PATH, { recursive: true });
+        cb(null, STORAGE_PATH);
+      },
+      filename: (req, file, cb) => {
+        cb(null, `${randomUUID()}${extname(file.originalname)}`);
+      },
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 },
+  }))
+  async addAttachments(
+    @Param('id') id: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Request() req: { user: User },
+  ) {
+    await this.service.findOne(id, req.user);
+    if (files?.length) {
+      const attachments = files.map((f) => ({
+        draftEmailId: id,
+        filename: f.originalname,
+        contentType: f.mimetype,
+        size: f.size,
+        storagePath: f.path,
+      }));
+      await this.attachmentRepo.save(attachments);
+    }
+    return this.service.findOne(id, req.user);
+  }
+
+  @Delete(':id/attachments/:attId')
+  async deleteAttachment(
+    @Param('id') id: string,
+    @Param('attId') attId: string,
+    @Request() req: { user: User },
+  ) {
+    await this.service.findOne(id, req.user);
+    const att = await this.attachmentRepo.findOne({ where: { id: attId, draftEmailId: id } });
+    if (!att) throw new NotFoundException('Adjunto no encontrado');
+    if (existsSync(att.storagePath)) unlinkSync(att.storagePath);
+    await this.attachmentRepo.delete(att.id);
+    return this.service.findOne(id, req.user);
   }
 
   @Get(':id/attachments/:attId')

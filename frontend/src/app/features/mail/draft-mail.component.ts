@@ -229,13 +229,36 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
               <!-- Attachments -->
               <div class="mt-3">
                 <label class="text-xs text-gray-400">Adjuntos (opcional, máx. 5 MB por archivo):</label>
-                <input type="file" multiple (change)="onFilesSelected($event)"
+                <input #fileInput type="file" multiple (change)="onFilesSelected($event)"
                   class="mt-1 block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100" />
                 @if (fileError()) {
                   <div class="mt-2 rounded-lg bg-amber-50 border border-amber-300 px-3 py-2 text-xs text-amber-800">{{ fileError() }}</div>
                 }
-                @for (f of selectedFiles(); track f.name) {
-                  <div class="text-xs text-gray-400 mt-0.5">• {{ f.name }}</div>
+                @if (editingDraft()?.attachments?.length) {
+                  <div class="mt-1.5">
+                    <p class="text-[11px] text-gray-400 mb-0.5">Adjuntos guardados:</p>
+                    <div class="flex flex-wrap gap-1">
+                      @for (att of editingDraft()!.attachments; track att.id) {
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs border border-gray-200">
+                          <button type="button" (click)="downloadAtt(editingDraft()!.id, att.id, att.filename)" class="hover:underline">{{ att.filename }}</button>
+                          <button type="button" (click)="deleteEditAtt(att.id)" class="text-gray-300 hover:text-rose-500 ml-0.5">✕</button>
+                        </span>
+                      }
+                    </div>
+                  </div>
+                }
+                @if (selectedFiles().length > 0) {
+                  <div class="mt-1.5">
+                    <p class="text-[11px] text-gray-400 mb-0.5">Nuevos adjuntos:</p>
+                    <div class="flex flex-wrap gap-1">
+                      @for (f of selectedFiles(); track f.name) {
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 text-xs border border-teal-200">
+                          {{ f.name }}
+                          <button type="button" (click)="removeFile(f.name)" class="text-teal-400 hover:text-rose-500 ml-0.5">✕</button>
+                        </span>
+                      }
+                    </div>
+                  </div>
                 }
               </div>
 
@@ -350,14 +373,14 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                 <div>
                   <p class="text-xs font-medium text-gray-400 mb-1">Adjuntos:</p>
                   @for (att of activeDraft()!.attachments; track att.id) {
-                    <a [href]="draftMailService.getAttachmentUrl(activeDraft()!.id, att.id)" target="_blank"
+                    <button type="button" (click)="downloadAtt(activeDraft()!.id, att.id, att.filename)"
                       class="flex items-center gap-1.5 text-xs text-teal-700 hover:underline mb-0.5">
                       <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                       </svg>
                       {{ att.filename }}
-                    </a>
+                    </button>
                   }
                 </div>
               }
@@ -612,6 +635,8 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     this.ccAddresses.set([...draft.ccAddresses]);
     this.formSubject = draft.subject;
     this.formBody = draft.bodyText;
+    this.selectedFiles.set([]);
+    this.fileError.set(null);
     this.formError.set(null);
     this.showForm.set(true);
   }
@@ -664,9 +689,10 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 
   onFilesSelected(event: Event): void {
     const MAX_SIZE = 5 * 1024 * 1024;
-    const all = Array.from((event.target as HTMLInputElement).files ?? []);
-    const oversized = all.filter(f => f.size > MAX_SIZE);
-    const valid = all.filter(f => f.size <= MAX_SIZE);
+    const input = event.target as HTMLInputElement;
+    const newFiles = Array.from(input.files ?? []);
+    const oversized = newFiles.filter(f => f.size > MAX_SIZE);
+    const valid = newFiles.filter(f => f.size <= MAX_SIZE);
     if (oversized.length > 0) {
       this.fileError.set(
         `El archivo que intenta adjuntar pesa más de 5 MB. Si desea enviar MTO's con adjuntos de mayor peso considere enviarlos por el sistema de SASS o en el caso de encriptados por el sistema SIENA.`
@@ -674,7 +700,46 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     } else {
       this.fileError.set(null);
     }
-    this.selectedFiles.set(valid.slice(0, 10));
+    // Accumulate: merge with existing, deduplicate by name
+    const existing = this.selectedFiles();
+    const merged = [...existing];
+    for (const f of valid) {
+      if (!merged.some(e => e.name === f.name)) merged.push(f);
+    }
+    this.selectedFiles.set(merged.slice(0, 10));
+    input.value = ''; // reset so same file can be re-selected after removal
+  }
+
+  removeFile(name: string): void {
+    this.selectedFiles.update(files => files.filter(f => f.name !== name));
+  }
+
+  downloadAtt(draftId: string, attId: string, filename: string): void {
+    this.draftMailService.downloadAttachment(draftId, attId).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      },
+      error: () => {},
+    });
+  }
+
+  deleteEditAtt(attId: string): void {
+    const draft = this.editingDraft();
+    if (!draft) return;
+    this.draftMailService.deleteAttachment(draft.id, attId).subscribe({
+      next: (updated) => {
+        this.editingDraft.set(updated);
+        this.drafts.update(list => list.map(d => d.id === updated.id ? updated : d));
+      },
+      error: () => {},
+    });
   }
 
   saveDraft(): void {
@@ -682,12 +747,18 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     const subject = this.formSubject || this.formBody.split('\n')[0]?.trim().slice(0, 120) || '(sin asunto)';
     if (this.editingDraft()) {
       this.saving.set(true);
+      const newFiles = this.selectedFiles();
       this.draftMailService.update(this.editingDraft()!.id, {
         subject,
         bodyText: this.formBody,
         toAddresses: this.toAddresses(),
         ccAddresses: this.ccAddresses(),
-      }).subscribe({
+      }).pipe(
+        switchMap((updated) => {
+          if (newFiles.length === 0) return of(updated);
+          return this.draftMailService.addAttachments(updated.id, newFiles);
+        })
+      ).subscribe({
         next: (updated) => {
           this.saving.set(false);
           this.drafts.update((list) => list.map((d) => d.id === updated.id ? updated : d));
@@ -843,8 +914,8 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   }
 
   draftDateGroup(draft: DraftEmail): string {
-    const d = draft.approvedAt ? new Date(draft.approvedAt) : new Date(draft.createdAt);
-    return this.fmtDateGroup(d);
+    if (!draft.approvedAt) return '';
+    return this.fmtDateGroup(new Date(draft.approvedAt));
   }
 
   draftFechaLarga(draft: DraftEmail): string {

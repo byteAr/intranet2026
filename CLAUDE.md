@@ -491,6 +491,113 @@ El archivo `state.json` se crea solo en el primer ciclo (30 segundos).
 
 ---
 
+### 8. Draft-Mail / MTO (`draft-mail/`)
+
+Módulo para redacción, revisión y envío de Mensajes de Tráfico Oficial (MTO).
+
+**Flujo de estados:**
+```
+draft → pending_review → approved → sent
+              ↓               ↓
+        needs_correction   cancelled (ticom_cancel)
+              ↑
+           (editar y reenviar)
+```
+
+**Roles involucrados:**
+- Creador (cualquier usuario): redacta, envía a revisión, puede cancelar o editar si fue devuelto
+- MTOSAUTORIZADOS / TICOM (autorizadores): revisan, aprueban o devuelven para corrección
+- TICOM: además entra el hash y realiza el envío final
+
+**Endpoints:**
+| Ruta | Método | Auth | Roles | Descripción |
+|------|--------|------|-------|-------------|
+| `/api/draft-mail` | GET | JWT | - | Listar borradores (filtrado por rol) |
+| `/api/draft-mail` | POST | JWT | - | Crear borrador (FormData, adjuntos opcionales) |
+| `/api/draft-mail/next-mailcode` | GET | JWT | - | Próximo código DEI disponible |
+| `/api/draft-mail/para-enviar` | GET | JWT | TICOM | Listar aprobados listos para enviar |
+| `/api/draft-mail/hash/:hash` | GET | JWT | TICOM | Buscar por hash del papel firmado |
+| `/api/draft-mail/pending-count` | GET | JWT | - | Conteo de pendientes de revisión |
+| `/api/draft-mail/approved-count` | GET | JWT | TICOM | Conteo de aprobados pendientes de envío |
+| `/api/draft-mail/authorizers` | GET/POST/DELETE | JWT | superApprover | Gestionar lista de autorizadores |
+| `/api/draft-mail/:id` | GET | JWT | - | Detalle de un borrador |
+| `/api/draft-mail/:id` | PATCH | JWT | creador | Editar (solo en `draft` o `needs_correction`) |
+| `/api/draft-mail/:id` | DELETE | JWT | creador | Eliminar borrador |
+| `/api/draft-mail/:id/submit` | POST | JWT | creador | Enviar a revisión |
+| `/api/draft-mail/:id/approve` | POST | JWT | autorizador | Aprobar |
+| `/api/draft-mail/:id/reject` | POST | JWT | autorizador | Devolver para corrección (con notas) |
+| `/api/draft-mail/:id/cancel` | POST | JWT | creador | Cancelar (con motivo) |
+| `/api/draft-mail/:id/ticom-cancel` | POST | JWT | TICOM/autorizador | Cancelar definitivo |
+| `/api/draft-mail/:id/delegate` | POST | JWT | autorizador | Asignar revisor específico |
+| `/api/draft-mail/:id/toggle-encryption` | POST | JWT | - | Forzar/desactivar encriptación manual |
+| `/api/draft-mail/:id/enter-hash` | POST | JWT | TICOM | Ingresar hash del papel firmado (registra `hashEnteredAt`) |
+| `/api/draft-mail/:id/send` | POST | JWT | TICOM | Enviar vía SMTP |
+| `/api/draft-mail/:id/attachments` | POST | JWT | - | Agregar adjuntos a borrador existente |
+| `/api/draft-mail/:id/attachments/:attId` | GET | JWT | - | Descargar adjunto (⚠️ requiere JWT — no usar `<a href>` directo) |
+| `/api/draft-mail/:id/attachments/:attId` | DELETE | JWT | - | Eliminar adjunto individual |
+
+**Entidad `DraftEmail`:**
+```
+id: UUID | hash: string|null (unique, generado al aprobar)
+creatorId | creatorName | creatorUsername
+subject | bodyText: text
+toAddresses: string[] (simple-json) | ccAddresses: string[] (simple-json)
+status: 'draft'|'pending_review'|'needs_correction'|'approved'|'sent'|'cancelled'
+sendMode: 'normal'|'sass'|'siena'|'pon'   — elegido por el creador, condiciona la vista de TICOM
+requiresEncryption: bool   — auto-detectado por regex PON en el body
+encryptionManualOverride: bool
+assignedReviewerId? | assignedReviewerName?   — delegación de revisión
+approvedById? | approvedByName? | approvedByRank? | approvedAt?
+correctionNotes: text?
+mailCode: varchar?   — código asignado por TICOM (ej: "DEI 125/26")
+hashEnteredAt? | hashEnteredById? | hashEnteredByName? | hashEnteredByRank?
+sentById? | sentByName? | sentByRank? | sentAt? | sentMessageId?
+cancelledById? | cancelledByName? | cancellationReason? | cancelledAt?
+history: DraftHistoryEntry[] (jsonb)   — audit trail completo
+attachments: DraftEmailAttachment[]    — CASCADE delete
+createdAt | updatedAt
+```
+
+**sendMode — modalidades de envío:**
+| Valor | Descripción | Efecto en vista TICOM |
+|-------|-------------|----------------------|
+| `normal` | Envío estándar | UI normal de envío |
+| `sass` | Adjuntos vía sistema SASS | TICOM puede agregar texto adicional antes del bloque FDO/BT/TX |
+| `siena` | Envío desde sistema SIENA externo | Botón "Enviar correo" bloqueado; TICOM descarga adjuntos y usa SIENA |
+| `pon` | Adjuntos encriptados PON 33/96 | TICOM puede eliminar adjuntos y agregar versiones encriptadas |
+
+**Documento MTO (formato visual):**
+- ZOPR: fecha/hora de aprobación en formato `DDHHMMMONYR` (ej: `302003MAR26`); vacío hasta aprobar
+- PROMOTOR: siempre `DIREDTOS@MTO.GNA`
+- Body pre-cargado con `DEI  /YY\n\n` al crear nuevo MTO
+- Body enviado: `{mailCode}.- {body}\n\nFDO: {approvedAt}     BT: {hashEnteredAt}     TX: {rank} {apellido}`
+- DEI placeholder (`DEI  /26`) en body es reemplazado por el mailCode definitivo al enviar
+- Hash: 8 caracteres alfanuméricos únicos, generados al aprobar, impresos en papel para verificación
+
+**Adjuntos:**
+- Almacenamiento en disco: `DRAFT_ATTACHMENTS_PATH` (default: `/app/storage/draft-attachments`)
+- Límite frontend: 5 MB por archivo (error con sugerencia SASS/SIENA si supera)
+- Límite backend multer: 20 MB
+- ⚠️ Descarga siempre vía blob+JWT (`HttpClient responseType:'blob'`) — nunca `<a href>` directo (retorna 401)
+
+**Detección automática de encriptación:**
+- Regex PON en el body → `requiresEncryption = true` automáticamente
+- Se puede forzar/desactivar con `toggle-encryption`
+
+**WebSocket namespace `/draft-mail`:**
+Eventos: `draft_submitted`, `draft_approved`, `draft_ready_to_send`, `draft_rejected`, `draft_sent`, `draft_cancelled`, `draft_status_changed`
+
+**Rutas Angular:**
+- `/correo/borradores` — vista del creador y autorizador (`DraftMailComponent`)
+- `/correo/para-enviar` — vista exclusiva TICOM (`ParaEnviarComponent`)
+
+**Variables de entorno:**
+```env
+DRAFT_ATTACHMENTS_PATH=/app/storage/draft-attachments   # default
+```
+
+---
+
 ### 9. Push Notifications (`push/`)
 
 **Endpoints:**

@@ -729,6 +729,65 @@ Diferencias:
   red: 192.168.200.0/24 (red custom)
 ```
 
+### Volúmenes y persistencia de datos
+
+#### Dev (`docker-compose.yml` base)
+
+| Volumen / Bind mount | Ruta en contenedor | Qué persiste |
+|----------------------|--------------------|--------------|
+| `postgres_data` (named) | `/var/lib/postgresql/data` | Base de datos PostgreSQL completa |
+| `openldap_data` (named) | `/var/lib/ldap` | Datos del directorio LDAP |
+| `openldap_config` (named) | `/etc/ldap/slapd.d` | Configuración LDAP |
+| `chat_uploads` (named) | `/app/uploads` | Adjuntos del chat (imágenes, PDFs, etc.) |
+| `mail_attachments` (named) | `/app/storage/attachments` | Adjuntos de correos recibidos (IMAP/bridge) |
+| `mail_pst` (named) | `/app/storage/pst` | Archivos PST subidos para importación |
+| `draft_attachments` (named) | `/app/storage/draft-attachments` | Adjuntos de borradores MTO |
+| `./backend/src` (bind) | `/app/src` | Código fuente backend (hot-reload en dev) |
+| `./frontend/src` (bind) | `/app/src` | Código fuente frontend (hot-reload en dev) |
+
+#### Dev alternativo (`docker-compose.dev.yml`)
+
+| Bind mount | Ruta en contenedor | Nota |
+|------------|--------------------|------|
+| `./storage/attachments` | `/app/storage/attachments` | Adjuntos de correo en carpeta local del repo |
+| `./storage/pst` | `/app/storage/pst` | PST en carpeta local del repo |
+
+> En `docker-compose.dev.yml` los adjuntos de chat y draft-mail **no tienen volumen** → se pierden al recrear el contenedor.
+
+#### Prod (ambos compose files combinados)
+
+Los named volumes en producción los gestiona Docker Engine en el servidor Debian:
+
+```
+/var/lib/docker/volumes/
+  pac_postgres_data/_data        → datos PostgreSQL
+  pac_openldap_data/_data        → datos LDAP
+  pac_openldap_config/_data      → config LDAP
+  pac_chat_uploads/_data         → adjuntos chat (/app/uploads)
+  pac_mail_attachments/_data     → adjuntos correo recibido (/app/storage/attachments)
+  pac_mail_pst/_data             → uploads PST (/app/storage/pst)
+  pac_draft_attachments/_data    → adjuntos MTO (/app/storage/draft-attachments)
+```
+
+> El prefijo del volumen (`pac_`) lo pone Docker Compose a partir del nombre del directorio del proyecto.
+> Verificar el nombre real con `docker volume ls | grep pac`.
+
+#### Backup de volúmenes en producción
+
+```bash
+# Backup de adjuntos de correo recibido
+docker run --rm -v pac_mail_attachments:/data -v $(pwd):/backup \
+  alpine tar czf /backup/mail_attachments_$(date +%Y%m%d).tar.gz -C /data .
+
+# Backup de adjuntos de borradores MTO
+docker run --rm -v pac_draft_attachments:/data -v $(pwd):/backup \
+  alpine tar czf /backup/draft_attachments_$(date +%Y%m%d).tar.gz -C /data .
+
+# Backup de base de datos
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec postgres \
+  pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_$(date +%Y%m%d).sql
+```
+
 ### Comandos útiles en producción
 ```bash
 # Ver logs del backend
@@ -739,6 +798,9 @@ docker compose -f docker-compose.prod.yml up -d --build backend frontend
 
 # Acceder a postgres
 docker compose -f docker-compose.prod.yml exec postgres psql -U <user> -d <db>
+
+# Ver volúmenes del proyecto
+docker volume ls | grep pac
 ```
 
 ### Notas de Docker
@@ -747,6 +809,7 @@ docker compose -f docker-compose.prod.yml exec postgres psql -U <user> -d <db>
 - Frontend mapea `4200:80` (nginx escucha en 80)
 - Backend no tiene `command:` override — usa `node dist/main` (producción)
 - **Rebuild requerido cuando:** se agregan nuevos archivos `.ts` (el dist de Docker no se actualiza solo)
+- **Nunca hacer `docker compose down -v`** en producción — elimina todos los volúmenes y se pierden adjuntos y datos de BD
 
 ---
 

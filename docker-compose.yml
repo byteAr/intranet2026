@@ -80,6 +80,7 @@ services:
       - chat_uploads:/app/uploads
       - mail_attachments:/app/storage/attachments
       - mail_pst:/app/storage/pst
+      - draft_attachments:/app/storage/draft-attachments
 
   frontend:
     build:
@@ -101,3 +102,4 @@ volumes:
   chat_uploads:
   mail_attachments:
   mail_pst:
+  draft_attachments:

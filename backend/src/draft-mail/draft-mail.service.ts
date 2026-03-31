@@ -81,6 +81,7 @@ export class DraftMailService {
       ccAddresses: dto.ccAddresses ?? [],
       status: 'draft',
       requiresEncryption,
+      sendMode: dto.sendMode ?? 'normal',
       history: [{
         type: 'created',
         at: new Date().toISOString(),
@@ -187,6 +188,7 @@ export class DraftMailService {
     if (dto.toAddresses) draft.toAddresses = dto.toAddresses;
     if (dto.ccAddresses) draft.ccAddresses = dto.ccAddresses;
     if (dto.subject !== undefined) draft.subject = dto.subject;
+    if (dto.sendMode !== undefined) draft.sendMode = dto.sendMode;
 
     const entry: DraftHistoryEntry = {
       type: 'edited',

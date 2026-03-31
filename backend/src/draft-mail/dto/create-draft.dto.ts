@@ -5,4 +5,5 @@ export class CreateDraftDto {
   @IsString() @MinLength(1) bodyText: string;
   @IsArray() @IsString({ each: true }) toAddresses: string[];
   @IsArray() @IsOptional() @IsString({ each: true }) ccAddresses?: string[];
+  @IsOptional() @IsString() sendMode?: string;
 }

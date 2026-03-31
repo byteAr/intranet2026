@@ -42,6 +42,7 @@ export interface DraftEmail {
   toAddresses: string[];
   ccAddresses: string[];
   status: DraftStatus;
+  sendMode: string;
   requiresEncryption: boolean;
   encryptionManualOverride: boolean;
   assignedReviewerId: string | null;
@@ -168,7 +169,7 @@ export class DraftMailService {
     return this.http.post<DraftEmail>('/api/draft-mail', formData);
   }
 
-  update(id: string, dto: { subject?: string; bodyText?: string; toAddresses?: string[]; ccAddresses?: string[] }): Observable<DraftEmail> {
+  update(id: string, dto: { subject?: string; bodyText?: string; toAddresses?: string[]; ccAddresses?: string[]; sendMode?: string }): Observable<DraftEmail> {
     return this.http.patch<DraftEmail>(`/api/draft-mail/${id}`, dto);
   }
 

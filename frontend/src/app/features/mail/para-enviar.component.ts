@@ -196,7 +196,7 @@ import { AuthService } from '../../core/services/auth.service';
               </div>
 
               <!-- Attachments -->
-              @if (activeEmail()!.attachments.length > 0 || sendMode() === 'pon') {
+              @if (activeEmail()!.attachments.length > 0 || activeEmail()!.sendMode === 'pon') {
                 <div class="bg-white rounded-lg p-3 border border-gray-200">
                   <p class="text-xs font-medium text-gray-500 mb-2">Adjuntos:</p>
                   <div class="space-y-1">
@@ -210,14 +210,14 @@ import { AuthService } from '../../core/services/auth.service';
                           </svg>
                           {{ att.filename }}
                         </button>
-                        @if (sendMode() === 'pon') {
+                        @if (activeEmail()!.sendMode === 'pon') {
                           <button type="button" (click)="deletePonAtt(att.id)" [disabled]="deletingAtt()"
                             class="text-rose-400 hover:text-rose-600 text-xs px-1 disabled:opacity-40" title="Eliminar adjunto">✕</button>
                         }
                       </div>
                     }
                   </div>
-                  @if (sendMode() === 'pon') {
+                  @if (activeEmail()!.sendMode === 'pon') {
                     <div class="mt-3 pt-2 border-t border-orange-100">
                       <label class="text-[11px] text-orange-600 block mb-1">Agregar adjuntos encriptados (máx 5 MB):</label>
                       <input type="file" multiple (change)="onPonFilesSelected($event)"
@@ -240,36 +240,25 @@ import { AuthService } from '../../core/services/auth.service';
                 </div>
               }
 
-              <!-- Mode buttons -->
-              <div class="bg-white rounded-xl p-4 border border-gray-200">
-                <p class="text-xs font-medium text-gray-500 mb-2">Modalidad de envío:</p>
-                <div class="flex flex-wrap gap-2">
-                  <button type="button" (click)="toggleMode('sass')"
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
-                    [class.bg-blue-600]="sendMode()==='sass'" [class.text-white]="sendMode()==='sass'" [class.border-blue-600]="sendMode()==='sass'"
-                    [class.text-gray-600]="sendMode()!=='sass'" [class.border-gray-200]="sendMode()!=='sass'" [class.hover:bg-gray-50]="sendMode()!=='sass'">
-                    Adjuntos por SASS
-                  </button>
-                  <button type="button" (click)="toggleMode('siena')"
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
-                    [class.bg-purple-600]="sendMode()==='siena'" [class.text-white]="sendMode()==='siena'" [class.border-purple-600]="sendMode()==='siena'"
-                    [class.text-gray-600]="sendMode()!=='siena'" [class.border-gray-200]="sendMode()!=='siena'" [class.hover:bg-gray-50]="sendMode()!=='siena'">
-                    Enviar por SIENA
-                  </button>
-                  <button type="button" (click)="toggleMode('pon')"
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
-                    [class.bg-orange-600]="sendMode()==='pon'" [class.text-white]="sendMode()==='pon'" [class.border-orange-600]="sendMode()==='pon'"
-                    [class.text-gray-600]="sendMode()!=='pon'" [class.border-gray-200]="sendMode()!=='pon'" [class.hover:bg-gray-50]="sendMode()!=='pon'">
-                    Enviar por PON 33/96
-                  </button>
+              <!-- Mode indicator (set by creator) -->
+              @if (activeEmail()!.sendMode && activeEmail()!.sendMode !== 'normal') {
+                <div class="rounded-xl p-3 border text-xs font-medium flex items-center gap-2"
+                  [class.bg-blue-50]="activeEmail()!.sendMode==='sass'" [class.border-blue-200]="activeEmail()!.sendMode==='sass'" [class.text-blue-700]="activeEmail()!.sendMode==='sass'"
+                  [class.bg-purple-50]="activeEmail()!.sendMode==='siena'" [class.border-purple-200]="activeEmail()!.sendMode==='siena'" [class.text-purple-700]="activeEmail()!.sendMode==='siena'"
+                  [class.bg-orange-50]="activeEmail()!.sendMode==='pon'" [class.border-orange-200]="activeEmail()!.sendMode==='pon'" [class.text-orange-700]="activeEmail()!.sendMode==='pon'">
+                  <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  @if (activeEmail()!.sendMode === 'sass') { Modalidad indicada por el redactor: <strong>Adjuntos por SASS</strong> — podés agregar texto antes del bloque FDO/BT/TX. }
+                  @if (activeEmail()!.sendMode === 'siena') { Modalidad indicada por el redactor: <strong>Enviar por SIENA</strong> — el envío se realiza desde el sistema externo. }
+                  @if (activeEmail()!.sendMode === 'pon') { Modalidad indicada por el redactor: <strong>PON 33/96</strong> — reemplazá los adjuntos por versiones encriptadas antes de enviar. }
                 </div>
-              </div>
+              }
 
-              <!-- SASS addendum -->
-              @if (sendMode() === 'sass') {
+              <!-- SASS addendum textarea -->
+              @if (activeEmail()!.sendMode === 'sass') {
                 <div class="border border-blue-200 rounded-xl p-4 bg-blue-50 space-y-2">
-                  <p class="text-xs font-semibold text-blue-700">Texto adicional SASS</p>
-                  <p class="text-[11px] text-blue-500">Se insertará en el cuerpo entre el texto original y el bloque FDO/BT/TX. No modifica el texto del redactor.</p>
+                  <p class="text-xs font-semibold text-blue-700">Texto adicional (se insertará antes del bloque FDO/BT/TX):</p>
                   <textarea [(ngModel)]="sassAddendum" rows="3"
                     placeholder="Ej: LOS ADJUNTOS SERÁN ENVIADOS POR SISTEMA SASS."
                     class="w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-mono uppercase focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none placeholder:normal-case placeholder:text-gray-400"></textarea>
@@ -277,15 +266,13 @@ import { AuthService } from '../../core/services/auth.service';
               }
 
               <!-- SIENA warning -->
-              @if (sendMode() === 'siena') {
-                <div class="border border-purple-200 rounded-xl p-4 bg-purple-50 space-y-2">
-                  <p class="text-xs font-semibold text-purple-700">Modo SIENA activo</p>
-                  <p class="text-[11px] text-purple-600">Este correo debe ser enviado desde el sistema SIENA. Podés descargar los adjuntos desde la sección de arriba.</p>
-                  <div class="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+              @if (activeEmail()!.sendMode === 'siena') {
+                <div class="border border-purple-200 rounded-xl p-4 bg-purple-50">
+                  <div class="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                     <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                     </svg>
-                    El botón "Enviar correo" está bloqueado. Usá SIENA para el envío.
+                    El botón "Enviar correo" está bloqueado. Descargá los adjuntos y enviá desde el sistema SIENA.
                   </div>
                 </div>
               }
@@ -320,10 +307,10 @@ import { AuthService } from '../../core/services/auth.service';
 
                 <!-- Send actions -->
                 <div class="flex flex-wrap gap-2">
-                  <button (click)="sendEmail()" [disabled]="sending() || !editableMailCode.trim() || sendMode() === 'siena'"
+                  <button (click)="sendEmail()" [disabled]="sending() || !editableMailCode.trim() || activeEmail()!.sendMode === 'siena'"
                     class="px-5 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
                     style="background:#0f766e"
-                    [title]="sendMode() === 'siena' ? 'Bloqueado en modo SIENA' : ''">
+                    [title]="activeEmail()!.sendMode === 'siena' ? 'Bloqueado: enviar desde SIENA' : ''">
                     {{ sending() ? 'Enviando...' : 'Enviar correo' }}
                   </button>
                   <button (click)="promptTicomCancel()"
@@ -398,7 +385,6 @@ export class ParaEnviarComponent implements OnInit {
   editableSubject = '';
   private unlockedAt: Date | null = null;
 
-  readonly sendMode = signal<'normal' | 'sass' | 'siena' | 'pon'>('normal');
   sassAddendum = '';
   readonly ponNewFiles = signal<File[]>([]);
   readonly ponFileError = signal<string | null>(null);
@@ -474,7 +460,6 @@ export class ParaEnviarComponent implements OnInit {
     this.sendError.set(null);
     this.editableMailCode = '';
     this.editableSubject = '';
-    this.sendMode.set('normal');
     this.sassAddendum = '';
     this.ponNewFiles.set([]);
     this.ponFileError.set(null);
@@ -542,7 +527,7 @@ export class ParaEnviarComponent implements OnInit {
     const lastName = (user?.lastName ?? user?.displayName ?? '').toUpperCase();
     const tx = [rank, lastName].filter(Boolean).join(' ');
     const footer = `FDO: ${fdo}     BT: ${bt}     TX: ${tx}`;
-    const addendum = this.sendMode() === 'sass' && this.sassAddendum.trim()
+    const addendum = email.sendMode === 'sass' && this.sassAddendum.trim()
       ? `\n\n${this.sassAddendum.trim()}`
       : '';
     return `${body}${addendum}\n\n${footer}`;
@@ -579,13 +564,6 @@ export class ParaEnviarComponent implements OnInit {
       },
       error: () => {},
     });
-  }
-
-  toggleMode(mode: 'sass' | 'siena' | 'pon'): void {
-    this.sendMode.set(this.sendMode() === mode ? 'normal' : mode);
-    this.sassAddendum = '';
-    this.ponNewFiles.set([]);
-    this.ponFileError.set(null);
   }
 
   deletePonAtt(attId: string): void {
@@ -633,7 +611,7 @@ export class ParaEnviarComponent implements OnInit {
     this.sending.set(true);
     this.sendError.set(null);
 
-    const uploadStep$ = (this.sendMode() === 'pon' && this.ponNewFiles().length > 0)
+    const uploadStep$ = (email.sendMode === 'pon' && this.ponNewFiles().length > 0)
       ? this.draftMailService.addAttachments(email.id, this.ponNewFiles()).pipe(
           tap((updated) => this.activeEmail.set(updated))
         )

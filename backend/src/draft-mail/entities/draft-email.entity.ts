@@ -38,6 +38,9 @@ export class DraftEmail {
   // status: draft | pending_review | needs_correction | approved | sent | cancelled
   @Column({ default: 'draft' }) status: string;
 
+  // sendMode: normal | sass | siena | pon — set by creator, conditions TICOM view
+  @Column({ default: 'normal' }) sendMode: string;
+
   @Column({ default: false }) requiresEncryption: boolean;
   @Column({ default: false }) encryptionManualOverride: boolean;
 

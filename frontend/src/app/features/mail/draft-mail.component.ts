@@ -226,6 +226,40 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                 </div>
               </div><!-- /MTO document -->
 
+              <!-- Send mode selection -->
+              <div class="mt-3">
+                <label class="text-xs text-gray-400 block mb-1.5">Modalidad de envío para TICOM:</label>
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" (click)="formSendMode.set(formSendMode()==='sass' ? 'normal' : 'sass')"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+                    [class.bg-blue-600]="formSendMode()==='sass'" [class.text-white]="formSendMode()==='sass'" [class.border-blue-600]="formSendMode()==='sass'"
+                    [class.text-gray-600]="formSendMode()!=='sass'" [class.border-gray-300]="formSendMode()!=='sass'" [class.hover:bg-gray-50]="formSendMode()!=='sass'">
+                    Adjuntos por SASS
+                  </button>
+                  <button type="button" (click)="formSendMode.set(formSendMode()==='siena' ? 'normal' : 'siena')"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+                    [class.bg-purple-600]="formSendMode()==='siena'" [class.text-white]="formSendMode()==='siena'" [class.border-purple-600]="formSendMode()==='siena'"
+                    [class.text-gray-600]="formSendMode()!=='siena'" [class.border-gray-300]="formSendMode()!=='siena'" [class.hover:bg-gray-50]="formSendMode()!=='siena'">
+                    Enviar por SIENA
+                  </button>
+                  <button type="button" (click)="formSendMode.set(formSendMode()==='pon' ? 'normal' : 'pon')"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+                    [class.bg-orange-600]="formSendMode()==='pon'" [class.text-white]="formSendMode()==='pon'" [class.border-orange-600]="formSendMode()==='pon'"
+                    [class.text-gray-600]="formSendMode()!=='pon'" [class.border-gray-300]="formSendMode()!=='pon'" [class.hover:bg-gray-50]="formSendMode()!=='pon'">
+                    Enviar por PON 33/96
+                  </button>
+                </div>
+                @if (formSendMode() === 'sass') {
+                  <p class="mt-1.5 text-[11px] text-blue-600">TICOM podrá agregar texto adicional antes del bloque FDO/BT/TX.</p>
+                }
+                @if (formSendMode() === 'siena') {
+                  <p class="mt-1.5 text-[11px] text-purple-600">El botón de envío estará bloqueado; el envío se realiza desde el sistema SIENA.</p>
+                }
+                @if (formSendMode() === 'pon') {
+                  <p class="mt-1.5 text-[11px] text-orange-600">TICOM podrá reemplazar los adjuntos por versiones encriptadas antes de enviar.</p>
+                }
+              </div>
+
               <!-- Attachments -->
               <div class="mt-3">
                 <label class="text-xs text-gray-400">Adjuntos (opcional, máx. 5 MB por archivo):</label>
@@ -533,6 +567,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   ccInput = '';
   formSubject = '';
   formBody = '';
+  readonly formSendMode = signal<'normal' | 'sass' | 'siena' | 'pon'>('normal');
   readonly selectedFiles = signal<File[]>([]);
   readonly formError = signal<string | null>(null);
   readonly fileError = signal<string | null>(null);
@@ -623,6 +658,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     this.ccAddresses.set([]);
     this.formSubject = '';
     this.formBody = `DEI  /${yr}\n\n`;
+    this.formSendMode.set('normal');
     this.selectedFiles.set([]);
     this.formError.set(null);
     this.fileError.set(null);
@@ -635,6 +671,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     this.ccAddresses.set([...draft.ccAddresses]);
     this.formSubject = draft.subject;
     this.formBody = draft.bodyText;
+    this.formSendMode.set((draft.sendMode ?? 'normal') as 'normal' | 'sass' | 'siena' | 'pon');
     this.selectedFiles.set([]);
     this.fileError.set(null);
     this.formError.set(null);
@@ -753,6 +790,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
         bodyText: this.formBody,
         toAddresses: this.toAddresses(),
         ccAddresses: this.ccAddresses(),
+        sendMode: this.formSendMode(),
       }).pipe(
         switchMap((updated) => {
           if (newFiles.length === 0) return of(updated);
@@ -775,6 +813,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
       const fd = new FormData();
       fd.append('subject', subject);
       fd.append('bodyText', this.formBody);
+      fd.append('sendMode', this.formSendMode());
       this.toAddresses().forEach((a) => fd.append('toAddresses[]', a));
       this.ccAddresses().forEach((a) => fd.append('ccAddresses[]', a));
       this.selectedFiles().forEach((f) => fd.append('files', f, f.name));

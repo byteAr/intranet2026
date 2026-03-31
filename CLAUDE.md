@@ -760,17 +760,17 @@ Los named volumes en producción los gestiona Docker Engine en el servidor Debia
 
 ```
 /var/lib/docker/volumes/
-  pac_postgres_data/_data        → datos PostgreSQL
-  pac_openldap_data/_data        → datos LDAP
-  pac_openldap_config/_data      → config LDAP
-  pac_chat_uploads/_data         → adjuntos chat (/app/uploads)
-  pac_mail_attachments/_data     → adjuntos correo recibido (/app/storage/attachments)
-  pac_mail_pst/_data             → uploads PST (/app/storage/pst)
-  pac_draft_attachments/_data    → adjuntos MTO (/app/storage/draft-attachments)
+  intranet2026_postgres_data/_data        → datos PostgreSQL
+  intranet2026_openldap_data/_data        → datos LDAP
+  intranet2026_openldap_config/_data      → config LDAP
+  intranet2026_chat_uploads/_data         → adjuntos chat (/app/uploads)
+  intranet2026_mail_attachments/_data     → adjuntos correo recibido (/app/storage/attachments)
+  intranet2026_mail_pst/_data             → uploads PST (/app/storage/pst)
+  intranet2026_draft_attachments/_data    → adjuntos MTO (/app/storage/draft-attachments)
 ```
 
-> El prefijo del volumen (`pac_`) lo pone Docker Compose a partir del nombre del directorio del proyecto.
-> Verificar el nombre real con `docker volume ls | grep pac`.
+> El prefijo del volumen lo pone Docker Compose a partir del nombre del directorio del proyecto (`intranet2026_`).
+> Verificar con `docker volume ls | grep intranet2026`.
 
 #### Backup de volúmenes en producción
 

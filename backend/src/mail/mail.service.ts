@@ -29,9 +29,9 @@ export class MailService implements OnApplicationBootstrap {
         BEGIN
           NEW.search_vector := to_tsvector('simple',
             coalesce(NEW.subject, '') || ' ' ||
-            coalesce(NEW.body_text, '') || ' ' ||
-            coalesce(NEW.from_address, '') || ' ' ||
-            coalesce(NEW.mail_code, '')
+            coalesce(NEW."bodyText", '') || ' ' ||
+            coalesce(NEW."fromAddress", '') || ' ' ||
+            coalesce(NEW."mailCode", '')
           );
           RETURN NEW;
         END;
@@ -53,9 +53,9 @@ export class MailService implements OnApplicationBootstrap {
         await this.dataSource.query(`
           UPDATE emails SET search_vector = to_tsvector('simple',
             coalesce(subject, '') || ' ' ||
-            coalesce(body_text, '') || ' ' ||
-            coalesce(from_address, '') || ' ' ||
-            coalesce(mail_code, '')
+            coalesce("bodyText", '') || ' ' ||
+            coalesce("fromAddress", '') || ' ' ||
+            coalesce("mailCode", '')
           ) WHERE search_vector IS NULL
         `);
         this.logger.log(`FTS: search_vector backfilled for ${count} emails`);

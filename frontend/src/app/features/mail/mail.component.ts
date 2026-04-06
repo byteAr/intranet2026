@@ -632,7 +632,7 @@ export class MailComponent implements OnInit {
     if (!term.trim()) return escaped;
     const termRe = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
     const re = new RegExp(`(${termRe})`, 'gi');
-    return escaped.replace(re, '<mark style="background:#fef9c3;padding:0 1px;border-radius:2px;color:inherit">$1</mark>');
+    return escaped.replace(re, '<mark style="background:#ffff00;padding:0 1px;border-radius:2px;color:inherit">$1</mark>');
   }
 
   get isTicom(): boolean {
@@ -770,6 +770,7 @@ export class MailComponent implements OnInit {
     this.searchQuery = '';
     this.isSearchMode.set(false);
     this.activeSearchTerm.set('');
+    this.mailService.exitSearch();
     this.mailService.loadEmails(this.activeFolder() ?? undefined, this.currentPage(), 30, this.isHistorical());
   }
 
@@ -790,6 +791,7 @@ export class MailComponent implements OnInit {
     this.currentPage.set(1);
     this.activeEmail.set(null);
     this.activeSearchTerm.set(this.searchQuery.trim());
+    this.mailService.isSearchActive.set(true);
     this.mailService.loadEmails(
       folder,
       1,
@@ -812,6 +814,7 @@ export class MailComponent implements OnInit {
     this.isAdvancedMode.set(false);
     this.showAdvanced.set(false);
     this.activeSearchTerm.set('');
+    this.mailService.exitSearch();
     this.mailService.loadEmails(this.activeFolder() ?? undefined, 1, 30, this.isHistorical());
   }
 
@@ -1150,7 +1153,7 @@ export class MailComponent implements OnInit {
       const re = new RegExp(`(${termRe})`, 'gi');
       return html.replace(/(<[^>]+>)|([^<]+)/g, (_, tag, text) => {
         if (tag) return tag;
-        return text ? text.replace(re, '<mark style="background:#fef9c3;padding:0 1px;border-radius:2px;color:inherit">$1</mark>') : '';
+        return text ? text.replace(re, '<mark style="background:#ffff00;padding:0 1px;border-radius:2px;color:inherit">$1</mark>') : '';
       });
     };
 

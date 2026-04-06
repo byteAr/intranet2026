@@ -94,6 +94,7 @@ export class MailService {
   readonly unreadCount = signal(0);
   readonly unreadCounts = signal<MailUnreadCounts>({ total: 0, informativos: 0, ejecutivos: 0, redgen: 0, tx: 0 });
   readonly loading = signal(false);
+  readonly isSearchActive = signal(false);
 
   constructor() {
     this.authService.onBeforeLogout(() => this.disconnect());
@@ -119,7 +120,8 @@ export class MailService {
 
     this.socket.on('new_email', (payload: Pick<Email, 'id' | 'subject' | 'fromAddress' | 'folder' | 'date' | 'mailCode'>) => {
       this.loadUnreadCounts();
-      // Prepend a minimal email entry so the list updates immediately
+      // Durante una búsqueda activa no contaminar la lista de resultados
+      if (this.isSearchActive()) return;
       const newEntry: Email = {
         id: payload.id,
         internetMessageId: '',
@@ -154,6 +156,10 @@ export class MailService {
     return this.socket?.connected ?? false;
   }
 
+  exitSearch(): void {
+    this.isSearchActive.set(false);
+  }
+
   loadEmails(
     folder?: MailFolder,
     page = 1,
@@ -161,6 +167,7 @@ export class MailService {
     historical = false,
     advanced?: { q?: string; dateFrom?: string; dateTo?: string; year?: number },
   ): void {
+    this.emails.set([]);
     this.loading.set(true);
     let params = new HttpParams().set('page', page).set('limit', limit);
     if (folder) params = params.set('folder', folder);
@@ -201,6 +208,8 @@ export class MailService {
 
   search(q: string): void {
     if (!q.trim()) return;
+    this.isSearchActive.set(true);
+    this.emails.set([]);
     this.loading.set(true);
     this.http
       .get<EmailListResponse>('/api/mail/emails', {

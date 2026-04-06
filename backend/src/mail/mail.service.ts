@@ -118,9 +118,10 @@ export class MailService implements OnApplicationBootstrap {
 
     if (dto.q?.trim()) {
       const term = dto.q.trim();
+      const ilikeTerm = `%${term}%`;
       qb.andWhere(
-        `e.search_vector @@ plainto_tsquery('simple', :term)`,
-        { term },
+        `(e."mailCode" ILIKE :ilikeTerm OR e.subject ILIKE :ilikeTerm OR e.search_vector @@ plainto_tsquery('simple', :term))`,
+        { term, ilikeTerm },
       );
     }
 

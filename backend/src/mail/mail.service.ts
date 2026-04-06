@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Email } from './entities/email.entity';
@@ -8,7 +8,8 @@ import { EmailReference } from './entities/email-reference.entity';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 
 @Injectable()
-export class MailService {
+export class MailService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(MailService.name);
   constructor(
     @InjectRepository(Email)
     private readonly emailRepo: Repository<Email>,
@@ -20,6 +21,51 @@ export class MailService {
     private readonly referenceRepo: Repository<EmailReference>,
     private readonly dataSource: DataSource,
   ) {}
+
+  async onApplicationBootstrap(): Promise<void> {
+    try {
+      await this.dataSource.query(`
+        CREATE OR REPLACE FUNCTION emails_search_vector_update() RETURNS trigger AS $$
+        BEGIN
+          NEW.search_vector := to_tsvector('simple',
+            coalesce(NEW.subject, '') || ' ' ||
+            coalesce(NEW.body_text, '') || ' ' ||
+            coalesce(NEW.from_address, '') || ' ' ||
+            coalesce(NEW.mail_code, '')
+          );
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+      `);
+
+      await this.dataSource.query(`
+        DROP TRIGGER IF EXISTS emails_search_vector_trigger ON emails;
+        CREATE TRIGGER emails_search_vector_trigger
+        BEFORE INSERT OR UPDATE ON emails
+        FOR EACH ROW EXECUTE FUNCTION emails_search_vector_update();
+      `);
+
+      const { count } = await this.dataSource
+        .query(`SELECT COUNT(*) AS count FROM emails WHERE search_vector IS NULL`)
+        .then((r: { count: string }[]) => r[0]);
+
+      if (parseInt(count, 10) > 0) {
+        await this.dataSource.query(`
+          UPDATE emails SET search_vector = to_tsvector('simple',
+            coalesce(subject, '') || ' ' ||
+            coalesce(body_text, '') || ' ' ||
+            coalesce(from_address, '') || ' ' ||
+            coalesce(mail_code, '')
+          ) WHERE search_vector IS NULL
+        `);
+        this.logger.log(`FTS: search_vector backfilled for ${count} emails`);
+      }
+
+      this.logger.log('FTS: trigger and search_vector ready');
+    } catch (err) {
+      this.logger.error('FTS: failed to initialize search_vector trigger', (err as Error).message);
+    }
+  }
 
   async findAll(
     dto: QueryEmailsDto,

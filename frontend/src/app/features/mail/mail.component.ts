@@ -630,7 +630,8 @@ export class MailComponent implements OnInit {
     const term = this.activeSearchTerm();
     const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     if (!term.trim()) return escaped;
-    const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const termRe = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+    const re = new RegExp(`(${termRe})`, 'gi');
     return escaped.replace(re, '<mark style="background:#fef9c3;padding:0 1px;border-radius:2px;color:inherit">$1</mark>');
   }
 
@@ -1145,7 +1146,8 @@ export class MailComponent implements OnInit {
 
     const applySearchHighlight = (html: string): string => {
       if (!searchTerm.trim()) return html;
-      const re = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      const termRe = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+      const re = new RegExp(`(${termRe})`, 'gi');
       return html.replace(/(<[^>]+>)|([^<]+)/g, (_, tag, text) => {
         if (tag) return tag;
         return text ? text.replace(re, '<mark style="background:#fef9c3;padding:0 1px;border-radius:2px;color:inherit">$1</mark>') : '';

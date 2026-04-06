@@ -462,7 +462,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
             <!-- Header -->
             <div class="border-b border-gray-100 pb-4 mb-4">
               <div class="flex items-start justify-between gap-3 mb-2">
-                <h1 class="text-base font-semibold text-gray-900 leading-snug">{{ activeEmail()!.subject }}</h1>
+                <h1 class="text-base font-semibold text-gray-900 leading-snug" [innerHTML]="highlightText(activeEmail()!.subject)"></h1>
                 <span class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full" [ngClass]="folderBadgeClass(activeEmail()!.folder)">
                   {{ folderLabel(activeEmail()!.folder) }}
                 </span>
@@ -474,7 +474,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                   <p><span class="font-medium text-gray-600">CC:</span> {{ activeEmail()!.ccAddresses.join(', ') }}</p>
                 }
                 <p><span class="font-medium text-gray-600">Fecha:</span> {{ formatFullDate(activeEmail()!.date) }}</p>
-                <p><span class="font-medium text-gray-600">Asunto:</span> {{ activeEmail()!.subject }}</p>
+                <p><span class="font-medium text-gray-600">Asunto:</span> <span [innerHTML]="highlightText(activeEmail()!.subject)"></span></p>
               </div>
 
               <!-- Attachments — horizontal, below metadata -->
@@ -493,7 +493,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                              [style.color]="fileIcon(att.filename).fg">
                           {{ fileIcon(att.filename).char }}
                         </div>
-                        <span class="text-gray-600 truncate w-full text-center" style="font-size:9px">{{ att.filename }}</span>
+                        <span class="text-gray-600 truncate w-full text-center" style="font-size:9px" [innerHTML]="highlightText(att.filename)"></span>
                       </button>
                     }
                   </div>
@@ -568,6 +568,7 @@ export class MailComponent implements OnInit {
   readonly detailLoading = signal(false);
   readonly isSearchMode = signal(false);
   readonly isHistorical = signal(false);
+  readonly activeSearchTerm = signal('');
   readonly showAdvanced = signal(false);
   readonly isAdvancedMode = signal(false);
   advDateFrom = '';
@@ -622,8 +623,16 @@ export class MailComponent implements OnInit {
   readonly highlightedBodyHtml = computed(() => {
     const email = this.activeEmail();
     if (!email) return this.sanitizer.bypassSecurityTrustHtml('');
-    return this.buildHighlightedBody(email);
+    return this.buildHighlightedBody(email, this.activeSearchTerm());
   });
+
+  highlightText(text: string): string {
+    const term = this.activeSearchTerm();
+    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (!term.trim()) return escaped;
+    const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return escaped.replace(re, '<mark style="background:#fef9c3;padding:0 1px;border-radius:2px;color:inherit">$1</mark>');
+  }
 
   get isTicom(): boolean {
     return this.mailService.isTicom;
@@ -741,6 +750,7 @@ export class MailComponent implements OnInit {
       this.searchTimer = null;
       this.isSearchMode.set(true);
       this.activeEmail.set(null);
+      this.activeSearchTerm.set(q.trim());
       this.mailService.search(q.trim());
     }, 300);
   }
@@ -751,12 +761,14 @@ export class MailComponent implements OnInit {
     if (this.searchTimer) { clearTimeout(this.searchTimer); this.searchTimer = null; }
     this.isSearchMode.set(true);
     this.activeEmail.set(null);
+    this.activeSearchTerm.set(q);
     this.mailService.search(q);
   }
 
   clearSearch(): void {
     this.searchQuery = '';
     this.isSearchMode.set(false);
+    this.activeSearchTerm.set('');
     this.mailService.loadEmails(this.activeFolder() ?? undefined, this.currentPage(), 30, this.isHistorical());
   }
 
@@ -776,6 +788,7 @@ export class MailComponent implements OnInit {
     this.showAdvanced.set(false);
     this.currentPage.set(1);
     this.activeEmail.set(null);
+    this.activeSearchTerm.set(this.searchQuery.trim());
     this.mailService.loadEmails(
       folder,
       1,
@@ -797,6 +810,7 @@ export class MailComponent implements OnInit {
     this.advFolder.set(null);
     this.isAdvancedMode.set(false);
     this.showAdvanced.set(false);
+    this.activeSearchTerm.set('');
     this.mailService.loadEmails(this.activeFolder() ?? undefined, 1, 30, this.isHistorical());
   }
 
@@ -1122,17 +1136,27 @@ export class MailComponent implements OnInit {
   }
 
   /** Renders body with mail codes highlighted: green=exists, red=not found. */
-  private buildHighlightedBody(email: Email): SafeHtml {
+  private buildHighlightedBody(email: Email, searchTerm = ''): SafeHtml {
     const refs = email.outgoingRefs ?? [];
     const refMap = new Map<string, string | null>();
     for (const r of refs) {
       refMap.set(r.referencedCode.toUpperCase(), r.referencedEmailId ?? null);
     }
 
+    const applySearchHighlight = (html: string): string => {
+      if (!searchTerm.trim()) return html;
+      const re = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      return html.replace(/(<[^>]+>)|([^<]+)/g, (_, tag, text) => {
+        if (tag) return tag;
+        return text ? text.replace(re, '<mark style="background:#fef9c3;padding:0 1px;border-radius:2px;color:inherit">$1</mark>') : '';
+      });
+    };
+
     // Prefer bodyText for code highlighting. Fall back to HTML-only render if no plain text.
     if (!email.bodyText?.trim()) {
+      const bodyHtml = applySearchHighlight(email.bodyHtml ?? '');
       return this.sanitizer.bypassSecurityTrustHtml(
-        `<div class="prose prose-sm max-w-none text-gray-700 text-sm leading-relaxed">${email.bodyHtml ?? ''}</div>`
+        `<div class="prose prose-sm max-w-none text-gray-700 text-sm leading-relaxed">${bodyHtml}</div>`
       );
     }
     const raw = email.bodyText;
@@ -1146,7 +1170,7 @@ export class MailComponent implements OnInit {
     const EXCLUDED = new Set(['PON']);
     const selfCode = (email.mailCode ?? '').toUpperCase();
 
-    const highlighted = escaped.replace(CODE_RE, (match, p1, p2, p3) => {
+    let highlighted = escaped.replace(CODE_RE, (match, p1, p2, p3) => {
       if (EXCLUDED.has(p1.toUpperCase())) return match;
       const code = `${p1} ${p2}/${p3.replace(/\D/g, '')}`;
       // Own code identifier: render bold but no link
@@ -1159,6 +1183,8 @@ export class MailComponent implements OnInit {
       }
       return `<span class="text-red-500 font-medium" title="${code} — no encontrado en la base de datos">${match}</span>`;
     });
+
+    highlighted = applySearchHighlight(highlighted);
 
     return this.sanitizer.bypassSecurityTrustHtml(
       `<pre class="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">${highlighted}</pre>`

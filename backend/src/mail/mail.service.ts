@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { Email } from './entities/email.entity';
 import { Attachment } from './entities/attachment.entity';
 import { EmailReadStatus } from './entities/email-read-status.entity';
@@ -117,12 +117,13 @@ export class MailService implements OnApplicationBootstrap {
     }
 
     if (dto.q?.trim()) {
-      const term = dto.q.trim();
-      const ilikeTerm = `%${term}%`;
-      qb.andWhere(
-        `(e."mailCode" ILIKE :ilikeTerm OR e.subject ILIKE :ilikeTerm OR e.search_vector @@ plainto_tsquery('simple', :term))`,
-        { term, ilikeTerm },
-      );
+      const ilikeTerm = `%${dto.q.trim()}%`;
+      qb.andWhere(new Brackets((qb2) => {
+        qb2.where(`e."mailCode" ILIKE :ilikeTerm`, { ilikeTerm })
+           .orWhere(`e.subject ILIKE :ilikeTerm`, { ilikeTerm })
+           .orWhere(`e."bodyText" ILIKE :ilikeTerm`, { ilikeTerm })
+           .orWhere(`EXISTS (SELECT 1 FROM attachments att WHERE att."emailId" = e.id AND att.filename ILIKE :ilikeTerm)`);
+      }));
     }
 
     qb.loadRelationCountAndMap('e.attachmentCount', 'e.attachments');

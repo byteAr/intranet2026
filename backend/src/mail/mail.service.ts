@@ -29,7 +29,7 @@ export class MailService implements OnApplicationBootstrap {
         BEGIN
           NEW.search_vector := to_tsvector('simple',
             coalesce(NEW.subject, '') || ' ' ||
-            coalesce(NEW."bodyText", '') || ' ' ||
+            coalesce(left(NEW."bodyText", 50000), '') || ' ' ||
             coalesce(NEW."fromAddress", '') || ' ' ||
             coalesce(NEW."mailCode", '')
           );
@@ -53,7 +53,7 @@ export class MailService implements OnApplicationBootstrap {
         await this.dataSource.query(`
           UPDATE emails SET search_vector = to_tsvector('simple',
             coalesce(subject, '') || ' ' ||
-            coalesce("bodyText", '') || ' ' ||
+            coalesce(left("bodyText", 50000), '') || ' ' ||
             coalesce("fromAddress", '') || ' ' ||
             coalesce("mailCode", '')
           ) WHERE search_vector IS NULL

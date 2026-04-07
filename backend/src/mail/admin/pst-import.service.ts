@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -352,67 +352,157 @@ export class PstImportService {
     stats.inserted++;
   }
 
-  /**
-   * Re-procesa todos los emails:
-   * 1. Re-extrae y actualiza la columna mailCode usando el regex actual.
-   * 2. Borra y re-crea email_references con los mailCodes actualizados.
-   */
-  async reprocessReferences(): Promise<{ processed: number; mailCodesUpdated: number; referencesCreated: number }> {
-    const emails = await this.emailRepo.find({ select: ['id', 'mailCode', 'bodyText', 'date'] });
+  static readonly REPROCESS_KEY = '__reprocess__';
+  private static readonly BATCH = 500;
 
+  /**
+   * Inicia el reproceso de mailCodes y referencias en segundo plano (async).
+   * Procesa en batches de 500 para no agotar memoria con 160k+ emails.
+   * El progreso se puede consultar via getHistory() buscando filename='__reprocess__'.
+   */
+  async getReprocessStatus() {
+    return this.logRepo.findOne({
+      where: { filename: PstImportService.REPROCESS_KEY },
+      order: { startedAt: 'DESC' },
+    });
+  }
+
+  async reprocessReferences(): Promise<{ ok: boolean; message: string }> {
+    const running = await this.logRepo.findOne({
+      where: { filename: PstImportService.REPROCESS_KEY, status: PstImportStatus.RUNNING },
+    });
+    if (running) throw new ConflictException('Ya hay un reproceso en curso');
+
+    let log = await this.logRepo.findOne({ where: { filename: PstImportService.REPROCESS_KEY } });
+    if (log) await this.logRepo.delete(log.id);
+    log = await this.logRepo.save(
+      this.logRepo.create({ filename: PstImportService.REPROCESS_KEY }),
+    );
+
+    this.runReprocess(log.id).catch((err: Error) => {
+      this.logger.error(`Reprocess background error: ${err.message}`);
+    });
+
+    return { ok: true, message: 'Reproceso de mailCodes iniciado en segundo plano' };
+  }
+
+  private async runReprocess(logId: string): Promise<void> {
+    const BATCH = PstImportService.BATCH;
+    let totalProcessed = 0;
     let mailCodesUpdated = 0;
     let referencesCreated = 0;
 
-    // Paso 1: re-extraer mailCode de cada email y actualizar si cambió
-    for (const email of emails) {
-      if (!email.bodyText?.trim()) continue;
+    try {
+      // === PASO 1: Actualizar mailCodes en batches ===
+      let offset = 0;
+      while (true) {
+        const emails = await this.emailRepo.find({
+          select: ['id', 'mailCode', 'bodyText', 'date', 'subject'],
+          skip: offset,
+          take: BATCH,
+          order: { date: 'ASC' },
+        });
+        if (!emails.length) break;
 
-      const { mailCode: extracted } = this.mailParserService.extractCodes(email.bodyText, email.date, email.subject);
-      const storedCode = email.mailCode ?? null;
-
-      if ((extracted ?? null) !== storedCode) {
-        // TypeORM repository.update filtra null; usar query nativa para setear NULL
-        if (extracted) {
-          await this.emailRepo.update(email.id, { mailCode: extracted });
-        } else {
-          await this.emailRepo.query('UPDATE emails SET "mailCode" = NULL WHERE id = $1', [email.id]);
+        for (const email of emails) {
+          totalProcessed++;
+          if (!email.bodyText?.trim()) continue;
+          const { mailCode } = this.mailParserService.extractCodes(
+            email.bodyText,
+            email.date,
+            email.subject,
+          );
+          if ((mailCode ?? null) !== (email.mailCode ?? null)) {
+            if (mailCode) {
+              await this.emailRepo.update(email.id, { mailCode });
+            } else {
+              await this.emailRepo.query(
+                'UPDATE emails SET "mailCode" = NULL WHERE id = $1',
+                [email.id],
+              );
+            }
+            mailCodesUpdated++;
+          }
         }
-        email.mailCode = extracted as any;
-        mailCodesUpdated++;
+
+        await this.logRepo.update(logId, { totalProcessed, inserted: mailCodesUpdated });
+        offset += emails.length;
+        if (emails.length < BATCH) break;
+        await new Promise<void>((r) => setImmediate(r));
       }
-    }
 
-    // Paso 2: borrar y re-crear referencias usando los mailCodes actualizados
-    for (const email of emails) {
-      await this.referenceRepo.delete({ emailId: email.id });
+      // === PASO 2: Construir mapa mailCode → id para resolución rápida ===
+      const codeToId = new Map<string, string>();
+      offset = 0;
+      while (true) {
+        const rows = await this.emailRepo.find({
+          select: ['id', 'mailCode'],
+          skip: offset,
+          take: BATCH,
+          order: { date: 'ASC' },
+        });
+        if (!rows.length) break;
+        for (const r of rows) {
+          if (r.mailCode) codeToId.set(r.mailCode, r.id);
+        }
+        offset += rows.length;
+        if (rows.length < BATCH) break;
+      }
 
-      if (!email.bodyText?.trim()) continue;
+      // === PASO 3: Borrar todas las referencias y reconstruirlas en batches ===
+      await this.referenceRepo.query('DELETE FROM email_references');
 
-      const { references } = this.mailParserService.extractCodes(email.bodyText, email.date, email.subject);
-      if (!references.length) continue;
+      offset = 0;
+      while (true) {
+        const emails = await this.emailRepo.find({
+          select: ['id', 'mailCode', 'bodyText', 'date', 'subject'],
+          skip: offset,
+          take: BATCH,
+          order: { date: 'ASC' },
+        });
+        if (!emails.length) break;
 
-      await this.mailParserService.saveReferences(
-        email.id,
-        references,
-        async (code) => {
-          const ref = await this.emailRepo.findOne({
-            where: { mailCode: code },
-            order: { date: 'ASC' },
-          });
-          return ref?.id ?? null;
-        },
+        for (const email of emails) {
+          if (!email.bodyText?.trim()) continue;
+          const { references } = this.mailParserService.extractCodes(
+            email.bodyText,
+            email.date,
+            email.subject,
+          );
+          if (!references.length) continue;
+          await this.mailParserService.saveReferences(
+            email.id,
+            references,
+            async (code) => codeToId.get(code) ?? null,
+          );
+          referencesCreated += references.length;
+        }
+
+        await this.logRepo.update(logId, { referencesResolved: referencesCreated });
+        offset += emails.length;
+        if (emails.length < BATCH) break;
+        await new Promise<void>((r) => setImmediate(r));
+      }
+
+      await this.logRepo.update(logId, {
+        status: PstImportStatus.COMPLETED,
+        finishedAt: new Date(),
+        totalProcessed,
+        inserted: mailCodesUpdated,
+        referencesResolved: referencesCreated,
+      });
+
+      this.logger.log(
+        `Reprocess completado: mailCodesUpdated=${mailCodesUpdated} referencesCreated=${referencesCreated}`,
       );
-
-      referencesCreated += references.length;
+    } catch (err) {
+      await this.logRepo.update(logId, {
+        status: PstImportStatus.FAILED,
+        finishedAt: new Date(),
+        errorMessage: (err as Error).message,
+        totalProcessed,
+      });
+      this.logger.error(`Reprocess fallido: ${(err as Error).message}`);
     }
-
-    // Paso 3: resolver referencias pendientes (las que apuntaban a emails aún no importados)
-    for (const email of emails) {
-      if (email.mailCode) {
-        await this.mailParserService.resolvePendingReferences(email.id, email.mailCode);
-      }
-    }
-
-    return { processed: emails.length, mailCodesUpdated, referencesCreated };
   }
 }

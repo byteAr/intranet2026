@@ -71,6 +71,11 @@ export class PstImportController {
     return this.pstImportService.reprocessReferences();
   }
 
+  @Get('reprocess-status')
+  async reprocessStatus() {
+    return this.pstImportService.getReprocessStatus();
+  }
+
   @Get('files')
   listFiles() {
     const uploadPath = process.env['MAIL_PST_UPLOAD_PATH'] ?? '/app/storage/pst';

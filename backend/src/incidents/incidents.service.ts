@@ -89,6 +89,9 @@ export class IncidentsService {
         'Solo se pueden finalizar incidencias en proceso o en espera',
       );
     }
+    if (incident.status === 'en_proceso' && incident.technicianId !== technicianId) {
+      throw new ForbiddenException('Esta incidencia está siendo atendida por otro técnico');
+    }
     incident.status = 'finalizada';
     incident.resolution = resolution;
     incident.resolvedAt = new Date();
@@ -108,6 +111,9 @@ export class IncidentsService {
       throw new ConflictException(
         'Solo se pueden poner en espera incidencias en proceso',
       );
+    }
+    if (incident.technicianId !== technicianId) {
+      throw new ForbiddenException('Esta incidencia está siendo atendida por otro técnico');
     }
     incident.status = 'en_espera';
     incident.waitingReason = waitingReason;
@@ -129,6 +135,8 @@ export class IncidentsService {
       );
     }
     incident.status = 'en_proceso';
+    incident.technicianId = technicianId;
+    incident.technicianName = technicianName;
     incident.waitingReason = undefined;
     incident.waitingSince = undefined;
     this.pushHistory(incident, 'reactivada', technicianName);
@@ -147,6 +155,9 @@ export class IncidentsService {
       throw new ConflictException(
         'Solo se pueden cerrar incidencias en proceso o en espera',
       );
+    }
+    if (incident.status === 'en_proceso' && incident.technicianId !== technicianId) {
+      throw new ForbiddenException('Esta incidencia está siendo atendida por otro técnico');
     }
     incident.status = 'no_resuelta';
     incident.unresolvedReason = unresolvedReason;

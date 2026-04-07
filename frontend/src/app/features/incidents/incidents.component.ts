@@ -260,6 +260,20 @@ import { AuthService } from '../../core/services/auth.service';
                     Tomar incidencia
                   </button>
                 } @else if (selectedIncident()!.status === 'en_proceso') {
+                  @if (!isMyIncident()) {
+                    <div class="flex items-center gap-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+                      <svg class="h-5 w-5 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 15v2m0 0v2m0-2h2m-2 0H10m2-9a4 4 0 00-4 4v1h8v-1a4 4 0 00-4-4z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M5 12H3m18 0h-2M5.636 5.636L4.222 4.222m15.556 15.556l-1.414-1.414M5.636 18.364l-1.414 1.414M19.778 4.222l-1.414 1.414" />
+                      </svg>
+                      <p class="text-sm text-amber-700">
+                        Esta incidencia está siendo atendida por <strong>{{ selectedIncident()!.technicianName }}</strong>.
+                        Solo ese técnico puede modificarla.
+                      </p>
+                    </div>
+                  } @else {
                   <div class="space-y-4">
                     <!-- Finalizar -->
                     <div class="border border-green-200 rounded-lg p-4 space-y-2">
@@ -307,6 +321,7 @@ import { AuthService } from '../../core/services/auth.service';
                       </button>
                     </div>
                   </div>
+                  } <!-- end @else isMyIncident -->
                 } @else if (selectedIncident()!.status === 'en_espera') {
                   <div class="space-y-4">
                     <!-- Reactivar -->
@@ -390,6 +405,12 @@ export class IncidentsComponent implements OnInit {
   }
 
   readonly currentUserId = computed(() => this.authService.currentUser()?.id);
+
+  readonly isMyIncident = computed(() => {
+    const incident = this.selectedIncident();
+    const userId = this.currentUserId();
+    return !!incident?.technicianId && incident.technicianId === userId;
+  });
 
   readonly sortedHistory = computed(() => {
     const history = this.selectedIncident()?.history ?? [];

@@ -50,11 +50,31 @@ export class MailIngestService {
   }
 
   async ingest(data: IngestData): Promise<IngestResult> {
-    // Idempotency check
+    // Idempotency check by internetMessageId
     const existing = await this.emailRepo.findOne({
       where: { internetMessageId: data.internetMessageId },
     });
     if (existing) return { saved: null, skipped: true };
+
+    // Deduplication for sent emails: Outlook and the SMTP relay both store a copy
+    // in the Sent folder with slightly different Message-IDs. Skip if an email with
+    // the same subject + fromAddress + date already exists in TX.
+    if (data.isSentFolder) {
+      const sentDuplicate = await this.emailRepo.findOne({
+        where: {
+          folder: MailFolder.TX,
+          subject: data.subject,
+          fromAddress: data.fromAddress,
+          date: data.date,
+        },
+      });
+      if (sentDuplicate) {
+        this.logger.debug(
+          `Skipped duplicate sent email "${data.subject}" (existing id: ${sentDuplicate.id})`,
+        );
+        return { saved: sentDuplicate, skipped: true };
+      }
+    }
 
     const { mailCode, folder: detectedFolder, references } = this.mailParserService.parse(
       data.fromAddress,

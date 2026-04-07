@@ -290,6 +290,7 @@ export class PstImportService {
       data.ccAddresses,
       data.bodyText,
       data.date,
+      data.subject,
     );
     const folder = data.isSentFolder ? MailFolder.TX : detectedFolder;
 
@@ -366,7 +367,7 @@ export class PstImportService {
     for (const email of emails) {
       if (!email.bodyText?.trim()) continue;
 
-      const { mailCode: extracted } = this.mailParserService.extractCodes(email.bodyText, email.date);
+      const { mailCode: extracted } = this.mailParserService.extractCodes(email.bodyText, email.date, email.subject);
       const storedCode = email.mailCode ?? null;
 
       if ((extracted ?? null) !== storedCode) {
@@ -387,7 +388,7 @@ export class PstImportService {
 
       if (!email.bodyText?.trim()) continue;
 
-      const { references } = this.mailParserService.extractCodes(email.bodyText, email.date);
+      const { references } = this.mailParserService.extractCodes(email.bodyText, email.date, email.subject);
       if (!references.length) continue;
 
       await this.mailParserService.saveReferences(

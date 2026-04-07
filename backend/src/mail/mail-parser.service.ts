@@ -77,14 +77,19 @@ export class MailParserService {
    * Rules:
    * - Own code is the first institutional code in the first ~150 chars.
    * - SVC/MTP prefix is stripped before searching (e.g. "SVC AB 123/22" → mailCode "AB 123/22").
+   * - If the head starts with a malformed code (PREFIX DIGITS without /YY) BEFORE any valid
+   *   full code, that malformed code is treated as the mailCode (not the next valid code found
+   *   later in the body). The year is inferred from emailDate; if the subject contains a
+   *   correctly-formatted code with the same prefix, that version is used instead.
    * - If no full code (with /YY) is found in the head, tries a partial match (PREFIX NUM) and
-   *   infers the year from emailDate if provided (e.g. "AB 22" sent in 2026 → "AB 22/26").
+   *   infers the year from emailDate (e.g. "AB 22" sent in 2026 → "AB 22/26").
    * - PON codes are never treated as mail codes or references (they are encryption indicators).
    * - Dots between number and slash are tolerated ("AA 12../19" → "AA 12/19").
    */
   extractCodes(
     bodyText: string,
     emailDate?: Date | string,
+    subject?: string,
   ): { mailCode: string | null; references: string[] } {
     if (!bodyText) return { mailCode: null, references: [] };
 
@@ -92,18 +97,52 @@ export class MailParserService {
     const rawHead = bodyText.slice(0, 150);
     const headForMailCode = rawHead.replace(SERVICE_PREFIX_RE, '');
 
-    // Try full regex match (with /YY) in head
-    let mailCode: string | null = null;
-    const fullMatch = new RegExp(CODE_REGEX.source, CODE_REGEX.flags).exec(headForMailCode);
-    if (fullMatch && !EXCLUDED_PREFIXES.has(fullMatch[1])) {
-      mailCode = `${fullMatch[1]} ${fullMatch[2]}/${fullMatch[3].replace(/\D/g, '')}`;
+    // Find first full match (with /YY) and its position in the head
+    let firstFullMatch: RegExpExecArray | null = null;
+    let firstFullIndex = Infinity;
+    {
+      const tempRegex = new RegExp(CODE_REGEX.source, CODE_REGEX.flags);
+      let m: RegExpExecArray | null;
+      while ((m = tempRegex.exec(headForMailCode)) !== null) {
+        if (!EXCLUDED_PREFIXES.has(m[1])) {
+          firstFullMatch = m;
+          firstFullIndex = m.index;
+          break;
+        }
+      }
     }
 
-    // If no full match, try partial (missing /YY) and infer year from email date
-    if (!mailCode && emailDate) {
-      const partialMatch = PARTIAL_CODE_REGEX.exec(headForMailCode);
-      if (partialMatch && !EXCLUDED_PREFIXES.has(partialMatch[1])) {
-        const yy = new Date(emailDate).getFullYear().toString().slice(-2);
+    // Find first partial match (PREFIX DIGITS, no /YY) and its position in the head
+    const partialMatch = PARTIAL_CODE_REGEX.exec(headForMailCode);
+    const partialIndex =
+      partialMatch && !EXCLUDED_PREFIXES.has(partialMatch[1]) ? partialMatch.index : Infinity;
+
+    let mailCode: string | null = null;
+
+    if (firstFullMatch && firstFullIndex <= partialIndex) {
+      // A correctly-formatted code appears first → use it (normal case)
+      mailCode = `${firstFullMatch[1]} ${firstFullMatch[2]}/${firstFullMatch[3].replace(/\D/g, '')}`;
+    } else if (partialMatch && partialIndex !== Infinity) {
+      // A malformed code (missing /YY) appears before any full code.
+      // The body starts with an incorrectly typed code — always treat it as the mailCode.
+      // Priority: subject's correctly-formatted version with same prefix > date inference.
+      let resolvedFromSubject = false;
+      if (subject) {
+        const subjectRegex = new RegExp(CODE_REGEX.source, CODE_REGEX.flags);
+        const subjectMatch = subjectRegex.exec(subject);
+        if (
+          subjectMatch &&
+          subjectMatch[1] === partialMatch[1] &&
+          !EXCLUDED_PREFIXES.has(subjectMatch[1])
+        ) {
+          mailCode = `${subjectMatch[1]} ${subjectMatch[2]}/${subjectMatch[3].replace(/\D/g, '')}`;
+          resolvedFromSubject = true;
+        }
+      }
+      if (!resolvedFromSubject) {
+        const yy = emailDate
+          ? new Date(emailDate).getFullYear().toString().slice(-2)
+          : new Date().getFullYear().toString().slice(-2);
         mailCode = `${partialMatch[1]} ${partialMatch[2]}/${yy}`;
       }
     }
@@ -136,9 +175,10 @@ export class MailParserService {
     ccAddresses: string[],
     bodyText: string,
     emailDate?: Date | string,
+    subject?: string,
   ): ParsedMailData {
     const folder = this.classifyFolder(fromAddress, toAddresses, ccAddresses);
-    const { mailCode, references } = this.extractCodes(bodyText, emailDate);
+    const { mailCode, references } = this.extractCodes(bodyText, emailDate, subject);
     return { mailCode, folder, references };
   }
 

@@ -62,6 +62,7 @@ export class MailIngestService {
       data.ccAddresses,
       data.bodyText,
       data.date,
+      data.subject,
     );
     const folder = data.isSentFolder ? MailFolder.TX : detectedFolder;
 

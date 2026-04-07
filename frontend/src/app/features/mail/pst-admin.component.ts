@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy, computed } from '@angular/core';
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { io, Socket } from 'socket.io-client';
@@ -174,10 +174,89 @@ interface PstComplete {
         </section>
       }
 
-      <!-- ── 3. Historial ───────────────────────────────── -->
+      <!-- ── 3. Reprocesar mailCodes ────────────────────── -->
+      <section class="bg-white rounded-xl border border-gray-200 p-5">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="text-sm font-semibold text-gray-700">3. Reprocesar mailCodes y referencias</h2>
+        </div>
+        <p class="text-xs text-gray-400 mb-4">
+          Re-extrae el mailCode y las referencias de todos los emails existentes usando la lógica actual del parser.
+          Útil para corregir emails que quedaron con mailCode incorrecto. Puede tardar varios minutos con 160k+ emails.
+        </p>
+
+        <div class="flex items-center gap-3 flex-wrap">
+          <button (click)="startReprocess()"
+            [disabled]="reprocessRunning() || !!activeImport()"
+            class="px-4 py-2 text-sm font-medium text-white rounded-md disabled:opacity-40 transition-colors"
+            style="background:#7c3aed">
+            @if (reprocessRunning()) {
+              <span class="flex items-center gap-2">
+                <svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Reprocesando...
+              </span>
+            } @else {
+              Iniciar reproceso
+            }
+          </button>
+          @if (reprocessRunning()) {
+            <button (click)="pollReprocessStatus()" class="text-xs text-purple-600 hover:text-purple-800">
+              Actualizar estado
+            </button>
+          }
+        </div>
+
+        @if (reprocessStatus()) {
+          <div class="mt-4 rounded-lg p-4 border"
+               [class.border-amber-200]="reprocessStatus()!.status === 'running'"
+               [class.bg-amber-50]="reprocessStatus()!.status === 'running'"
+               [class.border-teal-200]="reprocessStatus()!.status === 'completed'"
+               [class.bg-teal-50]="reprocessStatus()!.status === 'completed'"
+               [class.border-red-200]="reprocessStatus()!.status === 'failed'"
+               [class.bg-red-50]="reprocessStatus()!.status === 'failed'">
+            <div class="flex items-center gap-2 mb-3">
+              @if (reprocessStatus()!.status === 'running') {
+                <div class="h-2 w-2 rounded-full bg-amber-400 animate-pulse"></div>
+                <span class="text-xs font-semibold text-amber-700">En proceso</span>
+              } @else if (reprocessStatus()!.status === 'completed') {
+                <div class="h-2 w-2 rounded-full bg-teal-500"></div>
+                <span class="text-xs font-semibold text-teal-700">Completado</span>
+              } @else {
+                <div class="h-2 w-2 rounded-full bg-red-500"></div>
+                <span class="text-xs font-semibold text-red-700">Fallido</span>
+              }
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div class="bg-white rounded-lg p-2">
+                <p class="text-xl font-bold text-gray-800">{{ reprocessStatus()!.totalProcessed | number }}</p>
+                <p class="text-xs text-gray-400">Procesados</p>
+              </div>
+              <div class="bg-white rounded-lg p-2">
+                <p class="text-xl font-bold text-purple-700">{{ reprocessStatus()!.inserted | number }}</p>
+                <p class="text-xs text-gray-400">Códigos actualizados</p>
+              </div>
+              <div class="bg-white rounded-lg p-2">
+                <p class="text-xl font-bold text-gray-600">{{ reprocessStatus()!.referencesResolved | number }}</p>
+                <p class="text-xs text-gray-400">Referencias reconstruidas</p>
+              </div>
+            </div>
+            @if (reprocessStatus()!.errorMessage) {
+              <p class="mt-2 text-xs text-red-600">{{ reprocessStatus()!.errorMessage }}</p>
+            }
+          </div>
+        }
+
+        @if (reprocessError()) {
+          <p class="mt-2 text-sm text-red-500">{{ reprocessError() }}</p>
+        }
+      </section>
+
+      <!-- ── 4. Historial ───────────────────────────────── -->
       <section class="bg-white rounded-xl border border-gray-200 p-5">
         <div class="flex items-center justify-between mb-3">
-          <h2 class="text-sm font-semibold text-gray-700">3. Historial de importaciones</h2>
+          <h2 class="text-sm font-semibold text-gray-700">4. Historial de importaciones</h2>
           <button (click)="loadHistory()" class="text-xs text-teal-600 hover:text-teal-800">Actualizar</button>
         </div>
 
@@ -239,18 +318,24 @@ export class PstAdminComponent implements OnInit, OnDestroy {
   readonly activeImport = signal<string | null>(null);
   readonly currentProgress = signal<PstProgress | null>(null);
   readonly importError = signal('');
+  readonly reprocessStatus = signal<ImportLog | null>(null);
+  readonly reprocessError = signal('');
+  readonly reprocessRunning = computed(() => this.reprocessStatus()?.status === 'running');
 
   uploadFile: File | null = null;
+  private reprocessPollInterval: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
     this.connectWs();
     this.loadFiles();
     this.loadHistory();
+    this.pollReprocessStatus();
   }
 
   ngOnDestroy(): void {
     this.socket?.disconnect();
     this.socket = null;
+    if (this.reprocessPollInterval) clearInterval(this.reprocessPollInterval);
   }
 
   private connectWs(): void {
@@ -346,6 +431,32 @@ export class PstAdminComponent implements OnInit, OnDestroy {
     xhr.open('POST', `${base}/api/mail/admin/pst/upload`);
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.send(form);
+  }
+
+  startReprocess(): void {
+    this.reprocessError.set('');
+    this.http.post<{ ok: boolean; message: string }>('/api/mail/admin/pst/reprocess-references', {}).subscribe({
+      next: () => {
+        this.pollReprocessStatus();
+        if (this.reprocessPollInterval) clearInterval(this.reprocessPollInterval);
+        this.reprocessPollInterval = setInterval(() => {
+          this.pollReprocessStatus();
+          if (!this.reprocessRunning()) {
+            clearInterval(this.reprocessPollInterval!);
+            this.reprocessPollInterval = null;
+          }
+        }, 4000);
+      },
+      error: (err: any) => {
+        this.reprocessError.set(err?.error?.message ?? 'Error al iniciar el reproceso.');
+      },
+    });
+  }
+
+  pollReprocessStatus(): void {
+    this.http.get<ImportLog | null>('/api/mail/admin/pst/reprocess-status').subscribe({
+      next: (status) => this.reprocessStatus.set(status),
+    });
   }
 
   startImport(filename: string): void {

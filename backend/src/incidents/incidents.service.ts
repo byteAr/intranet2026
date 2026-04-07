@@ -79,6 +79,7 @@ export class IncidentsService {
   async resolve(
     incidentId: string,
     technicianId: string,
+    technicianName: string,
     resolution: string,
   ): Promise<Incident> {
     const incident = await this.findById(incidentId);
@@ -91,13 +92,14 @@ export class IncidentsService {
     incident.status = 'finalizada';
     incident.resolution = resolution;
     incident.resolvedAt = new Date();
-    this.pushHistory(incident, 'finalizada', incident.technicianName, resolution);
+    this.pushHistory(incident, 'finalizada', technicianName, resolution);
     return this.incidentRepo.save(incident);
   }
 
   async putOnHold(
     incidentId: string,
     technicianId: string,
+    technicianName: string,
     waitingReason: string,
   ): Promise<Incident> {
     const incident = await this.findById(incidentId);
@@ -110,7 +112,7 @@ export class IncidentsService {
     incident.status = 'en_espera';
     incident.waitingReason = waitingReason;
     incident.waitingSince = new Date();
-    this.pushHistory(incident, 'en_espera', incident.technicianName, waitingReason);
+    this.pushHistory(incident, 'en_espera', technicianName, waitingReason);
     return this.incidentRepo.save(incident);
   }
 

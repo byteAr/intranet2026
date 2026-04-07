@@ -117,8 +117,25 @@ export class SmtpSenderService implements OnModuleInit {
     if (!pending) return;
 
     if (messageId && pending.emailId) {
-      // Actualizar el internetMessageId para que el IMAP poller no duplique
-      await this.emailRepo.update(pending.emailId, { internetMessageId: messageId });
+      // Verificar si el IMAP poller ya ingresó este email antes de que llegara send-done
+      // (condición de carrera: bridge pollеó Enviados antes de que se actualizara el tempId)
+      const imapDuplicate = await this.emailRepo.findOne({
+        where: { internetMessageId: messageId },
+      });
+
+      if (imapDuplicate && imapDuplicate.id !== pending.emailId) {
+        // El IMAP ya lo guardó con el messageId real → eliminar el duplicado IMAP
+        // y actualizar el original (que tiene adjuntos correctos) con el messageId real
+        await this.emailRepo.delete(imapDuplicate.id);
+        await this.emailRepo.update(pending.emailId, { internetMessageId: messageId });
+        this.logger.warn(
+          `Race condition resuelta: eliminado duplicado IMAP ${imapDuplicate.id} para "${pending.subject}"`,
+        );
+      } else if (!imapDuplicate) {
+        // Caso normal: actualizar el tempId al messageId real
+        await this.emailRepo.update(pending.emailId, { internetMessageId: messageId });
+      }
+      // Si imapDuplicate.id === pending.emailId: ya fue actualizado, nada que hacer
     }
 
     await this.pendingSendRepo.update(id, {

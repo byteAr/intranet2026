@@ -37,7 +37,7 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
             </button>
             @if (user()?.avatar) {
               <button (click)="deleteAvatar()" [disabled]="deletingAvatar()"
-                class="absolute bottom-0 left-0 h-7 w-7 rounded-full border-2 border-white flex items-center justify-center shadow text-white disabled:opacity-50"
+                class="absolute bottom-0 right-8 h-7 w-7 rounded-full border-2 border-white flex items-center justify-center shadow text-white disabled:opacity-50"
                 style="background: #ef4444"
                 title="Eliminar foto">
                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

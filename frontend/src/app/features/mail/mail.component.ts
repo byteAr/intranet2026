@@ -463,9 +463,19 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
             <div class="border-b border-gray-100 pb-4 mb-4">
               <div class="flex items-start justify-between gap-3 mb-2">
                 <h1 class="text-base font-semibold text-gray-900 leading-snug" [innerHTML]="highlightText(activeEmail()!.subject)"></h1>
-                <span class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full" [ngClass]="folderBadgeClass(activeEmail()!.folder)">
-                  {{ folderLabel(activeEmail()!.folder) }}
-                </span>
+                <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
+                  <span class="text-xs px-2 py-0.5 rounded-full" [ngClass]="folderBadgeClass(activeEmail()!.folder)">
+                    {{ folderLabel(activeEmail()!.folder) }}
+                  </span>
+                  <button (click)="printEmail()"
+                    class="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                    title="Imprimir email">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/>
+                    </svg>
+                    Imprimir
+                  </button>
+                </div>
               </div>
               <div class="space-y-0.5 text-xs text-gray-500">
                 <p><span class="font-medium text-gray-600">De:</span> {{ activeEmail()!.fromAddress }}</p>
@@ -1194,6 +1204,50 @@ export class MailComponent implements OnInit {
     return this.sanitizer.bypassSecurityTrustHtml(
       `<pre class="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">${highlighted}</pre>`
     );
+  }
+
+  printEmail(): void {
+    const email = this.activeEmail();
+    if (!email) return;
+    const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const meta = [
+      `<tr><th>De</th><td>${escHtml(email.fromAddress)}</td></tr>`,
+      `<tr><th>Para</th><td>${escHtml((email.toAddresses ?? []).join(', '))}</td></tr>`,
+      email.ccAddresses?.length ? `<tr><th>CC</th><td>${escHtml(email.ccAddresses.join(', '))}</td></tr>` : '',
+      `<tr><th>Fecha</th><td>${this.formatFullDate(email.date)}</td></tr>`,
+      `<tr><th>Asunto</th><td>${escHtml(email.subject)}</td></tr>`,
+      `<tr><th>Tipo</th><td>${this.folderLabel(email.folder)}</td></tr>`,
+      email.mailCode ? `<tr><th>Código</th><td>${escHtml(email.mailCode)}</td></tr>` : '',
+    ].filter(Boolean).join('');
+    const attachList = email.attachments?.length
+      ? `<div class="attachments"><strong>Adjuntos:</strong> ${email.attachments.map(a => escHtml(a.filename)).join(', ')}</div>`
+      : '';
+    const body = email.bodyText
+      ? `<pre>${escHtml(email.bodyText)}</pre>`
+      : (email.bodyHtml ?? '');
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+      <title>${escHtml(email.subject)}</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+        th { text-align: left; width: 70px; color: #555; font-weight: 600; padding: 2px 8px 2px 0; vertical-align: top; }
+        td { padding: 2px 0; }
+        hr { border: none; border-top: 1px solid #ccc; margin: 12px 0; }
+        pre { white-space: pre-wrap; font-family: Arial, sans-serif; font-size: 12px; margin: 0; }
+        .attachments { margin-top: 12px; font-size: 11px; color: #555; }
+        @media print { body { margin: 0; } }
+      </style>
+    </head><body>
+      <table>${meta}</table>
+      <hr>
+      ${attachList}
+      ${body}
+    </body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
   }
 
   onBodyCodeClick(event: MouseEvent): void {

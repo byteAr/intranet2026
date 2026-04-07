@@ -11,27 +11,28 @@ import { ReservationsService } from '../../core/services/reservations.service';
 import { PushNotificationService } from '../../core/services/push.service';
 import { MailService } from '../../core/services/mail.service';
 import { DraftMailService } from '../../core/services/draft-mail.service';
+import { ThemeService } from '../../core/services/theme.service';
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule],
   template: `
-    <div class="flex h-screen bg-gray-100">
+    <div class="flex h-screen bg-gray-100 dark:bg-zinc-950">
+
       <!-- Sidebar -->
-      <aside class="flex flex-col transition-all duration-300"
+      <aside class="flex flex-col transition-all duration-300 bg-white dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800"
              [class.w-64]="!collapsed()"
-             [class.w-16]="collapsed()"
-             style="background: white; border-right: 1px solid #e5e7eb">
+             [class.w-16]="collapsed()">
 
         <!-- Logo -->
-        <div class="relative flex items-center justify-center px-4 py-3 flex-shrink-0"
-             style="background: white; border-bottom: 1px solid #e5e7eb; min-height: 5rem">
+        <div class="relative flex items-center justify-center px-4 py-3 flex-shrink-0 border-b border-gray-200 dark:border-zinc-800"
+             style="min-height: 5rem">
           @if (!collapsed()) {
             <img src="assets/images/diredtosintranet.png" class="h-24 object-contain" alt="Diredtos" />
           }
           <button (click)="collapsed.set(!collapsed())"
-            class="absolute right-3 p-1.5 rounded-md transition-colors flex-shrink-0 text-gray-500 hover:bg-gray-100"
+            class="absolute right-3 p-1.5 rounded-md transition-colors flex-shrink-0 text-gray-500 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800"
             [attr.aria-label]="collapsed() ? 'Expandir menú' : 'Contraer menú'">
             <svg class="h-5 w-5 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               @if (collapsed()) {
@@ -46,7 +47,6 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
         <!-- Navigation -->
         <nav class="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
 
-          <!-- Cuenta -->
           <a routerLink="/cuenta" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
             [title]="collapsed() ? 'Cuenta' : ''">
@@ -54,12 +54,9 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-            @if (!collapsed()) {
-              <span class="ml-3">Cuenta</span>
-            }
+            @if (!collapsed()) { <span class="ml-3">Cuenta</span> }
           </a>
 
-          <!-- Conversaciones -->
           <a routerLink="/chat" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Conversaciones' : ''">
@@ -79,7 +76,6 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
             }
           </a>
 
-          <!-- Ayuda técnica -->
           <a routerLink="/incidencias" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Ayuda técnica' : ''">
@@ -99,7 +95,6 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
             }
           </a>
 
-          <!-- Correo -->
           <a routerLink="/correo" routerLinkActive="active-nav" [routerLinkActiveOptions]="{exact: true}"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Correo' : ''">
@@ -127,13 +122,10 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              @if (!collapsed()) {
-                <span class="ml-3">Importar PST</span>
-              }
+              @if (!collapsed()) { <span class="ml-3">Importar PST</span> }
             </a>
           }
 
-          <!-- Redactar MTO -->
           <a routerLink="/correo/redactar-mto" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Redactar MTO' : ''">
@@ -153,7 +145,6 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
             }
           </a>
 
-          <!-- Para enviar (solo TICOM) -->
           @if (isTicom()) {
             <a routerLink="/correo/para-enviar" routerLinkActive="active-nav"
               class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
@@ -174,7 +165,6 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
             </a>
           }
 
-          <!-- Autorizadores (solo mlopez/sbatista) -->
           @if (isSuperApprover()) {
             <a routerLink="/correo/autorizadores" routerLinkActive="active-nav"
               class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
@@ -183,13 +173,10 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              @if (!collapsed()) {
-                <span class="ml-3">Autorizadores</span>
-              }
+              @if (!collapsed()) { <span class="ml-3">Autorizadores</span> }
             </a>
           }
 
-          <!-- Reservas -->
           <a routerLink="/reservas" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Reservas' : ''">
@@ -211,7 +198,7 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
         </nav>
 
         <!-- User info + logout -->
-        <div class="p-4 flex-shrink-0" style="border-top: 1px solid #e5e7eb">
+        <div class="p-4 flex-shrink-0 border-t border-gray-200 dark:border-zinc-800">
           @if (!collapsed()) {
             <div class="flex items-center space-x-3 mb-3">
               <div class="h-9 w-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-sm font-bold text-white"
@@ -223,23 +210,18 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
                 }
               </div>
               <div class="overflow-hidden">
-                <p class="text-sm font-medium truncate text-gray-800">{{ authService.currentUser()?.displayName }}</p>
-                <p class="text-xs truncate text-gray-400">{{ authService.currentUser()?.username }}</p>
+                <p class="text-sm font-medium truncate text-gray-800 dark:text-zinc-100">{{ authService.currentUser()?.displayName }}</p>
+                <p class="text-xs truncate text-gray-400 dark:text-zinc-500">{{ authService.currentUser()?.username }}</p>
               </div>
             </div>
           }
           <button (click)="authService.logout()"
-            class="flex items-center w-full px-3 py-2 text-sm rounded-md transition-colors"
-            style="color: #6b7280"
-            onmouseover="this.style.background='#f3f4f6';this.style.color='#111827'"
-            onmouseout="this.style.background='';this.style.color='#6b7280'">
+            class="flex items-center w-full px-3 py-2 text-sm rounded-md transition-colors text-gray-500 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-gray-900 dark:hover:text-white">
             <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            @if (!collapsed()) {
-              <span class="ml-2">Cerrar sesión</span>
-            }
+            @if (!collapsed()) { <span class="ml-2">Cerrar sesión</span> }
           </button>
         </div>
       </aside>
@@ -247,8 +229,38 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
       <!-- Main content -->
       <div class="flex flex-col flex-1 overflow-hidden">
 
+        <!-- Topbar with dark mode toggle -->
+        <header class="flex items-center justify-end px-6 h-14 flex-shrink-0 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800">
+          <button
+            (click)="themeService.toggle()"
+            class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800"
+            [attr.aria-label]="themeService.isDark() ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'">
+            @if (themeService.isDark()) {
+              <!-- Moon icon -->
+              <svg class="h-4 w-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+              </svg>
+            } @else {
+              <!-- Sun icon -->
+              <svg class="h-4 w-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+              </svg>
+            }
+            <!-- Toggle pill -->
+            <div class="relative w-10 h-[22px] rounded-full transition-colors duration-300"
+                 [class]="themeService.isDark() ? 'bg-green-800' : 'bg-gray-300'">
+              <div class="absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300"
+                   [class]="themeService.isDark() ? 'left-[22px]' : 'left-[3px]'">
+              </div>
+            </div>
+            <span class="text-xs text-gray-500 dark:text-zinc-400">
+              {{ themeService.isDark() ? 'Oscuro' : 'Claro' }}
+            </span>
+          </button>
+        </header>
+
         <!-- Page content -->
-        <main class="flex-1 overflow-y-auto px-4 pt-20 pb-8">
+        <main class="flex-1 overflow-y-auto px-4 py-6 pb-8">
           <router-outlet />
         </main>
       </div>
@@ -256,31 +268,29 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
 
     <!-- Floating chat button -->
     <div class="fixed bottom-6 right-6 z-50">
-      <!-- Popup -->
       @if (chatPopupOpen()) {
-        <div class="absolute bottom-16 right-0 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden mb-2">
-          <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between"
-               style="background: #0f766e">
+        <div class="absolute bottom-16 right-0 w-72 bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-700 overflow-hidden mb-2">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-zinc-700 flex items-center justify-between bg-teal-700 dark:bg-green-900">
             <span class="text-sm font-semibold text-white">Conversaciones</span>
-            <span class="text-xs text-teal-200">{{ onlineContacts().length }} en línea</span>
+            <span class="text-xs text-teal-200 dark:text-green-300">{{ onlineContacts().length }} en línea</span>
           </div>
           <div class="max-h-60 overflow-y-auto py-1">
             @if (onlineContacts().length === 0) {
-              <p class="text-xs text-gray-400 px-4 py-3 text-center">Nadie más en línea</p>
+              <p class="text-xs text-gray-400 dark:text-zinc-500 px-4 py-3 text-center">Nadie más en línea</p>
             }
             @for (contact of onlineContacts(); track contact.id) {
               <button
                 (click)="openDM(contact.id)"
-                class="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                class="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
                 <span class="relative mr-2.5 flex-shrink-0">
                   @if (contact.avatar) {
                     <img [src]="contact.avatar" class="h-8 w-8 rounded-full object-cover" alt="" />
                   } @else {
-                    <span class="h-8 w-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-bold">
+                    <span class="h-8 w-8 rounded-full bg-teal-600 dark:bg-green-800 flex items-center justify-center text-white text-xs font-bold">
                       {{ contactInitials(contact.displayName) }}
                     </span>
                   }
-                  <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-white"></span>
+                  <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-white dark:border-zinc-900"></span>
                 </span>
                 <span class="flex-1 text-left">{{ contact.displayName }}</span>
                 @if ((chatService.unreadCounts()[contact.id] ?? 0) > 0) {
@@ -291,11 +301,10 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
               </button>
             }
           </div>
-          <!-- Nueva conversación desde popup -->
-          <div class="border-t border-gray-100 px-3 py-2">
+          <div class="border-t border-gray-100 dark:border-zinc-700 px-3 py-2">
             @if (!popupNewConvOpen()) {
               <button (click)="openPopupNewConv($event)"
-                class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors font-medium">
+                class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-teal-700 dark:text-green-400 bg-teal-50 dark:bg-green-900/20 hover:bg-teal-100 dark:hover:bg-green-900/40">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
@@ -310,44 +319,49 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
                     (click)="$event.stopPropagation()"
                     type="text"
                     placeholder="Buscar usuario..."
-                    class="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
-                  <button (click)="closePopupNewConv()" class="p-1.5 text-gray-400 hover:text-gray-600">
+                    class="flex-1 px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:border-transparent
+                           border-gray-300 dark:border-zinc-700
+                           bg-white dark:bg-zinc-800
+                           text-gray-900 dark:text-zinc-100
+                           placeholder-gray-400 dark:placeholder-zinc-500
+                           focus:ring-teal-500 dark:focus:ring-green-700" />
+                  <button (click)="closePopupNewConv()" class="p-1.5 text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
                 @if (popupSearchLoading()) {
-                  <p class="text-xs text-gray-400 px-2 py-1">Buscando...</p>
+                  <p class="text-xs text-gray-400 dark:text-zinc-500 px-2 py-1">Buscando...</p>
                 } @else if (popupSearchResults().length > 0) {
-                  <div class="rounded-md border border-gray-200 overflow-hidden">
+                  <div class="rounded-md border border-gray-200 dark:border-zinc-700 overflow-hidden">
                     @for (user of popupSearchResults(); track user.username) {
                       <button (click)="openDMFromSearch(user)"
-                        class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-teal-50 transition-colors">
+                        class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-zinc-200 hover:bg-teal-50 dark:hover:bg-green-900/30 transition-colors">
                         @if (user.avatar) {
                           <img [src]="user.avatar" class="h-7 w-7 rounded-full object-cover flex-shrink-0" alt="" />
                         } @else {
-                          <span class="h-7 w-7 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          <span class="h-7 w-7 rounded-full bg-teal-600 dark:bg-green-800 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                             {{ contactInitials(user.displayName) }}
                           </span>
                         }
                         <span class="flex-1 truncate text-left">{{ user.displayName }}</span>
                         @if (user.fromLdap) {
-                          <span class="text-xs bg-blue-100 text-blue-600 rounded px-1 leading-none py-0.5 flex-shrink-0">AD</span>
+                          <span class="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded px-1 leading-none py-0.5 flex-shrink-0">AD</span>
                         }
                       </button>
                     }
                   </div>
                 } @else if (popupSearchQuery.length >= 2) {
-                  <p class="text-xs text-gray-400 px-2 py-1">Sin resultados</p>
+                  <p class="text-xs text-gray-400 dark:text-zinc-500 px-2 py-1">Sin resultados</p>
                 }
               </div>
             }
           </div>
-          <div class="border-t border-gray-100">
+          <div class="border-t border-gray-100 dark:border-zinc-700">
             <button
               (click)="openFullChat()"
-              class="w-full px-4 py-2.5 text-sm font-medium text-teal-700 hover:bg-teal-50 transition-colors flex items-center justify-center space-x-1">
+              class="w-full px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-center space-x-1 text-teal-700 dark:text-green-400 hover:bg-teal-50 dark:hover:bg-green-900/20">
               <span>Abrir conversaciones</span>
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -357,17 +371,16 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
         </div>
       }
 
-      <!-- Toggle button -->
+      <!-- Chat toggle button -->
       <button
         (click)="toggleChatPopup()"
-        class="h-14 w-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform hover:scale-105 relative"
-        style="background: #0f766e">
+        class="h-14 w-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform hover:scale-105 relative bg-teal-700 dark:bg-green-800 hover:bg-teal-600 dark:hover:bg-green-700">
         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
         @if (chatService.unreadCount() > 0 && !isOnChatPage()) {
-          <span class="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-white"></span>
+          <span class="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-white dark:border-zinc-950"></span>
         }
       </button>
     </div>
@@ -376,6 +389,10 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
     .nav-item { color: #374151; }
     .nav-item:hover { background: #f3f4f6; color: #111827; }
     .active-nav { background: #0f766e !important; color: white !important; font-weight: 600; }
+
+    :host-context(.dark) .nav-item { color: #a1a1aa; }
+    :host-context(.dark) .nav-item:hover { background: #27272a; color: #f4f4f5; }
+    :host-context(.dark) .active-nav { background: #166534 !important; color: white !important; font-weight: 600; }
   `],
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
@@ -385,13 +402,12 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly reservationsService = inject(ReservationsService);
   readonly mailService = inject(MailService);
   readonly draftMailService = inject(DraftMailService);
+  readonly themeService = inject(ThemeService);
   private readonly pushService = inject(PushNotificationService);
   private readonly router = inject(Router);
-
   private readonly destroyRef = inject(DestroyRef);
 
   readonly collapsed = signal(false);
-  readonly pageTitle = signal('Mi cuenta');
   readonly chatPopupOpen = signal(false);
   readonly isOnChatPage = signal(false);
   readonly isOnMailPage = signal(false);
@@ -408,19 +424,11 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     ['mlopez', 'sbatista'].includes(this.authService.currentUser()?.username?.toLowerCase() ?? '')
   );
 
-  // Nueva conversación desde popup
   readonly popupNewConvOpen = signal(false);
   readonly popupSearchResults = signal<UserSearchResult[]>([]);
   readonly popupSearchLoading = signal(false);
   popupSearchQuery = '';
   private readonly popupSearchSubject = new Subject<string>();
-
-  readonly fullName = computed(() => {
-    const user = this.authService.currentUser();
-    if (!user) return '';
-    if (user.firstName || user.lastName) return [user.firstName, user.lastName].filter(Boolean).join(' ');
-    return user.displayName;
-  });
 
   readonly onlineContacts = computed(() => {
     const currentId = this.authService.currentUser()?.id;
@@ -469,9 +477,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.routerSub?.unsubscribe();
   }
 
-  toggleChatPopup(): void {
-    this.chatPopupOpen.update((v) => !v);
-  }
+  toggleChatPopup(): void { this.chatPopupOpen.update((v) => !v); }
 
   openDM(userId: string): void {
     this.chatPopupOpen.set(false);

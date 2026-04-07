@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16
-    container_name: pac_postgres
+    container_name: intranet_postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -19,7 +19,7 @@ services:
 
   openldap:
     image: osixia/openldap:latest
-    container_name: pac_openldap
+    container_name: intranet_openldap
     restart: unless-stopped
     environment:
       LDAP_ORGANISATION: 'Example Corp'
@@ -37,7 +37,7 @@ services:
 
   phpldapadmin:
     image: osixia/phpldapadmin:latest
-    container_name: pac_phpldapadmin
+    container_name: intranet_phpldapadmin
     environment:
       PHPLDAPADMIN_LDAP_HOSTS: openldap
       PHPLDAPADMIN_HTTPS: 'false'
@@ -50,7 +50,7 @@ services:
     build:
       context: ./linux-ad-bridge
       dockerfile: Dockerfile
-    container_name: pac_ad_bridge
+    container_name: intranet_ad_bridge
     environment:
       BRIDGE_SECRET: ${BRIDGE_SECRET}
       AD_HOST: ${AD_HOST:-10.98.40.22}
@@ -63,7 +63,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: pac_backend
+    container_name: intranet_backend
     restart: unless-stopped
     env_file: .env
     environment:
@@ -88,7 +88,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: pac_frontend
+    container_name: intranet_frontend
     restart: unless-stopped
     ports:
       - '4200:80'

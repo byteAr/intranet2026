@@ -10,7 +10,7 @@ services:
 
   ad-bridge:
     build: ./linux-ad-bridge
-    container_name: pac_ad_bridge
+    container_name: intranet_ad_bridge
     environment:
       BRIDGE_SECRET: ${BRIDGE_SECRET:-pac-bridge-secret-change-me}
       AD_PASS: ${LDAP_BIND_CREDENTIALS}

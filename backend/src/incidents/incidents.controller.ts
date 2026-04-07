@@ -165,7 +165,9 @@ export class IncidentsController {
   @Patch(':id/reactivate')
   @Roles('TICOM')
   async reactivate(@Param('id') id: string, @Req() req: any) {
-    const incident = await this.incidentsService.reactivate(id, req.user.id);
+    const user = req.user;
+    const techName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName || user.username;
+    const incident = await this.incidentsService.reactivate(id, user.id, techName);
     this.incidentsGateway.notifyIncidentUpdate(incident);
     return incident;
   }

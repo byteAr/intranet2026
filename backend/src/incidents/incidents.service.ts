@@ -117,6 +117,7 @@ export class IncidentsService {
   async reactivate(
     incidentId: string,
     technicianId: string,
+    technicianName: string,
   ): Promise<Incident> {
     const incident = await this.findById(incidentId);
     if (!incident) throw new ConflictException('Incidencia no encontrada');
@@ -128,7 +129,7 @@ export class IncidentsService {
     incident.status = 'en_proceso';
     incident.waitingReason = undefined;
     incident.waitingSince = undefined;
-    this.pushHistory(incident, 'reactivada', incident.technicianName);
+    this.pushHistory(incident, 'reactivada', technicianName);
     return this.incidentRepo.save(incident);
   }
 

@@ -230,6 +230,7 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
                   <option value="CBO">CABO</option>
                   <option value="CRO">CABO PRIMERO</option>
                   <option value="SARG">SARGENTO</option>
+                  <option value="SRO">SARGENTO PRIMERO</option>
                   <option value="SAY">SARGENTO AYUDANTE</option>
                   <option value="SPR">SUBOFICIAL PRINCIPAL</option>
                   <option value="SMY">SUBOFICIAL MAYOR</option>

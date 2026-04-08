@@ -385,6 +385,24 @@ import { ThemeService } from '../../core/services/theme.service';
       </button>
     </div>
 
+    <!-- ── Toast ────────────────────────────────────── -->
+    @if (toastMsg()) {
+      <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] px-5 py-3 rounded-xl shadow-xl text-sm font-medium text-white flex items-center gap-2 transition-all"
+           [class.bg-green-700]="toastType() === 'success'"
+           [class.bg-red-600]="toastType() === 'error'">
+        @if (toastType() === 'success') {
+          <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+          </svg>
+        } @else {
+          <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        }
+        {{ toastMsg() }}
+      </div>
+    }
+
     <!-- ── Profile completion modal ─────────────────── -->
     @if (showProfileModal()) {
       <div class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -516,6 +534,18 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly isOnChatPage = signal(false);
   readonly isOnMailPage = signal(false);
   private routerSub?: Subscription;
+
+  // Toast
+  readonly toastMsg = signal<string | null>(null);
+  readonly toastType = signal<'success' | 'error'>('success');
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  showToast(msg: string, type: 'success' | 'error' = 'success'): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastMsg.set(msg);
+    this.toastType.set(type);
+    this.toastTimer = setTimeout(() => this.toastMsg.set(null), 3500);
+  }
 
   // Profile completion modal
   readonly showProfileModal = signal(false);
@@ -697,10 +727,12 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       next: () => {
         this.modalSaving.set(false);
         this.showProfileModal.set(false);
+        this.showToast('Datos guardados correctamente');
       },
       error: () => {
         this.modalSaving.set(false);
         this.modalError.set('Ocurrió un error al guardar. Intentá de nuevo.');
+        this.showToast('Error al guardar los datos', 'error');
       },
     });
   }

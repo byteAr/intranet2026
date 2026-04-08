@@ -139,8 +139,10 @@ export class MailService implements OnApplicationBootstrap {
       const searchTerm = dto.q.trim();
       qb.andWhere(new Brackets((qb2) => {
         // Full-text search via GIN-indexed tsvector (subject, body, mailCode)
+        // phraseto_tsquery requires words to be adjacent — avoids false positives
+        // like "dei 25/25" matching any email containing "dei" and "25" separately
         qb2.where(
-          `e.search_vector @@ plainto_tsquery('spanish', :searchTerm)`,
+          `e.search_vector @@ phraseto_tsquery('spanish', :searchTerm)`,
           { searchTerm },
         )
         // mailCode partial match (short field, B-tree indexed — catches codes the tokenizer may split)

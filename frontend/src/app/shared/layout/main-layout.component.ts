@@ -384,6 +384,106 @@ import { ThemeService } from '../../core/services/theme.service';
         }
       </button>
     </div>
+
+    <!-- ── Profile completion modal ─────────────────── -->
+    @if (showProfileModal()) {
+      <div class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-zinc-700">
+
+          <!-- Header -->
+          <div class="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-zinc-700">
+            <div class="flex items-center gap-3 mb-1">
+              <div class="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0"
+                   style="background: linear-gradient(135deg, #0d9488, #166534)">
+                <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-base font-semibold text-gray-900 dark:text-zinc-100">Completar perfil</h2>
+                <p class="text-xs text-gray-400 dark:text-zinc-400">Requerido para continuar</p>
+              </div>
+            </div>
+            <p class="text-sm text-gray-500 dark:text-zinc-400 mt-2">
+              Para usar la aplicación necesitás completar los siguientes datos:
+            </p>
+          </div>
+
+          <!-- Body -->
+          <div class="px-6 py-5 space-y-4">
+
+            @if (modalNeedsEmail()) {
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
+                  Correo de recuperación <span class="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  [(ngModel)]="modalEmail"
+                  (blur)="modalEmailTouched.set(true)"
+                  placeholder="tu@email.com"
+                  class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100"
+                  [class.border-red-400]="modalEmailTouched() && !isValidEmail(modalEmail)" />
+                @if (modalEmailTouched() && !isValidEmail(modalEmail)) {
+                  <p class="text-xs text-red-500 mt-1">Ingresá un email válido</p>
+                }
+              </div>
+            }
+
+            @if (modalNeedsRank()) {
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
+                  Jerarquía <span class="text-red-500">*</span>
+                </label>
+                <select [(ngModel)]="modalRank"
+                  class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100"
+                  [class.border-red-400]="modalRankTouched() && !modalRank">
+                  <option value="">— Seleccioná tu grado —</option>
+                  <optgroup label="Oficiales">
+                    <option value="SUBALF">SUBALFEREZ</option>
+                    <option value="ALF">ALFEREZ</option>
+                    <option value="1ER ALF">PRIMER ALFEREZ</option>
+                    <option value="2DO CTE">SEGUNDO COMANDANTE</option>
+                    <option value="CTE">COMANDANTE</option>
+                    <option value="CTE PR">COMANDANTE PRINCIPAL</option>
+                    <option value="CTE MY">COMANDANTE MAYOR</option>
+                    <option value="CTE GRL">COMANDANTE GENERAL</option>
+                  </optgroup>
+                  <optgroup label="Suboficiales">
+                    <option value="GEND">GENDARME</option>
+                    <option value="CBO">CABO</option>
+                    <option value="CRO">CABO PRIMERO</option>
+                    <option value="SARG">SARGENTO</option>
+                    <option value="SAY">SARGENTO AYUDANTE</option>
+                    <option value="SPR">SUBOFICIAL PRINCIPAL</option>
+                    <option value="SMY">SUBOFICIAL MAYOR</option>
+                  </optgroup>
+                </select>
+                @if (modalRankTouched() && !modalRank) {
+                  <p class="text-xs text-red-500 mt-1">Seleccioná tu jerarquía</p>
+                }
+              </div>
+            }
+
+            @if (modalError()) {
+              <p class="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{{ modalError() }}</p>
+            }
+          </div>
+
+          <!-- Footer -->
+          <div class="px-6 pb-6">
+            <button (click)="saveProfileModal()"
+              [disabled]="modalSaving()"
+              class="w-full py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-opacity"
+              style="background: linear-gradient(to right, #0d9488, #166534)">
+              {{ modalSaving() ? 'Guardando...' : 'Guardar y continuar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
   `,
   styles: [`
     .nav-item { color: #374151; }
@@ -413,6 +513,17 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly isOnMailPage = signal(false);
   private routerSub?: Subscription;
 
+  // Profile completion modal
+  readonly showProfileModal = signal(false);
+  readonly modalNeedsEmail = signal(false);
+  readonly modalNeedsRank = signal(false);
+  readonly modalEmailTouched = signal(false);
+  readonly modalRankTouched = signal(false);
+  readonly modalSaving = signal(false);
+  readonly modalError = signal<string | null>(null);
+  modalEmail = '';
+  modalRank = '';
+
   readonly isTicom = computed(() => this.authService.currentUser()?.roles?.includes('TICOM') ?? false);
   readonly isAuthorizer = computed(() => {
     const u = this.authService.currentUser();
@@ -436,6 +547,15 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    const u = this.authService.currentUser();
+    const needsEmail = !u?.recoveryEmail?.trim();
+    const needsRank = !u?.rank?.trim();
+    if (needsEmail || needsRank) {
+      this.modalNeedsEmail.set(needsEmail);
+      this.modalNeedsRank.set(needsRank);
+      this.showProfileModal.set(true);
+    }
+
     this.chatService.connect();
     void this.pushService.subscribe();
     this.mailService.connect();
@@ -551,5 +671,33 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     if (!user) return '?';
     return (user.displayName ?? user.username)
       .split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
+  }
+
+  isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  }
+
+  saveProfileModal(): void {
+    this.modalEmailTouched.set(true);
+    this.modalRankTouched.set(true);
+    if (this.modalNeedsEmail() && !this.isValidEmail(this.modalEmail)) return;
+    if (this.modalNeedsRank() && !this.modalRank) return;
+
+    const payload: { recoveryEmail?: string; rank?: string } = {};
+    if (this.modalNeedsEmail()) payload.recoveryEmail = this.modalEmail.trim();
+    if (this.modalNeedsRank()) payload.rank = this.modalRank;
+
+    this.modalSaving.set(true);
+    this.modalError.set(null);
+    this.authService.updateProfile(payload).subscribe({
+      next: () => {
+        this.modalSaving.set(false);
+        this.showProfileModal.set(false);
+      },
+      error: () => {
+        this.modalSaving.set(false);
+        this.modalError.set('Ocurrió un error al guardar. Intentá de nuevo.');
+      },
+    });
   }
 }

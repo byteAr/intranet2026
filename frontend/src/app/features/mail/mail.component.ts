@@ -1085,7 +1085,7 @@ export class MailComponent implements OnInit {
     const now = new Date();
     const isToday = d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     return isToday
-      ? d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+      ? d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
       : d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
   }
 

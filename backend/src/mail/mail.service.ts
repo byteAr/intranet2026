@@ -28,15 +28,15 @@ export class MailService implements OnApplicationBootstrap {
       const currentFn = await this.dataSource
         .query(`SELECT prosrc FROM pg_proc WHERE proname = 'emails_search_vector_update'`)
         .then((r: { prosrc: string }[]) => r[0]?.prosrc ?? '');
-      // Rebuild if config changed OR if address fields are still in the trigger
-      const needsRebuild = !currentFn.includes("'spanish'") || currentFn.includes('fromAddress');
+      // Rebuild if not using 'simple' config yet (spanish has stop words that drop "ES", "DE", etc.)
+      const needsRebuild = !currentFn.includes("'simple'") || currentFn.includes('fromAddress');
 
-      // Trigger function: spanish config, only subject + body + mailCode
-      // (addresses excluded — they cause false positives the frontend can't highlight)
+      // Trigger function: 'simple' config — no stop words, no stemming, just lowercase+split
+      // 'spanish' config was dropping abbreviations like "ES", "DE", "AL" used in mail codes
       await this.dataSource.query(`
         CREATE OR REPLACE FUNCTION emails_search_vector_update() RETURNS trigger AS $$
         BEGIN
-          NEW.search_vector := to_tsvector('spanish',
+          NEW.search_vector := to_tsvector('simple',
             coalesce(NEW.subject, '') || ' ' ||
             coalesce(left(NEW."bodyText", 50000), '') || ' ' ||
             coalesce(NEW."mailCode", '')
@@ -60,7 +60,7 @@ export class MailService implements OnApplicationBootstrap {
 
       // Force rebuild if config changed (one-time migration)
       if (needsRebuild) {
-        this.logger.log('FTS: config upgraded to spanish — rebuilding all search_vectors...');
+        this.logger.log('FTS: config changed to simple — rebuilding all search_vectors...');
         await this.dataSource.query(`UPDATE emails SET search_vector = NULL`);
       }
 
@@ -71,7 +71,7 @@ export class MailService implements OnApplicationBootstrap {
 
       if (parseInt(count, 10) > 0) {
         await this.dataSource.query(`
-          UPDATE emails SET search_vector = to_tsvector('spanish',
+          UPDATE emails SET search_vector = to_tsvector('simple',
             coalesce(subject, '') || ' ' ||
             coalesce(left("bodyText", 50000), '') || ' ' ||
             coalesce("mailCode", '')
@@ -142,7 +142,7 @@ export class MailService implements OnApplicationBootstrap {
         // phraseto_tsquery requires words to be adjacent — avoids false positives
         // like "dei 25/25" matching any email containing "dei" and "25" separately
         qb2.where(
-          `e.search_vector @@ phraseto_tsquery('spanish', :searchTerm)`,
+          `e.search_vector @@ phraseto_tsquery('simple', :searchTerm)`,
           { searchTerm },
         )
         // mailCode partial match (short field, B-tree indexed — catches codes the tokenizer may split)

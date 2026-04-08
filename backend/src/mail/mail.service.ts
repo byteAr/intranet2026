@@ -28,18 +28,17 @@ export class MailService implements OnApplicationBootstrap {
       const currentFn = await this.dataSource
         .query(`SELECT prosrc FROM pg_proc WHERE proname = 'emails_search_vector_update'`)
         .then((r: { prosrc: string }[]) => r[0]?.prosrc ?? '');
-      const needsRebuild = !currentFn.includes("'spanish'");
+      // Rebuild if config changed OR if address fields are still in the trigger
+      const needsRebuild = !currentFn.includes("'spanish'") || currentFn.includes('fromAddress');
 
-      // Trigger function: spanish config + all searchable fields
+      // Trigger function: spanish config, only subject + body + mailCode
+      // (addresses excluded — they cause false positives the frontend can't highlight)
       await this.dataSource.query(`
         CREATE OR REPLACE FUNCTION emails_search_vector_update() RETURNS trigger AS $$
         BEGIN
           NEW.search_vector := to_tsvector('spanish',
             coalesce(NEW.subject, '') || ' ' ||
             coalesce(left(NEW."bodyText", 50000), '') || ' ' ||
-            coalesce(NEW."fromAddress", '') || ' ' ||
-            coalesce(NEW."toAddresses", '') || ' ' ||
-            coalesce(NEW."ccAddresses", '') || ' ' ||
             coalesce(NEW."mailCode", '')
           );
           RETURN NEW;
@@ -75,9 +74,6 @@ export class MailService implements OnApplicationBootstrap {
           UPDATE emails SET search_vector = to_tsvector('spanish',
             coalesce(subject, '') || ' ' ||
             coalesce(left("bodyText", 50000), '') || ' ' ||
-            coalesce("fromAddress", '') || ' ' ||
-            coalesce("toAddresses", '') || ' ' ||
-            coalesce("ccAddresses", '') || ' ' ||
             coalesce("mailCode", '')
           ) WHERE search_vector IS NULL
         `);
@@ -142,7 +138,7 @@ export class MailService implements OnApplicationBootstrap {
     if (dto.q?.trim()) {
       const searchTerm = dto.q.trim();
       qb.andWhere(new Brackets((qb2) => {
-        // Full-text search via GIN-indexed tsvector (subject, body, from, to, cc, mailCode)
+        // Full-text search via GIN-indexed tsvector (subject, body, mailCode)
         qb2.where(
           `e.search_vector @@ plainto_tsquery('spanish', :searchTerm)`,
           { searchTerm },

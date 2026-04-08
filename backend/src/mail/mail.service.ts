@@ -137,18 +137,18 @@ export class MailService implements OnApplicationBootstrap {
 
     if (dto.q?.trim()) {
       const searchTerm = dto.q.trim();
+      // Regex for mailCode: escape special chars then add negative lookahead for digits.
+      // Prevents "ES 240" from matching "ES 2408/24" (240 is a prefix of 2408).
+      const mailCodePattern = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![0-9])';
       qb.andWhere(new Brackets((qb2) => {
         // Full-text search via GIN-indexed tsvector (subject, body, mailCode)
         // phraseto_tsquery requires words to be adjacent — avoids false positives
-        // like "dei 25/25" matching any email containing "dei" and "25" separately
         qb2.where(
           `e.search_vector @@ phraseto_tsquery('simple', :searchTerm)`,
           { searchTerm },
         )
-        // mailCode partial match (short field, B-tree indexed — catches codes the tokenizer may split)
-        .orWhere(`e."mailCode" ILIKE :mailCodeTerm`, {
-          mailCodeTerm: `%${searchTerm}%`,
-        })
+        // mailCode regex match with word boundary — ~* is case-insensitive regex
+        .orWhere(`e."mailCode" ~* :mailCodePattern`, { mailCodePattern })
         // Attachment filename match
         .orWhere(
           `EXISTS (SELECT 1 FROM attachments att WHERE att."emailId" = e.id AND att.filename ILIKE :attTerm)`,

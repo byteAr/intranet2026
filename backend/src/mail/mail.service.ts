@@ -137,9 +137,11 @@ export class MailService implements OnApplicationBootstrap {
 
     if (dto.q?.trim()) {
       const searchTerm = dto.q.trim();
-      // Regex for mailCode: escape special chars then add negative lookahead for digits.
-      // Prevents "ES 240" from matching "ES 2408/24" (240 is a prefix of 2408).
-      const mailCodePattern = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![0-9])';
+      // Regex for mailCode: word boundaries on both sides.
+      // Lookbehind (?<![a-zA-Z0-9]) prevents "SES 32" matching when searching "ES 32".
+      // Lookahead (?![0-9]) prevents "ES 240" matching "ES 2408/24".
+      const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const mailCodePattern = '(?<![a-zA-Z0-9])' + escapedTerm + '(?![0-9])';
       qb.andWhere(new Brackets((qb2) => {
         // Full-text search via GIN-indexed tsvector (subject, body, mailCode)
         // phraseto_tsquery requires words to be adjacent — avoids false positives

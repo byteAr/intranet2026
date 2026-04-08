@@ -760,6 +760,8 @@ export class MailComponent implements OnInit {
       this.clearSearch();
       return;
     }
+    // Show spinner immediately — prevents list from flickering during debounce
+    this.mailService.loading.set(true);
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {
       this.searchTimer = null;
@@ -767,7 +769,7 @@ export class MailComponent implements OnInit {
       this.activeEmail.set(null);
       this.activeSearchTerm.set(q.trim());
       this.mailService.search(q.trim());
-    }, 300);
+    }, 500);
   }
 
   runSearch(): void {

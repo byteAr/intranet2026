@@ -24,13 +24,22 @@ export class MailService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap(): Promise<void> {
     try {
+      // Check if trigger needs upgrade (from 'simple' to 'spanish' or new fields)
+      const currentFn = await this.dataSource
+        .query(`SELECT prosrc FROM pg_proc WHERE proname = 'emails_search_vector_update'`)
+        .then((r: { prosrc: string }[]) => r[0]?.prosrc ?? '');
+      const needsRebuild = !currentFn.includes("'spanish'");
+
+      // Trigger function: spanish config + all searchable fields
       await this.dataSource.query(`
         CREATE OR REPLACE FUNCTION emails_search_vector_update() RETURNS trigger AS $$
         BEGIN
-          NEW.search_vector := to_tsvector('simple',
+          NEW.search_vector := to_tsvector('spanish',
             coalesce(NEW.subject, '') || ' ' ||
             coalesce(left(NEW."bodyText", 50000), '') || ' ' ||
             coalesce(NEW."fromAddress", '') || ' ' ||
+            coalesce(NEW."toAddresses", '') || ' ' ||
+            coalesce(NEW."ccAddresses", '') || ' ' ||
             coalesce(NEW."mailCode", '')
           );
           RETURN NEW;
@@ -45,25 +54,39 @@ export class MailService implements OnApplicationBootstrap {
         FOR EACH ROW EXECUTE FUNCTION emails_search_vector_update();
       `);
 
+      // GIN index for fast full-text search
+      await this.dataSource.query(`
+        CREATE INDEX IF NOT EXISTS idx_emails_search_vector ON emails USING GIN (search_vector);
+      `);
+
+      // Force rebuild if config changed (one-time migration)
+      if (needsRebuild) {
+        this.logger.log('FTS: config upgraded to spanish — rebuilding all search_vectors...');
+        await this.dataSource.query(`UPDATE emails SET search_vector = NULL`);
+      }
+
+      // Backfill missing search_vectors
       const { count } = await this.dataSource
         .query(`SELECT COUNT(*) AS count FROM emails WHERE search_vector IS NULL`)
         .then((r: { count: string }[]) => r[0]);
 
       if (parseInt(count, 10) > 0) {
         await this.dataSource.query(`
-          UPDATE emails SET search_vector = to_tsvector('simple',
+          UPDATE emails SET search_vector = to_tsvector('spanish',
             coalesce(subject, '') || ' ' ||
             coalesce(left("bodyText", 50000), '') || ' ' ||
             coalesce("fromAddress", '') || ' ' ||
+            coalesce("toAddresses", '') || ' ' ||
+            coalesce("ccAddresses", '') || ' ' ||
             coalesce("mailCode", '')
           ) WHERE search_vector IS NULL
         `);
-        this.logger.log(`FTS: search_vector backfilled for ${count} emails`);
+        this.logger.log(`FTS: search_vector rebuilt for ${count} emails`);
       }
 
-      this.logger.log('FTS: trigger and search_vector ready');
+      this.logger.log('FTS: trigger, GIN index, and search_vector ready');
     } catch (err) {
-      this.logger.error('FTS: failed to initialize search_vector trigger', (err as Error).message);
+      this.logger.error('FTS: failed to initialize', (err as Error).message);
     }
   }
 
@@ -117,12 +140,22 @@ export class MailService implements OnApplicationBootstrap {
     }
 
     if (dto.q?.trim()) {
-      const ilikeTerm = `%${dto.q.trim()}%`;
+      const searchTerm = dto.q.trim();
       qb.andWhere(new Brackets((qb2) => {
-        qb2.where(`e."mailCode" ILIKE :ilikeTerm`, { ilikeTerm })
-           .orWhere(`e.subject ILIKE :ilikeTerm`, { ilikeTerm })
-           .orWhere(`e."bodyText" ILIKE :ilikeTerm`, { ilikeTerm })
-           .orWhere(`EXISTS (SELECT 1 FROM attachments att WHERE att."emailId" = e.id AND att.filename ILIKE :ilikeTerm)`);
+        // Full-text search via GIN-indexed tsvector (subject, body, from, to, cc, mailCode)
+        qb2.where(
+          `e.search_vector @@ plainto_tsquery('spanish', :searchTerm)`,
+          { searchTerm },
+        )
+        // mailCode partial match (short field, B-tree indexed — catches codes the tokenizer may split)
+        .orWhere(`e."mailCode" ILIKE :mailCodeTerm`, {
+          mailCodeTerm: `%${searchTerm}%`,
+        })
+        // Attachment filename match
+        .orWhere(
+          `EXISTS (SELECT 1 FROM attachments att WHERE att."emailId" = e.id AND att.filename ILIKE :attTerm)`,
+          { attTerm: `%${searchTerm}%` },
+        );
       }));
     }
 

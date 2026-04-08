@@ -418,6 +418,9 @@ import { ThemeService } from '../../core/services/theme.service';
                 <label class="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
                   Correo de recuperación <span class="text-red-500">*</span>
                 </label>
+                <p class="text-xs text-gray-400 dark:text-zinc-500 mb-1.5">
+                  Esta dirección de correo será utilizada para que pueda recuperar la contraseña de acceso a su PC que es la misma que utiliza para ingresar a este sistema.
+                </p>
                 <input
                   type="email"
                   [(ngModel)]="modalEmail"

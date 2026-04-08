@@ -102,7 +102,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                        focus:ring-teal-500 dark:focus:ring-green-700 sm:text-sm
                        disabled:bg-gray-50 dark:disabled:bg-zinc-900 disabled:text-gray-500 dark:disabled:text-zinc-600"
                 [class.border-red-300]="isInvalid(loginForm, 'username')"
-                placeholder="usuario.apellido"
+                placeholder="Ingrese el usuario con el que ingresa a la PC"
               />
               @if (isInvalid(loginForm, 'username')) {
                 <p class="mt-1 text-xs text-red-600">El usuario es requerido.</p>
@@ -123,6 +123,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                          focus:ring-teal-500 dark:focus:ring-green-700 sm:text-sm
                          disabled:bg-gray-50 dark:disabled:bg-zinc-900 disabled:text-gray-500 dark:disabled:text-zinc-600"
                   [class.border-red-300]="isInvalid(loginForm, 'password')"
+                  placeholder="Ingrese su contraseña"
                 />
                 <button type="button"
                   class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"

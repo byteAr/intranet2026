@@ -2,6 +2,9 @@ services:
   postgres:
     ports:
       - '127.0.0.1:5442:5432'
+    volumes:
+      - ./postgres.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
 
   openldap:
     ports: !reset []

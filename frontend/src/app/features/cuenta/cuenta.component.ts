@@ -207,11 +207,11 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h3 class="text-lg font-semibold text-gray-800 mb-1">Jerarquía</h3>
           <p class="text-sm text-gray-500 mb-4">
-            Seleccioná tu grado jerárquico para que figure correctamente en los documentos.
+            Seleccioná tu jerarquía para que figure correctamente en los documentos.
           </p>
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Grado</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Jerarquía</label>
               <select [(ngModel)]="selectedRank"
                 class="w-full rounded-lg border-gray-300 shadow-sm text-sm focus:ring-teal-500 focus:border-teal-500">
                 <option value="">— Sin especificar —</option>

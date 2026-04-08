@@ -442,7 +442,7 @@ import { ThemeService } from '../../core/services/theme.service';
                 <select [(ngModel)]="modalRank"
                   class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100"
                   [class.border-red-400]="modalRankTouched() && !modalRank">
-                  <option value="">— Seleccioná tu grado —</option>
+                  <option value="">— Seleccioná tu jerarquía —</option>
                   <optgroup label="Oficiales">
                     <option value="SUBALF">SUBALFEREZ</option>
                     <option value="ALF">ALFEREZ</option>

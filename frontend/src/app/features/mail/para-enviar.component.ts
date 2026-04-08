@@ -50,7 +50,11 @@ import { AuthService } from '../../core/services/auth.service';
         <div class="flex-1 overflow-y-auto">
           @if (loading()) {
             <div class="flex items-center justify-center h-24">
-              <span class="text-sm text-gray-400">Cargando...</span>
+              <svg class="h-8 w-8 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" style="color: #0d9488" />
+                <path d="M12 2a10 10 0 0 1 10 10" stroke="url(#spinner-grad)" stroke-width="3" stroke-linecap="round" />
+                <defs><linearGradient id="spinner-grad" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0d9488"/><stop offset="1" stop-color="#166534"/></linearGradient></defs>
+              </svg>
             </div>
           } @else if (emails().length === 0) {
             <div class="flex flex-col items-center justify-center h-32 text-gray-400 px-4">

@@ -1033,7 +1033,7 @@ export class ReservationsComponent implements OnInit {
 
   /** Regular users can create; staff roles only view/approve/confirm */
   get canCreate(): boolean {
-    return !this.isTicom && !this.isAyudantia;
+    return !this.isAyudantia;
   }
 
   get sidebarTitle(): string {

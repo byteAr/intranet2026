@@ -304,7 +304,7 @@ export class PasswordResetService {
                       División Tecnología de la Información y Comunicaciones
                     </p>
                     <p style="margin:0;font-size:11px;color:#9ca3af">
-                      Dirección Nacional del Cuerpo de Guardacárceles &nbsp;·&nbsp; ${year}
+                      Dirección de Educación e Institutos &nbsp;·&nbsp; ${year}
                     </p>
                   </td>
                 </tr>

@@ -2,6 +2,8 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import * as ldap from 'ldapjs';
+import * as path from 'path';
+import * as fs from 'fs';
 import { UsersService } from '../users/users.service';
 
 interface OtpEntry {
@@ -238,14 +240,19 @@ export class PasswordResetService {
       tls: { rejectUnauthorized: false },
     });
 
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://10.98.40.24:8280';
-    const logoUrl = `${frontendUrl}/assets/images/diredtosintranet.png`;
     const year = new Date().getFullYear();
+    const logoPath = path.join(process.cwd(), 'assets', 'logo.png');
+    const logoExists = fs.existsSync(logoPath);
 
     await transporter.sendMail({
       from: this.configService.get<string>('SMTP_FROM') ?? 'noreply@iugnad.lan',
       to,
       subject: 'Recuperación de contraseña - Intranet Diredtos',
+      attachments: logoExists ? [{
+        filename: 'logo.png',
+        path: logoPath,
+        cid: 'logo@intranet',
+      }] : [],
       html: `
         <!DOCTYPE html>
         <html lang="es">
@@ -258,7 +265,7 @@ export class PasswordResetService {
                 <!-- Header -->
                 <tr>
                   <td style="background:linear-gradient(135deg,#0d9488,#166534);padding:28px 32px;text-align:center">
-                    <img src="${logoUrl}" alt="Intranet Diredtos" height="80"
+                    <img src="cid:logo@intranet" alt="Intranet Diredtos" height="80"
                          style="height:80px;object-fit:contain;display:block;margin:0 auto" />
                   </td>
                 </tr>

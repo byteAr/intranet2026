@@ -8,6 +8,8 @@ interface AdminUser {
   id: string | null;
   username: string;
   email: string;
+  recoveryEmail?: string | null;
+  rank?: string | null;
   displayName: string;
   firstName?: string;
   lastName?: string;
@@ -21,10 +23,33 @@ interface AdminUser {
 }
 interface UsernameSuggestion { username: string; available: boolean; }
 
-const RANKS = [
-  'DIRECTOR', 'SUBDIRECTOR', 'MAYOR', 'CAPITAN', 'TENIENTE PRIMERO', 'TENIENTE',
-  'SUBTENIENTE', 'SARGENTO MAYOR', 'SARGENTO PRIMERO (SRO)', 'SARGENTO', 'SARGENTO AYUDANTE (SAY)',
-  'CABO PRIMERO', 'CABO', 'GENDARME', 'PERSONAL CIVIL',
+const RANK_GROUPS = [
+  {
+    label: 'Oficiales',
+    options: [
+      { value: 'SUBALF',  label: 'SUBALFEREZ' },
+      { value: 'ALF',     label: 'ALFEREZ' },
+      { value: '1ER ALF', label: 'PRIMER ALFEREZ' },
+      { value: '2DO CTE', label: 'SEGUNDO COMANDANTE' },
+      { value: 'CTE',     label: 'COMANDANTE' },
+      { value: 'CTE PR',  label: 'COMANDANTE PRINCIPAL' },
+      { value: 'CTE MY',  label: 'COMANDANTE MAYOR' },
+      { value: 'CTE GRL', label: 'COMANDANTE GENERAL' },
+    ],
+  },
+  {
+    label: 'Suboficiales',
+    options: [
+      { value: 'GEND', label: 'GENDARME' },
+      { value: 'CBO',  label: 'CABO' },
+      { value: 'CRO',  label: 'CABO PRIMERO' },
+      { value: 'SARG', label: 'SARGENTO' },
+      { value: 'SRO',  label: 'SARGENTO PRIMERO' },
+      { value: 'SAY',  label: 'SARGENTO AYUDANTE' },
+      { value: 'SPR',  label: 'SUBOFICIAL PRINCIPAL' },
+      { value: 'SMY',  label: 'SUBOFICIAL MAYOR' },
+    ],
+  },
 ];
 
 @Component({
@@ -90,7 +115,7 @@ const RANKS = [
                   <tr>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Nombre</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Usuario</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Correo</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Correos</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Área</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Jerarquía</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Estado</th>
@@ -103,7 +128,16 @@ const RANKS = [
                       [class.opacity-50]="!user.enabledInAd">
                       <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ user.displayName }}</td>
                       <td class="px-4 py-3 text-gray-500 dark:text-zinc-400 font-mono text-xs">{{ user.username }}</td>
-                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400 text-xs">{{ user.email || '—' }}</td>
+                      <td class="px-4 py-3 text-xs">
+                        <div class="text-gray-700 dark:text-zinc-300">{{ user.email || '—' }}</div>
+                        @if (user.recoveryEmail) {
+                          <div class="text-gray-400 dark:text-zinc-500 mt-0.5">
+                            <span class="text-gray-300 dark:text-zinc-600">↳</span> {{ user.recoveryEmail }}
+                          </div>
+                        } @else {
+                          <div class="text-gray-300 dark:text-zinc-600 mt-0.5 italic">Sin correo de recuperación</div>
+                        }
+                      </td>
                       <td class="px-4 py-3 text-gray-500 dark:text-zinc-400">{{ user.office || '—' }}</td>
                       <td class="px-4 py-3 text-gray-500 dark:text-zinc-400 text-xs">{{ user.title || '—' }}</td>
                       <td class="px-4 py-3">
@@ -257,9 +291,13 @@ const RANKS = [
               <label class="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">Jerarquía</label>
               <select [(ngModel)]="form.title"
                 class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
-                <option value="">Sin jerarquía / Personal civil</option>
-                @for (rank of ranks; track rank) {
-                  <option [value]="rank">{{ rank }}</option>
+                <option value="">— Sin jerarquía —</option>
+                @for (group of rankGroups; track group.label) {
+                  <optgroup [label]="group.label">
+                    @for (opt of group.options; track opt.value) {
+                      <option [value]="opt.value">{{ opt.label }}</option>
+                    }
+                  </optgroup>
                 }
               </select>
             </div>
@@ -340,9 +378,13 @@ const RANKS = [
               <label class="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">Jerarquía</label>
               <select [(ngModel)]="editForm.title"
                 class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
-                <option value="">Sin jerarquía / Personal civil</option>
-                @for (rank of ranks; track rank) {
-                  <option [value]="rank">{{ rank }}</option>
+                <option value="">— Sin jerarquía —</option>
+                @for (group of rankGroups; track group.label) {
+                  <optgroup [label]="group.label">
+                    @for (opt of group.options; track opt.value) {
+                      <option [value]="opt.value">{{ opt.label }}</option>
+                    }
+                  </optgroup>
                 }
               </select>
             </div>
@@ -403,7 +445,7 @@ export class AdminComponent implements OnInit {
   readonly usernameAvailable = signal(false);
   readonly loadingSuggestion = signal(false);
 
-  readonly ranks = RANKS;
+  readonly rankGroups = RANK_GROUPS;
   searchQuery = '';
   newDeptName = '';
   private suggestionTimer: ReturnType<typeof setTimeout> | null = null;

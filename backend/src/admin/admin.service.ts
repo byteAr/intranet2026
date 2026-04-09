@@ -251,6 +251,8 @@ export class AdminService implements OnApplicationBootstrap {
         hasLoggedIn:        !!dbUser?.lastLoginAt,
         mustChangePassword: dbUser?.mustChangePassword ?? false,
         lastLoginAt:        dbUser?.lastLoginAt ?? null,
+        recoveryEmail:      dbUser?.recoveryEmail ?? null,
+        rank:               dbUser?.rank ?? null,
         roles:              dbUser?.roles ?? [],
         id:                 dbUser?.id ?? null,
       };

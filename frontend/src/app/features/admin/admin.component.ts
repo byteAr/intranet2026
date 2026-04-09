@@ -86,9 +86,9 @@ const RANK_GROUPS = [
       @if (activeTab() === 'users') {
         <div>
           <div class="flex items-center justify-between mb-4">
-            <input [(ngModel)]="searchQuery" (ngModelChange)="filterUsers()"
-              type="text" placeholder="Buscar por nombre, usuario u oficina..."
-              class="w-64 px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+            <input [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event); currentPage.set(1)"
+              type="text" placeholder="Buscar por nombre, apellido, usuario u oficina..."
+              class="w-72 px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
             <button (click)="openCreateModal()"
               class="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors">
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -121,7 +121,8 @@ const RANK_GROUPS = [
             </div>
           } @else {
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden">
-              <table class="w-full text-sm">
+              <div class="overflow-x-auto">
+              <table class="w-full text-sm whitespace-nowrap">
                 <thead class="bg-gray-50 dark:bg-zinc-800">
                   <tr>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Nombre</th>
@@ -134,7 +135,7 @@ const RANK_GROUPS = [
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-zinc-700">
-                  @for (user of filteredUsers(); track user.username) {
+                  @for (user of pagedUsers(); track user.username) {
                     <tr class="hover:bg-gray-50 dark:hover:bg-zinc-800/50"
                       [class.opacity-50]="!user.enabledInAd">
                       <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ user.displayName }}</td>
@@ -184,6 +185,31 @@ const RANK_GROUPS = [
                   }
                 </tbody>
               </table>
+              </div>
+
+              <!-- Paginación -->
+              @if (totalPages() > 1 || filteredUsers().length > 0) {
+                <div class="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-zinc-700 text-xs text-gray-500 dark:text-zinc-400">
+                  <span>
+                    {{ filteredUsers().length }} usuario{{ filteredUsers().length !== 1 ? 's' : '' }}
+                    @if (totalPages() > 1) {
+                      — Página {{ currentPage() }} de {{ totalPages() }}
+                    }
+                  </span>
+                  @if (totalPages() > 1) {
+                    <div class="flex items-center gap-1">
+                      <button (click)="currentPage.set(1)" [disabled]="currentPage() === 1"
+                        class="px-2 py-1 rounded disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-zinc-700">«</button>
+                      <button (click)="currentPage.update(p => p - 1)" [disabled]="currentPage() === 1"
+                        class="px-2 py-1 rounded disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-zinc-700">‹</button>
+                      <button (click)="currentPage.update(p => p + 1)" [disabled]="currentPage() === totalPages()"
+                        class="px-2 py-1 rounded disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-zinc-700">›</button>
+                      <button (click)="currentPage.set(totalPages())" [disabled]="currentPage() === totalPages()"
+                        class="px-2 py-1 rounded disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-zinc-700">»</button>
+                    </div>
+                  }
+                </div>
+              }
             </div>
           }
         </div>
@@ -458,7 +484,9 @@ export class AdminComponent implements OnInit {
   readonly loadingSuggestion = signal(false);
 
   readonly rankGroups = RANK_GROUPS;
-  searchQuery = '';
+  readonly searchQuery = signal('');
+  readonly currentPage = signal(1);
+  readonly pageSize = 20;
   newDeptName = '';
   private suggestionTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -466,14 +494,24 @@ export class AdminComponent implements OnInit {
   editForm = { office: '', title: '' };
 
   readonly filteredUsers = computed(() => {
-    const q = this.searchQuery.toLowerCase();
+    const q = this.searchQuery().toLowerCase().trim();
     if (!q) return this.users();
     return this.users().filter(u =>
-      u.displayName.toLowerCase().includes(q) ||
-      u.username.toLowerCase().includes(q) ||
-      (u.office ?? '').toLowerCase().includes(q) ||
-      (u.email ?? '').toLowerCase().includes(q),
+      (u.displayName ?? '').toLowerCase().includes(q) ||
+      (u.firstName  ?? '').toLowerCase().includes(q) ||
+      (u.lastName   ?? '').toLowerCase().includes(q) ||
+      (u.username   ?? '').toLowerCase().includes(q) ||
+      (u.office     ?? '').toLowerCase().includes(q) ||
+      (u.email      ?? '').toLowerCase().includes(q),
     );
+  });
+
+  readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredUsers().length / this.pageSize)));
+
+  readonly pagedUsers = computed(() => {
+    const page = Math.min(this.currentPage(), this.totalPages());
+    const start = (page - 1) * this.pageSize;
+    return this.filteredUsers().slice(start, start + this.pageSize);
   });
 
   currentYear2(): string {
@@ -518,8 +556,6 @@ export class AdminComponent implements OnInit {
       },
     });
   }
-
-  filterUsers(): void { /* filteredUsers is computed */ }
 
   openCreateModal(): void {
     this.form = { firstName: '', secondName: '', lastName: '', office: '', title: '', email: '' };

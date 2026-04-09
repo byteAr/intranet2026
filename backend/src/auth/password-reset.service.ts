@@ -101,6 +101,16 @@ export class PasswordResetService {
     this.logger.log(`Contraseña cambiada por el usuario: ${user.username}`);
   }
 
+  async setInitialPassword(userId: string, newPassword: string): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new BadRequestException('Usuario no encontrado');
+    if (!user.mustChangePassword) throw new BadRequestException('No se requiere cambio de contraseña inicial');
+
+    await this.callBridge(user.username, newPassword);
+    await this.usersService.clearMustChangePassword(userId);
+    this.logger.log(`Contraseña inicial establecida por el usuario: ${user.username}`);
+  }
+
   private verifyLdapPassword(dn: string, password: string): Promise<boolean> {
     return new Promise((resolve) => {
       const url = this.configService.get<string>('ldap.url')!;

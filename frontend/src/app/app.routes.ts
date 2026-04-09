@@ -98,6 +98,13 @@ export const routes: Routes = [
             (m) => m.AutorizadoresComponent,
           ),
       },
+      {
+        path: 'admin',
+        loadComponent: () =>
+          import('./features/admin/admin.component').then(
+            (m) => m.AdminComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: 'cuenta' },

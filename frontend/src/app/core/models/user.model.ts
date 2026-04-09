@@ -22,6 +22,7 @@ export interface User {
   office?: string;
   manager?: string;
   employeeId?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface LoginResponse {

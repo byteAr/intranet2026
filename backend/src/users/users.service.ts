@@ -123,4 +123,8 @@ export class UsersService {
     await this.userRepo.update(id, data);
     return this.userRepo.findOne({ where: { id } }) as Promise<User>;
   }
+
+  async clearMustChangePassword(id: string): Promise<void> {
+    await this.userRepo.update(id, { mustChangePassword: false });
+  }
 }

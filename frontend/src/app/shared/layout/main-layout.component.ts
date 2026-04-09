@@ -177,6 +177,19 @@ import { ThemeService } from '../../core/services/theme.service';
             </a>
           }
 
+          @if (isTicom()) {
+            <a routerLink="/admin" routerLinkActive="active-nav"
+              class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
+              [title]="collapsed() ? 'Administración' : ''">
+              <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              @if (!collapsed()) { <span class="ml-3">Administración</span> }
+            </a>
+          }
+
           <a routerLink="/reservas" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Reservas' : ''">
@@ -403,6 +416,59 @@ import { ThemeService } from '../../core/services/theme.service';
       </div>
     }
 
+    <!-- ── First-login password change modal ─────────────────── -->
+    @if (showPasswordModal()) {
+      <div class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-zinc-700">
+          <div class="px-6 pt-6 pb-2">
+            <div class="flex items-center justify-center w-14 h-14 rounded-full bg-teal-100 dark:bg-teal-900/30 mx-auto mb-4">
+              <svg class="h-7 w-7 text-teal-600 dark:text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+              </svg>
+            </div>
+            <h2 class="text-xl font-bold text-center text-gray-900 dark:text-white">Establecé tu contraseña</h2>
+            <p class="text-sm text-center text-gray-500 dark:text-zinc-400 mt-2 mb-5">
+              Es tu primer ingreso al sistema. Debés establecer una contraseña personal antes de continuar.
+            </p>
+          </div>
+
+          <div class="px-6 pb-2 space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">Nueva contraseña</label>
+              <input [(ngModel)]="pwdModalNew" type="password" placeholder="Mínimo 8 caracteres"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">Repetir contraseña</label>
+              <input [(ngModel)]="pwdModalConfirm" type="password" placeholder="Ingresá la misma contraseña"
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                [class.border-red-400]="pwdModalConfirm && pwdModalNew !== pwdModalConfirm" />
+              @if (pwdModalConfirm && pwdModalNew !== pwdModalConfirm) {
+                <p class="text-xs text-red-500 mt-1">Las contraseñas no coinciden</p>
+              }
+            </div>
+            @if (pwdModalError()) {
+              <p class="text-sm text-red-500">{{ pwdModalError() }}</p>
+            }
+          </div>
+
+          <div class="px-6 py-5">
+            <button (click)="savePasswordModal()"
+              [disabled]="!pwdModalNew || pwdModalNew.length < 8 || pwdModalNew !== pwdModalConfirm || pwdModalSaving()"
+              class="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+              @if (pwdModalSaving()) {
+                <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+              }
+              Confirmar contraseña
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
     <!-- ── Profile completion modal ─────────────────── -->
     @if (showProfileModal()) {
       <div class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -547,6 +613,30 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.toastTimer = setTimeout(() => this.toastMsg.set(null), 3500);
   }
 
+  // First-login password modal
+  readonly showPasswordModal = signal(false);
+  readonly pwdModalSaving = signal(false);
+  readonly pwdModalError = signal<string | null>(null);
+  pwdModalNew = '';
+  pwdModalConfirm = '';
+
+  savePasswordModal(): void {
+    if (!this.pwdModalNew || this.pwdModalNew.length < 8 || this.pwdModalNew !== this.pwdModalConfirm) return;
+    this.pwdModalSaving.set(true);
+    this.pwdModalError.set(null);
+    this.authService.setInitialPassword(this.pwdModalNew).subscribe({
+      next: () => {
+        this.pwdModalSaving.set(false);
+        this.showPasswordModal.set(false);
+        this.showToast('Contraseña establecida exitosamente', 'success');
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.pwdModalSaving.set(false);
+        this.pwdModalError.set(err.error?.message ?? 'Error al establecer la contraseña');
+      },
+    });
+  }
+
   // Profile completion modal
   readonly showProfileModal = signal(false);
   readonly modalNeedsEmail = signal(false);
@@ -582,9 +672,15 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const u = this.authService.currentUser();
+
+    // First-login password change takes priority
+    if (u?.mustChangePassword) {
+      this.showPasswordModal.set(true);
+    }
+
     const needsEmail = !u?.recoveryEmail?.trim();
     const needsRank = !u?.rank?.trim();
-    if (needsEmail || needsRank) {
+    if (!u?.mustChangePassword && (needsEmail || needsRank)) {
       this.modalNeedsEmail.set(needsEmail);
       this.modalNeedsRank.set(needsRank);
       this.showProfileModal.set(true);

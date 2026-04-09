@@ -19,6 +19,9 @@ services:
       BRIDGE_SECRET: ${BRIDGE_SECRET:-pac-bridge-secret-change-me}
       AD_PASS: ${LDAP_BIND_CREDENTIALS}
       KRB5_REALM: ${KRB5_REALM:-IUGNAD.LAN}
+      AD_BASE_DN: ${AD_BASE_DN:-DC=iugnad,DC=lan}
+      AD_USERS_OU: ${AD_USERS_OU:-CN=Users,DC=iugnad,DC=lan}
+      AD_DOMAIN_FQDN: ${AD_DOMAIN_FQDN:-iugnad.lan}
     restart: unless-stopped
 
   backend:

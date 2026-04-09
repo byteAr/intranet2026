@@ -60,6 +60,7 @@ services:
       AD_BASE_DN: ${AD_BASE_DN:-DC=iugnad,DC=lan}
       AD_USERS_OU: ${AD_USERS_OU:-CN=Users,DC=iugnad,DC=lan}
       AD_DOMAIN_FQDN: ${AD_DOMAIN_FQDN:-iugnad.lan}
+      AD_BIND_DN: ${LDAP_BIND_DN}
     restart: unless-stopped
 
   backend:

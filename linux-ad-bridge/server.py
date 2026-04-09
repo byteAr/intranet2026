@@ -15,33 +15,21 @@ AD_DOMAIN      = os.environ.get('AD_DOMAIN', 'IUGNAD')
 AD_BASE_DN     = os.environ.get('AD_BASE_DN', 'DC=iugnad,DC=lan')
 AD_USERS_OU    = os.environ.get('AD_USERS_OU') or f'CN=Users,{AD_BASE_DN}'
 AD_DOMAIN_FQDN = os.environ.get('AD_DOMAIN_FQDN', 'iugnad.lan')
+# Full DN for SIMPLE bind — evita NTLM que requiere MD4 (deshabilitado en OpenSSL 3.0)
+AD_BIND_DN     = os.environ.get('AD_BIND_DN') or f'CN={AD_USER},CN=Users,{AD_BASE_DN}'
 
 
 def get_ldap_connection():
-    """Create LDAP connection to AD using NTLM. Tries LDAPS (636) first, falls back to LDAP (389)."""
-    tls_config = ldap3.Tls(validate=ssl.CERT_NONE)
-    # Try LDAPS first
-    try:
-        server = ldap3.Server(AD_HOST, port=636, use_ssl=True, tls=tls_config, get_info=ldap3.NONE)
-        conn = ldap3.Connection(
-            server,
-            user=f'{AD_DOMAIN}\\{AD_USER}',
-            password=AD_PASS,
-            authentication=ldap3.NTLM,
-            auto_bind=True,
-        )
-        return conn
-    except Exception as e:
-        logger.warning('LDAPS falló, intentando LDAP plano: %s', e)
-        server = ldap3.Server(AD_HOST, port=389, use_ssl=False, get_info=ldap3.NONE)
-        conn = ldap3.Connection(
-            server,
-            user=f'{AD_DOMAIN}\\{AD_USER}',
-            password=AD_PASS,
-            authentication=ldap3.NTLM,
-            auto_bind=True,
-        )
-        return conn
+    """LDAP simple bind en puerto 389. Evita NTLM/MD4 incompatible con OpenSSL 3.0."""
+    server = ldap3.Server(AD_HOST, port=389, use_ssl=False, get_info=ldap3.NONE)
+    conn = ldap3.Connection(
+        server,
+        user=AD_BIND_DN,
+        password=AD_PASS,
+        authentication=ldap3.SIMPLE,
+        auto_bind=True,
+    )
+    return conn
 
 
 def reset_ad_password(username: str, new_password: str) -> None:

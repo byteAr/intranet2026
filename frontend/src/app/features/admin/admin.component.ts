@@ -108,6 +108,17 @@ const RANK_GROUPS = [
                 </linearGradient></defs>
               </svg>
             </div>
+          } @else if (loadError()) {
+            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-5 py-4 text-sm text-red-700 dark:text-red-300 flex items-start gap-3">
+              <svg class="h-5 w-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <div>
+                <p class="font-medium">Error al conectar con el Active Directory</p>
+                <p class="text-xs mt-1 opacity-80">{{ loadError() }}</p>
+                <button (click)="loadUsers()" class="mt-2 text-xs underline hover:no-underline">Reintentar</button>
+              </div>
+            </div>
           } @else {
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden">
               <table class="w-full text-sm">
@@ -431,6 +442,7 @@ export class AdminComponent implements OnInit {
   readonly departments = signal<Department[]>([]);
   readonly users = signal<AdminUser[]>([]);
   readonly loadingUsers = signal(true);
+  readonly loadError = signal<string | null>(null);
   readonly showCreateModal = signal(false);
   readonly showEditModal = signal(false);
   readonly editingUser = signal<AdminUser | null>(null);
@@ -497,9 +509,13 @@ export class AdminComponent implements OnInit {
 
   loadUsers(): void {
     this.loadingUsers.set(true);
+    this.loadError.set(null);
     this.http.get<AdminUser[]>('/api/admin/users').subscribe({
       next: (users) => { this.users.set(users); this.loadingUsers.set(false); },
-      error: () => this.loadingUsers.set(false),
+      error: (err) => {
+        this.loadingUsers.set(false);
+        this.loadError.set(err.error?.message ?? err.message ?? 'Error al cargar usuarios del AD');
+      },
     });
   }
 

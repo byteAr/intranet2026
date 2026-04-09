@@ -173,7 +173,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
               class="text-sm hover:underline focus:outline-none" style="color: #14B8A5">
               ¿Olvidaste tu contraseña?
             </button>
-            <p class="text-xs text-gray-400 dark:text-zinc-600 mt-6">División tecnología de la información y comunicaciones</p>
+            <p class="text-xs text-gray-400 dark:text-zinc-600 mt-6">División Tecnologías de la Información y Comunicaciones</p>
           </div>
         }
 

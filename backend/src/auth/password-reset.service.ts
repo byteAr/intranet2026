@@ -286,7 +286,7 @@ export class PasswordResetService {
                       <p style="margin:0 0 6px 0;font-size:12px;color:rgba(255,255,255,0.8);text-transform:uppercase;letter-spacing:2px;font-weight:600">
                         Código de verificación
                       </p>
-                      <p style="margin:0;font-size:48px;font-weight:700;letter-spacing:14px;color:#ffffff;font-family:'Courier New',monospace">
+                      <p style="margin:0;font-size:64px;font-weight:900;letter-spacing:18px;color:#ffffff;font-family:Georgia,'Times New Roman',serif">
                         ${otp}
                       </p>
                     </div>
@@ -308,7 +308,7 @@ export class PasswordResetService {
                 <tr>
                   <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center">
                     <p style="margin:0 0 4px 0;font-size:12px;color:#6b7280;font-weight:600">
-                      División Tecnología de la Información y Comunicaciones
+                      División Tecnologías de la Información y Comunicaciones
                     </p>
                     <p style="margin:0;font-size:11px;color:#9ca3af">
                       Dirección de Educación e Institutos &nbsp;·&nbsp; ${year}

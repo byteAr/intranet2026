@@ -447,7 +447,7 @@ import { ThemeService } from '../../core/services/theme.service';
                   class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100"
                   [class.border-red-400]="modalEmailTouched() && !isValidEmail(modalEmail)" />
                 @if (modalEmailTouched() && !isValidEmail(modalEmail)) {
-                  <p class="text-xs text-red-500 mt-1">Ingresá un email válido</p>
+                  <p class="text-xs text-red-500 mt-1">{{ emailError(modalEmail) }}</p>
                 }
               </div>
             }
@@ -708,7 +708,18 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   }
 
   isValidEmail(email: string): boolean {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    const v = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return false;
+    if (v.endsWith('@iugna.edu.ar')) return false;
+    return true;
+  }
+
+  emailError(email: string): string {
+    const v = email.trim().toLowerCase();
+    if (!v) return 'Ingresá un email válido';
+    if (v.endsWith('@iugna.edu.ar')) return 'No podés usar un correo institucional (@iugna.edu.ar) como correo de recuperación';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Ingresá un email válido';
+    return '';
   }
 
   saveProfileModal(): void {

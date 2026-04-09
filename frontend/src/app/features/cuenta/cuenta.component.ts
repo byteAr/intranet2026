@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, effect, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { FormsModule, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule, FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 
 type Panel = 'info' | 'password' | 'recovery' | 'rank';
@@ -190,7 +190,11 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
                 [class.border-red-300]="isInvalid(recoveryForm, 'recoveryEmail')"
                 placeholder="tucorreo@personal.com" />
               @if (isInvalid(recoveryForm, 'recoveryEmail')) {
-                <p class="mt-1 text-xs text-red-600">Ingresa un correo válido.</p>
+                @if (recoveryForm.get('recoveryEmail')?.errors?.['institutionalEmail']) {
+                  <p class="mt-1 text-xs text-red-600">No podés usar un correo institucional (@iugna.edu.ar) como correo de recuperación.</p>
+                } @else {
+                  <p class="mt-1 text-xs text-red-600">Ingresá un correo válido.</p>
+                }
               }
             </div>
             <button type="submit" [disabled]="savingRecovery()"
@@ -292,8 +296,13 @@ export class CuentaComponent {
   });
 
   recoveryForm: FormGroup = this.fb.group({
-    recoveryEmail: [this.user()?.recoveryEmail ?? '', [Validators.required, Validators.email]],
+    recoveryEmail: [this.user()?.recoveryEmail ?? '', [Validators.required, Validators.email, this.noInstitutionalEmail]],
   });
+
+  noInstitutionalEmail(control: AbstractControl): ValidationErrors | null {
+    const v = (control.value ?? '').toLowerCase();
+    return v.endsWith('@iugna.edu.ar') ? { institutionalEmail: true } : null;
+  }
 
   initials(): string {
     return (this.user()?.displayName ?? this.user()?.username ?? '?')

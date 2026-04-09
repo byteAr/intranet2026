@@ -61,6 +61,37 @@ def reset_ad_password(username: str, new_password: str) -> None:
     logger.info('Contraseña reseteada para: %s', username)
 
 
+def list_ad_users() -> list:
+    conn = get_ldap_connection()
+    try:
+        conn.search(
+            AD_BASE_DN,
+            '(&(objectClass=user)(objectCategory=person)(sAMAccountName=*)(!(isCriticalSystemObject=TRUE)))',
+            attributes=[
+                'sAMAccountName', 'displayName', 'givenName', 'sn',
+                'mail', 'physicalDeliveryOfficeName', 'title',
+                'userAccountControl', 'distinguishedName',
+            ],
+        )
+        users = []
+        for entry in conn.entries:
+            uac = int(entry['userAccountControl'].value or 0)
+            enabled = not bool(uac & 2)  # bit 1 = ACCOUNTDISABLE
+            users.append({
+                'username':    str(entry['sAMAccountName'].value or ''),
+                'displayName': str(entry['displayName'].value or ''),
+                'firstName':   str(entry['givenName'].value or ''),
+                'lastName':    str(entry['sn'].value or ''),
+                'email':       str(entry['mail'].value or ''),
+                'office':      str(entry['physicalDeliveryOfficeName'].value or ''),
+                'title':       str(entry['title'].value or ''),
+                'enabled':     enabled,
+            })
+        return sorted(users, key=lambda u: u['displayName'].lower())
+    finally:
+        conn.unbind()
+
+
 def check_username_exists(username: str) -> bool:
     conn = get_ldap_connection()
     try:
@@ -191,7 +222,15 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
 
-        if parsed.path == '/check-username':
+        if parsed.path == '/list-users':
+            try:
+                users = list_ad_users()
+                self.send_json(200, {'users': users})
+            except Exception as e:
+                logger.error('Error list-users: %s', e)
+                self.send_json(500, {'error': str(e)})
+
+        elif parsed.path == '/check-username':
             username = params.get('username', [''])[0].strip()
             if not username:
                 return self.send_json(400, {'error': 'username es requerido'})

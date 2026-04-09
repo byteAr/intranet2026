@@ -5,9 +5,19 @@ import { HttpClient } from '@angular/common/http';
 
 interface Department { id: string; name: string; createdAt: string; }
 interface AdminUser {
-  id: string; username: string; email: string; displayName: string;
-  firstName?: string; lastName?: string; office?: string; title?: string; rank?: string;
-  roles: string[]; mustChangePassword: boolean; createdAt: string;
+  id: string | null;
+  username: string;
+  email: string;
+  displayName: string;
+  firstName?: string;
+  lastName?: string;
+  office?: string;
+  title?: string;
+  roles: string[];
+  mustChangePassword: boolean;
+  hasLoggedIn: boolean;
+  enabledInAd: boolean;
+  lastLoginAt?: string | null;
 }
 interface UsernameSuggestion { username: string; available: boolean; }
 
@@ -88,17 +98,26 @@ const RANKS = [
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-zinc-700">
-                  @for (user of filteredUsers(); track user.id) {
-                    <tr class="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
+                  @for (user of filteredUsers(); track user.username) {
+                    <tr class="hover:bg-gray-50 dark:hover:bg-zinc-800/50"
+                      [class.opacity-50]="!user.enabledInAd">
                       <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ user.displayName }}</td>
-                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400 font-mono">{{ user.username }}</td>
-                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400">{{ user.email }}</td>
+                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400 font-mono text-xs">{{ user.username }}</td>
+                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400 text-xs">{{ user.email || '—' }}</td>
                       <td class="px-4 py-3 text-gray-500 dark:text-zinc-400">{{ user.office || '—' }}</td>
-                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400 text-xs">{{ user.rank || '—' }}</td>
+                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400 text-xs">{{ user.title || '—' }}</td>
                       <td class="px-4 py-3">
-                        @if (user.mustChangePassword) {
+                        @if (!user.enabledInAd) {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-zinc-700 dark:text-zinc-400">
+                            Deshabilitado
+                          </span>
+                        } @else if (!user.hasLoggedIn) {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-zinc-700 dark:text-zinc-300">
+                            Nunca ingresó
+                          </span>
+                        } @else if (user.mustChangePassword) {
                           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                            Sin primer ingreso
+                            Sin contraseña propia
                           </span>
                         } @else {
                           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">

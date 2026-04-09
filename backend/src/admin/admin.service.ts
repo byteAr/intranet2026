@@ -14,6 +14,17 @@ import { User } from '../users/entities/user.entity';
 import { CreateAdUserDto } from './dto/create-ad-user.dto';
 import { UpdateAdUserDto } from './dto/update-ad-user.dto';
 
+interface AdUserEntry {
+  username: string;
+  displayName: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  office: string;
+  title: string;
+  enabled: boolean;
+}
+
 const DEFAULT_DEPARTMENTS = [
   'TICOM',
   'CENEDIS',
@@ -216,9 +227,33 @@ export class AdminService implements OnApplicationBootstrap {
     }
   }
 
-  async listUsers(): Promise<User[]> {
-    return this.userRepo.find({
-      order: { firstName: 'ASC', lastName: 'ASC' },
+  async listUsers(): Promise<object[]> {
+    // Fetch all users from AD
+    const bridgeResult = (await this.callBridgeGet('/list-users')) as { users: AdUserEntry[] };
+    const adUsers = bridgeResult.users ?? [];
+
+    // Fetch all DB users indexed by username
+    const dbUsers = await this.userRepo.find();
+    const dbByUsername = new Map(dbUsers.map((u) => [u.username.toLowerCase(), u]));
+
+    // Merge: AD is the source of truth, DB provides login status
+    return adUsers.map((adUser) => {
+      const dbUser = dbByUsername.get(adUser.username.toLowerCase());
+      return {
+        username:           adUser.username,
+        displayName:        adUser.displayName || `${adUser.firstName} ${adUser.lastName}`.trim(),
+        firstName:          adUser.firstName,
+        lastName:           adUser.lastName,
+        email:              adUser.email,
+        office:             adUser.office,
+        title:              adUser.title,
+        enabledInAd:        adUser.enabled,
+        hasLoggedIn:        !!dbUser?.lastLoginAt,
+        mustChangePassword: dbUser?.mustChangePassword ?? false,
+        lastLoginAt:        dbUser?.lastLoginAt ?? null,
+        roles:              dbUser?.roles ?? [],
+        id:                 dbUser?.id ?? null,
+      };
     });
   }
 

@@ -17,6 +17,13 @@ export const routes: Routes = [
             (m) => m.LoginComponent,
           ),
       },
+      {
+        path: 'set-initial-password',
+        loadComponent: () =>
+          import('./features/auth/set-initial-password/set-initial-password.component').then(
+            (m) => m.SetInitialPasswordComponent,
+          ),
+      },
       { path: '', redirectTo: 'login', pathMatch: 'full' },
     ],
   },

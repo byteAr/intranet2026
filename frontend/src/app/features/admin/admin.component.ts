@@ -200,9 +200,9 @@ const RANK_GROUPS = [
                     <div class="flex items-center gap-1">
                       <button (click)="currentPage.set(1)" [disabled]="currentPage() === 1"
                         class="px-2 py-1 rounded disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-zinc-700">«</button>
-                      <button (click)="currentPage.update(p => p - 1)" [disabled]="currentPage() === 1"
+                      <button (click)="prevPage()" [disabled]="currentPage() === 1"
                         class="px-2 py-1 rounded disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-zinc-700">‹</button>
-                      <button (click)="currentPage.update(p => p + 1)" [disabled]="currentPage() === totalPages()"
+                      <button (click)="nextPage()" [disabled]="currentPage() === totalPages()"
                         class="px-2 py-1 rounded disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-zinc-700">›</button>
                       <button (click)="currentPage.set(totalPages())" [disabled]="currentPage() === totalPages()"
                         class="px-2 py-1 rounded disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-zinc-700">»</button>
@@ -513,6 +513,9 @@ export class AdminComponent implements OnInit {
     const start = (page - 1) * this.pageSize;
     return this.filteredUsers().slice(start, start + this.pageSize);
   });
+
+  prevPage(): void { this.currentPage.update(p => Math.max(1, p - 1)); }
+  nextPage(): void { this.currentPage.update(p => Math.min(this.totalPages(), p + 1)); }
 
   currentYear2(): string {
     return new Date().getFullYear().toString().slice(-2);

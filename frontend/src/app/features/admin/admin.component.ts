@@ -20,8 +20,11 @@ interface AdminUser {
   hasLoggedIn: boolean;
   enabledInAd: boolean;
   lastLoginAt?: string | null;
+  dn?: string;
 }
 interface UsernameSuggestion { username: string; available: boolean; }
+interface AdGroup { cn: string; dn: string; description: string; memberCount: number; }
+interface GroupMember { username: string; displayName: string; dn: string; office: string; title: string; enabled: boolean; }
 
 const RANK_GROUPS = [
   {
@@ -70,6 +73,15 @@ const RANK_GROUPS = [
           [class.border-transparent]="activeTab() !== 'users'"
           [class.text-gray-500]="activeTab() !== 'users'">
           Usuarios
+        </button>
+        <button (click)="openGroupsTab()"
+          class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
+          [class.border-teal-600]="activeTab() === 'groups'"
+          [class.text-teal-600]="activeTab() === 'groups'"
+          [class.dark:text-teal-400]="activeTab() === 'groups'"
+          [class.border-transparent]="activeTab() !== 'groups'"
+          [class.text-gray-500]="activeTab() !== 'groups'">
+          Grupos
         </button>
         <button (click)="activeTab.set('departments')"
           class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
@@ -212,6 +224,151 @@ const RANK_GROUPS = [
               }
             </div>
           }
+        </div>
+      }
+
+      <!-- ── GRUPOS ── -->
+      @if (activeTab() === 'groups') {
+        <div class="flex gap-4" style="height: calc(100vh - 220px)">
+
+          <!-- Panel izquierdo: lista de grupos -->
+          <div class="w-72 flex-shrink-0 flex flex-col bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-100 dark:border-zinc-700">
+              <input [ngModel]="groupSearch()" (ngModelChange)="groupSearch.set($event)"
+                type="text" placeholder="Buscar grupo..."
+                class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+            </div>
+            <div class="flex-1 overflow-y-auto">
+              @if (loadingGroups()) {
+                <div class="flex items-center justify-center h-full text-gray-400 text-sm">Cargando grupos...</div>
+              } @else if (filteredGroups().length === 0) {
+                <div class="flex items-center justify-center h-full text-gray-400 text-sm">No se encontraron grupos</div>
+              } @else {
+                @for (group of filteredGroups(); track group.dn) {
+                  <div (click)="selectGroup(group)"
+                    class="px-4 py-3 cursor-pointer border-b border-gray-50 dark:border-zinc-800 transition-colors"
+                    [class.bg-teal-50]="selectedGroup()?.dn === group.dn"
+                    [class.dark:bg-teal-900/20]="selectedGroup()?.dn === group.dn"
+                    [class.border-l-4]="selectedGroup()?.dn === group.dn"
+                    [class.border-l-teal-500]="selectedGroup()?.dn === group.dn"
+                    [class.hover:bg-gray-50]="selectedGroup()?.dn !== group.dn"
+                    [class.dark:hover:bg-zinc-800]="selectedGroup()?.dn !== group.dn">
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-medium text-gray-900 dark:text-white truncate pr-2">{{ group.cn }}</span>
+                      <span class="text-xs bg-gray-100 dark:bg-zinc-700 text-gray-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full flex-shrink-0">{{ group.memberCount }}</span>
+                    </div>
+                    @if (group.description) {
+                      <p class="text-xs text-gray-400 dark:text-zinc-500 mt-0.5 truncate">{{ group.description }}</p>
+                    }
+                  </div>
+                }
+              }
+            </div>
+          </div>
+
+          <!-- Panel derecho: miembros / usuarios disponibles -->
+          @if (selectedGroup()) {
+            <div class="flex-1 flex gap-4 min-w-0">
+
+              <!-- Zona A: Miembros del grupo (drop target para agregar) -->
+              <div class="flex-1 flex flex-col bg-white dark:bg-zinc-900 rounded-xl border-2 border-dashed transition-colors overflow-hidden"
+                [class.border-teal-400]="dropTarget() === 'members'"
+                [class.bg-teal-50]="dropTarget() === 'members'"
+                [class.dark:bg-teal-900/10]="dropTarget() === 'members'"
+                [class.border-gray-200]="dropTarget() !== 'members'"
+                [class.dark:border-zinc-700]="dropTarget() !== 'members'"
+                (dragover)="onDragOver($event, 'members')"
+                (dragleave)="onDragLeave()"
+                (drop)="onDrop($event, 'members')">
+                <div class="px-4 py-3 border-b border-gray-100 dark:border-zinc-700 flex items-center justify-between">
+                  <div>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ selectedGroup()!.cn }}</h3>
+                    <p class="text-xs text-gray-400">{{ groupMembers().length }} miembro{{ groupMembers().length !== 1 ? 's' : '' }}</p>
+                  </div>
+                  @if (loadingMembers()) {
+                    <svg class="animate-spin h-4 w-4 text-teal-500" viewBox="0 0 24 24" fill="none">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                  }
+                </div>
+                <div class="flex-1 overflow-y-auto p-2 space-y-1">
+                  @if (!loadingMembers() && groupMembers().length === 0) {
+                    <div class="flex flex-col items-center justify-center h-full text-gray-300 dark:text-zinc-600 text-sm gap-2 py-8">
+                      <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
+                      <span>Sin miembros — arrastrá usuarios aquí</span>
+                    </div>
+                  }
+                  @for (member of groupMembers(); track member.dn) {
+                    <div draggable="true"
+                      (dragstart)="onDragStart($event, member, 'members')"
+                      class="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-zinc-800 cursor-grab hover:bg-teal-50 dark:hover:bg-teal-900/20 group transition-colors select-none">
+                      <div class="h-7 w-7 rounded-full bg-teal-100 dark:bg-teal-900/40 flex items-center justify-center flex-shrink-0">
+                        <span class="text-xs font-semibold text-teal-700 dark:text-teal-300">{{ (member.displayName || member.username).charAt(0).toUpperCase() }}</span>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ member.displayName || member.username }}</p>
+                        @if (member.office) {
+                          <p class="text-xs text-gray-400 truncate">{{ member.office }}</p>
+                        }
+                      </div>
+                      @if (!member.enabled) {
+                        <span class="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded">Deshabilitado</span>
+                      }
+                    </div>
+                  }
+                </div>
+                <div class="px-4 py-2 border-t border-gray-50 dark:border-zinc-800 text-xs text-center text-gray-300 dark:text-zinc-600">
+                  Arrastrá usuarios acá para agregarlos · Arrastrá miembros afuera para quitarlos
+                </div>
+              </div>
+
+              <!-- Zona B: Usuarios disponibles (drop target para quitar) -->
+              <div class="flex-1 flex flex-col bg-white dark:bg-zinc-900 rounded-xl border-2 border-dashed transition-colors overflow-hidden"
+                [class.border-amber-400]="dropTarget() === 'available'"
+                [class.bg-amber-50]="dropTarget() === 'available'"
+                [class.dark:bg-amber-900/10]="dropTarget() === 'available'"
+                [class.border-gray-200]="dropTarget() !== 'available'"
+                [class.dark:border-zinc-700]="dropTarget() !== 'available'"
+                (dragover)="onDragOver($event, 'available')"
+                (dragleave)="onDragLeave()"
+                (drop)="onDrop($event, 'available')">
+                <div class="px-4 py-3 border-b border-gray-100 dark:border-zinc-700">
+                  <p class="text-sm font-semibold text-gray-900 dark:text-white mb-1">Usuarios disponibles <span class="text-gray-400 font-normal">({{ filteredAvailableUsers().length }})</span></p>
+                  <input [ngModel]="availableSearch()" (ngModelChange)="availableSearch.set($event)"
+                    type="text" placeholder="Buscar..."
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                </div>
+                <div class="flex-1 overflow-y-auto p-2 space-y-1">
+                  @for (user of filteredAvailableUsers(); track user.dn) {
+                    <div draggable="true"
+                      (dragstart)="onDragStart($event, user, 'available')"
+                      class="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-zinc-800 cursor-grab hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors select-none">
+                      <div class="h-7 w-7 rounded-full bg-gray-200 dark:bg-zinc-700 flex items-center justify-center flex-shrink-0">
+                        <span class="text-xs font-semibold text-gray-500 dark:text-zinc-300">{{ (user.displayName || user.username).charAt(0).toUpperCase() }}</span>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ user.displayName || user.username }}</p>
+                        @if (user.office) {
+                          <p class="text-xs text-gray-400 truncate">{{ user.office }}</p>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+                <div class="px-4 py-2 border-t border-gray-50 dark:border-zinc-800 text-xs text-center text-gray-300 dark:text-zinc-600">
+                  Arrastrá miembros acá para quitarlos del grupo
+                </div>
+              </div>
+
+            </div>
+          } @else {
+            <div class="flex-1 flex flex-col items-center justify-center text-gray-300 dark:text-zinc-600 gap-3">
+              <svg class="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <p class="text-sm">Seleccioná un grupo para gestionar sus miembros</p>
+            </div>
+          }
+
         </div>
       }
 
@@ -464,7 +621,7 @@ const RANK_GROUPS = [
 export class AdminComponent implements OnInit {
   private readonly http = inject(HttpClient);
 
-  readonly activeTab = signal<'users' | 'departments'>('users');
+  readonly activeTab = signal<'users' | 'groups' | 'departments'>('users');
   readonly departments = signal<Department[]>([]);
   readonly users = signal<AdminUser[]>([]);
   readonly loadingUsers = signal(true);
@@ -516,6 +673,127 @@ export class AdminComponent implements OnInit {
 
   prevPage(): void { this.currentPage.update(p => Math.max(1, p - 1)); }
   nextPage(): void { this.currentPage.update(p => Math.min(this.totalPages(), p + 1)); }
+
+  // ── Groups tab state ──────────────────────────────────────────────────────
+  readonly groups = signal<AdGroup[]>([]);
+  readonly loadingGroups = signal(false);
+  readonly groupSearch = signal('');
+  readonly selectedGroup = signal<AdGroup | null>(null);
+  readonly groupMembers = signal<GroupMember[]>([]);
+  readonly loadingMembers = signal(false);
+  readonly availableSearch = signal('');
+  readonly dropTarget = signal<'members' | 'available' | null>(null);
+  private dragSource: 'members' | 'available' | null = null;
+  private draggedUser: GroupMember | null = null;
+
+  readonly filteredGroups = computed(() => {
+    const q = this.groupSearch().toLowerCase().trim();
+    if (!q) return this.groups();
+    return this.groups().filter(g =>
+      g.cn.toLowerCase().includes(q) ||
+      (g.description ?? '').toLowerCase().includes(q),
+    );
+  });
+
+  readonly availableUsers = computed(() => {
+    const memberDns = new Set(this.groupMembers().map(m => m.dn));
+    return this.users()
+      .filter(u => u.dn && !memberDns.has(u.dn) && u.enabledInAd)
+      .map(u => ({
+        username: u.username,
+        displayName: u.displayName,
+        dn: u.dn!,
+        office: u.office ?? '',
+        title: u.title ?? '',
+        enabled: u.enabledInAd,
+      } as GroupMember));
+  });
+
+  readonly filteredAvailableUsers = computed(() => {
+    const q = this.availableSearch().toLowerCase().trim();
+    if (!q) return this.availableUsers();
+    return this.availableUsers().filter(u =>
+      u.displayName.toLowerCase().includes(q) ||
+      u.username.toLowerCase().includes(q) ||
+      (u.office ?? '').toLowerCase().includes(q),
+    );
+  });
+
+  openGroupsTab(): void {
+    this.activeTab.set('groups');
+    if (this.groups().length === 0) this.loadGroups();
+    if (this.users().length === 0) this.loadUsers();
+  }
+
+  loadGroups(): void {
+    this.loadingGroups.set(true);
+    this.http.get<AdGroup[]>('/api/admin/groups').subscribe({
+      next: (gs) => { this.groups.set(gs); this.loadingGroups.set(false); },
+      error: () => this.loadingGroups.set(false),
+    });
+  }
+
+  selectGroup(group: AdGroup): void {
+    this.selectedGroup.set(group);
+    this.groupMembers.set([]);
+    this.loadingMembers.set(true);
+    this.http.get<GroupMember[]>(`/api/admin/groups/members?dn=${encodeURIComponent(group.dn)}`).subscribe({
+      next: (members) => { this.groupMembers.set(members); this.loadingMembers.set(false); },
+      error: () => this.loadingMembers.set(false),
+    });
+  }
+
+  onDragStart(event: DragEvent, user: GroupMember, source: 'members' | 'available'): void {
+    this.draggedUser = user;
+    this.dragSource = source;
+    event.dataTransfer?.setData('text/plain', user.dn);
+  }
+
+  onDragOver(event: DragEvent, target: 'members' | 'available'): void {
+    event.preventDefault();
+    this.dropTarget.set(target);
+  }
+
+  onDragLeave(): void {
+    this.dropTarget.set(null);
+  }
+
+  onDrop(event: DragEvent, target: 'members' | 'available'): void {
+    event.preventDefault();
+    this.dropTarget.set(null);
+    if (!this.draggedUser || !this.dragSource || this.dragSource === target) {
+      this.draggedUser = null;
+      this.dragSource = null;
+      return;
+    }
+    const user = this.draggedUser;
+    const group = this.selectedGroup();
+    this.draggedUser = null;
+    this.dragSource = null;
+    if (!group) return;
+
+    if (target === 'members') {
+      // Add to group
+      this.http.post('/api/admin/groups/members', { groupDn: group.dn, userDn: user.dn }).subscribe({
+        next: () => {
+          this.groupMembers.update(ms => [...ms, user]);
+          this.groups.update(gs => gs.map(g => g.dn === group.dn ? { ...g, memberCount: g.memberCount + 1 } : g));
+          this.showToast(`${user.displayName || user.username} agregado al grupo`, 'success');
+        },
+        error: (err) => this.showToast(err.error?.message ?? 'Error al agregar al grupo', 'error'),
+      });
+    } else {
+      // Remove from group
+      this.http.post('/api/admin/groups/members/remove', { groupDn: group.dn, userDn: user.dn }).subscribe({
+        next: () => {
+          this.groupMembers.update(ms => ms.filter(m => m.dn !== user.dn));
+          this.groups.update(gs => gs.map(g => g.dn === group.dn ? { ...g, memberCount: Math.max(0, g.memberCount - 1) } : g));
+          this.showToast(`${user.displayName || user.username} quitado del grupo`, 'success');
+        },
+        error: (err) => this.showToast(err.error?.message ?? 'Error al quitar del grupo', 'error'),
+      });
+    }
+  }
 
   currentYear2(): string {
     return new Date().getFullYear().toString().slice(-2);

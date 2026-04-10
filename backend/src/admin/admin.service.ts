@@ -13,6 +13,23 @@ import { Department } from './entities/department.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateAdUserDto } from './dto/create-ad-user.dto';
 import { UpdateAdUserDto } from './dto/update-ad-user.dto';
+import { GroupMemberActionDto } from './dto/group-member-action.dto';
+
+interface AdGroupEntry {
+  cn: string;
+  dn: string;
+  description: string;
+  memberCount: number;
+}
+
+interface AdGroupMember {
+  username: string;
+  displayName: string;
+  dn: string;
+  office: string;
+  title: string;
+  enabled: boolean;
+}
 
 interface AdUserEntry {
   username: string;
@@ -23,6 +40,7 @@ interface AdUserEntry {
   office: string;
   title: string;
   enabled: boolean;
+  dn: string;
 }
 
 const DEFAULT_DEPARTMENTS = [
@@ -247,6 +265,7 @@ export class AdminService implements OnApplicationBootstrap {
         office:             adUser.office,
         title:              adUser.title,
         enabledInAd:        adUser.enabled,
+        dn:                 adUser.dn,
         hasLoggedIn:        !!dbUser?.lastLoginAt,
         mustChangePassword: dbUser?.mustChangePassword ?? false,
         lastLoginAt:        dbUser?.lastLoginAt ?? null,
@@ -256,6 +275,26 @@ export class AdminService implements OnApplicationBootstrap {
         id:                 dbUser?.id ?? null,
       };
     });
+  }
+
+  // ─── Group management ───────────────────────────────────────────────────────
+
+  async listGroups(): Promise<AdGroupEntry[]> {
+    const data = (await this.callBridgeGet('/list-groups')) as { groups: AdGroupEntry[] };
+    return data.groups ?? [];
+  }
+
+  async getGroupMembers(groupDn: string): Promise<AdGroupMember[]> {
+    const data = (await this.callBridgeGet(`/group-members?dn=${encodeURIComponent(groupDn)}`)) as { members: AdGroupMember[] };
+    return data.members ?? [];
+  }
+
+  async addToGroup(dto: GroupMemberActionDto): Promise<void> {
+    await this.callBridgePost('/add-to-group', { groupDn: dto.groupDn, userDn: dto.userDn });
+  }
+
+  async removeFromGroup(dto: GroupMemberActionDto): Promise<void> {
+    await this.callBridgePost('/remove-from-group', { groupDn: dto.groupDn, userDn: dto.userDn });
   }
 
   // ─── Department management ──────────────────────────────────────────────────

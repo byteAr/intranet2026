@@ -13,6 +13,7 @@ import { AdminService } from './admin.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateAdUserDto } from './dto/create-ad-user.dto';
 import { UpdateAdUserDto } from './dto/update-ad-user.dto';
+import { GroupMemberActionDto } from './dto/group-member-action.dto';
 
 @Controller('admin')
 @Roles('TICOM')
@@ -43,6 +44,28 @@ export class AdminController {
     @Query('lastName') lastName: string,
   ) {
     return this.adminService.suggestUsername(firstName, secondName, lastName);
+  }
+
+  // ─── Groups ──────────────────────────────────────────────────────────────────
+
+  @Get('groups')
+  listGroups() {
+    return this.adminService.listGroups();
+  }
+
+  @Get('groups/members')
+  getGroupMembers(@Query('dn') dn: string) {
+    return this.adminService.getGroupMembers(dn);
+  }
+
+  @Post('groups/members')
+  addToGroup(@Body() dto: GroupMemberActionDto) {
+    return this.adminService.addToGroup(dto);
+  }
+
+  @Post('groups/members/remove')
+  removeFromGroup(@Body() dto: GroupMemberActionDto) {
+    return this.adminService.removeFromGroup(dto);
   }
 
   // ─── Departments ─────────────────────────────────────────────────────────────

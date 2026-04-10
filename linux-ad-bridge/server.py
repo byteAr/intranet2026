@@ -74,10 +74,82 @@ def list_ad_users() -> list:
                 'office':      str(entry['physicalDeliveryOfficeName'].value or ''),
                 'title':       str(entry['title'].value or ''),
                 'enabled':     enabled,
+                'dn':          entry.entry_dn,
             })
         return sorted(users, key=lambda u: u['displayName'].lower())
     finally:
         conn.unbind()
+
+
+def list_ad_groups() -> list:
+    conn = get_ldap_connection()
+    try:
+        conn.search(
+            AD_BASE_DN,
+            '(&(objectClass=group)(!(isCriticalSystemObject=TRUE)))',
+            attributes=['cn', 'distinguishedName', 'description', 'member'],
+        )
+        groups = []
+        for entry in conn.entries:
+            member_count = len(entry['member'].values) if entry['member'] else 0
+            groups.append({
+                'cn':          str(entry['cn'].value or ''),
+                'dn':          entry.entry_dn,
+                'description': str(entry['description'].value or '') if entry['description'] else '',
+                'memberCount': member_count,
+            })
+        return sorted(groups, key=lambda g: g['cn'].lower())
+    finally:
+        conn.unbind()
+
+
+def get_group_members(group_dn: str) -> list:
+    conn = get_ldap_connection()
+    try:
+        escaped = ldap3.utils.conv.escape_filter_chars(group_dn)
+        conn.search(
+            AD_BASE_DN,
+            f'(&(objectClass=user)(objectCategory=person)(memberOf={escaped}))',
+            attributes=['sAMAccountName', 'displayName', 'distinguishedName',
+                        'physicalDeliveryOfficeName', 'title', 'userAccountControl'],
+        )
+        members = []
+        for entry in conn.entries:
+            uac = int(entry['userAccountControl'].value or 0)
+            enabled = not bool(uac & 2)
+            members.append({
+                'username':    str(entry['sAMAccountName'].value or ''),
+                'displayName': str(entry['displayName'].value or ''),
+                'dn':          entry.entry_dn,
+                'office':      str(entry['physicalDeliveryOfficeName'].value or ''),
+                'title':       str(entry['title'].value or ''),
+                'enabled':     enabled,
+            })
+        return sorted(members, key=lambda u: (u['displayName'] or u['username']).lower())
+    finally:
+        conn.unbind()
+
+
+def add_to_group(group_dn: str, user_dn: str) -> None:
+    conn = get_ldap_connection()
+    try:
+        conn.modify(group_dn, {'member': [(ldap3.MODIFY_ADD, [user_dn])]})
+        if conn.result['result'] not in (0, 68):  # 68 = already member
+            raise RuntimeError(f'Error al agregar al grupo: {conn.result["description"]}')
+    finally:
+        conn.unbind()
+    logger.info('Usuario %s agregado al grupo %s', user_dn, group_dn)
+
+
+def remove_from_group(group_dn: str, user_dn: str) -> None:
+    conn = get_ldap_connection()
+    try:
+        conn.modify(group_dn, {'member': [(ldap3.MODIFY_DELETE, [user_dn])]})
+        if conn.result['result'] != 0:
+            raise RuntimeError(f'Error al quitar del grupo: {conn.result["description"]}')
+    finally:
+        conn.unbind()
+    logger.info('Usuario %s quitado del grupo %s', user_dn, group_dn)
 
 
 def check_username_exists(username: str) -> bool:
@@ -227,6 +299,25 @@ class Handler(BaseHTTPRequestHandler):
                 logger.error('Error list-users: %s', e)
                 self.send_json(500, {'error': str(e)})
 
+        elif parsed.path == '/list-groups':
+            try:
+                groups = list_ad_groups()
+                self.send_json(200, {'groups': groups})
+            except Exception as e:
+                logger.error('Error list-groups: %s', e)
+                self.send_json(500, {'error': str(e)})
+
+        elif parsed.path == '/group-members':
+            dn = params.get('dn', [''])[0].strip()
+            if not dn:
+                return self.send_json(400, {'error': 'dn es requerido'})
+            try:
+                members = get_group_members(dn)
+                self.send_json(200, {'members': members})
+            except Exception as e:
+                logger.error('Error group-members: %s', e)
+                self.send_json(500, {'error': str(e)})
+
         elif parsed.path == '/check-username':
             username = params.get('username', [''])[0].strip()
             if not username:
@@ -261,6 +352,30 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {'success': True})
             except Exception as e:
                 logger.error('Error reset %s: %s', username, e)
+                self.send_json(500, {'error': str(e)})
+
+        elif path == '/add-to-group':
+            group_dn = body.get('groupDn', '').strip()
+            user_dn  = body.get('userDn', '').strip()
+            if not group_dn or not user_dn:
+                return self.send_json(400, {'error': 'groupDn y userDn son requeridos'})
+            try:
+                add_to_group(group_dn, user_dn)
+                self.send_json(200, {'success': True})
+            except Exception as e:
+                logger.error('Error add-to-group: %s', e)
+                self.send_json(500, {'error': str(e)})
+
+        elif path == '/remove-from-group':
+            group_dn = body.get('groupDn', '').strip()
+            user_dn  = body.get('userDn', '').strip()
+            if not group_dn or not user_dn:
+                return self.send_json(400, {'error': 'groupDn y userDn son requeridos'})
+            try:
+                remove_from_group(group_dn, user_dn)
+                self.send_json(200, {'success': True})
+            except Exception as e:
+                logger.error('Error remove-from-group: %s', e)
                 self.send_json(500, {'error': str(e)})
 
         elif path == '/create-user':

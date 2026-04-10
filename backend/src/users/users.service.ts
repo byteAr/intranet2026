@@ -52,13 +52,10 @@ export class UsersService {
       user.employeeId = dto.employeeId ?? user.employeeId;
       user.lastLoginAt = new Date();
     } else {
-      // Usuario existente en AD que se registra por primera vez en la intranet.
-      // mustChangePassword debe ser false — solo los creados desde el panel admin lo tienen en true.
       user = this.userRepo.create({
         ...dto,
         roles: dto.roles ?? [],
         lastLoginAt: new Date(),
-        mustChangePassword: false,
       });
     }
 
@@ -127,7 +124,4 @@ export class UsersService {
     return this.userRepo.findOne({ where: { id } }) as Promise<User>;
   }
 
-  async clearMustChangePassword(id: string): Promise<void> {
-    await this.userRepo.update(id, { mustChangePassword: false });
-  }
 }

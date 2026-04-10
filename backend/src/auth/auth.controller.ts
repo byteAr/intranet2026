@@ -64,13 +64,4 @@ export class AuthController {
     return { message: 'Contraseña actualizada exitosamente' };
   }
 
-  @HttpCode(HttpStatus.OK)
-  @Post('set-initial-password')
-  async setInitialPassword(
-    @Body() dto: { newPassword: string },
-    @Request() req: { user: { id: string } },
-  ) {
-    await this.passwordResetService.setInitialPassword(req.user.id, dto.newPassword);
-    return { message: 'Contraseña establecida exitosamente' };
-  }
 }

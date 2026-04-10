@@ -86,19 +86,6 @@ export class AuthService {
     );
   }
 
-  setInitialPassword(newPassword: string): Observable<{ message: string }> {
-    return this.http.post<{ message: string }>('/api/auth/set-initial-password', { newPassword }).pipe(
-      tap(() => {
-        const user = this._user();
-        if (user) {
-          const updated = { ...user, mustChangePassword: false };
-          localStorage.setItem(USER_KEY, JSON.stringify(updated));
-          this._user.set(updated);
-        }
-      }),
-    );
-  }
-
   private loadUser(): User | null {
     try {
       const stored = localStorage.getItem(USER_KEY);

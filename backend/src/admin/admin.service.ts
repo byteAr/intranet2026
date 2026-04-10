@@ -174,11 +174,11 @@ export class AdminService implements OnApplicationBootstrap {
       );
     }
 
-    // Default password: Iugna.{YY}
+    // Contraseña inicial temporal — el AD exigirá cambiarla al primer login en Windows (pwdLastSet=0)
     const year2 = new Date().getFullYear().toString().slice(-2);
     const defaultPassword = `Iugna.${year2}`;
 
-    // Create in AD via bridge
+    // Create in AD via bridge (el bridge setea pwdLastSet=0 automáticamente)
     await this.callBridgePost('/create-user', {
       username,
       firstName: dto.firstName,
@@ -189,7 +189,7 @@ export class AdminService implements OnApplicationBootstrap {
       password:  defaultPassword,
     });
 
-    // Create stub record in DB with mustChangePassword = true
+    // Stub en DB para que el sistema lo reconozca cuando haga login
     const displayName = `${dto.firstName} ${dto.lastName}`;
     const user = this.userRepo.create({
       username,
@@ -200,7 +200,6 @@ export class AdminService implements OnApplicationBootstrap {
       office:    dto.office,
       title:     dto.title,
       roles:     [],
-      mustChangePassword: true,
     });
     await this.userRepo.save(user);
 

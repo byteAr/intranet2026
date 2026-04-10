@@ -1,4 +1,4 @@
-import { IsString, MinLength } from 'class-validator';
+import { IsOptional, IsString, MinLength } from 'class-validator';
 
 export class GroupMemberActionDto {
   @IsString()
@@ -8,4 +8,12 @@ export class GroupMemberActionDto {
   @IsString()
   @MinLength(1)
   userDn: string;
+
+  @IsOptional()
+  @IsString()
+  groupName?: string;
+
+  @IsOptional()
+  @IsString()
+  userName?: string;
 }

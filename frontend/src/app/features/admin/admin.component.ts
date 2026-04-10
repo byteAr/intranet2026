@@ -25,6 +25,7 @@ interface AdminUser {
 interface UsernameSuggestion { username: string; available: boolean; }
 interface AdGroup { cn: string; dn: string; description: string; memberCount: number; }
 interface GroupMember { username: string; displayName: string; dn: string; office: string; title: string; enabled: boolean; }
+interface AuditEntry { id: string; actorUsername: string; actorDisplayName: string; description: string; createdAt: string; }
 
 const RANK_GROUPS = [
   {
@@ -91,6 +92,15 @@ const RANK_GROUPS = [
           [class.border-transparent]="activeTab() !== 'departments'"
           [class.text-gray-500]="activeTab() !== 'departments'">
           Áreas de trabajo
+        </button>
+        <button (click)="openAuditTab()"
+          class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
+          [class.border-teal-600]="activeTab() === 'audit'"
+          [class.text-teal-600]="activeTab() === 'audit'"
+          [class.dark:text-teal-400]="activeTab() === 'audit'"
+          [class.border-transparent]="activeTab() !== 'audit'"
+          [class.text-gray-500]="activeTab() !== 'audit'">
+          Actividad
         </button>
       </div>
 
@@ -415,6 +425,56 @@ const RANK_GROUPS = [
           </div>
         </div>
       }
+
+      <!-- ── ACTIVIDAD ── -->
+      @if (activeTab() === 'audit') {
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <p class="text-sm text-gray-500 dark:text-zinc-400">
+              Últimas {{ auditLogs().length }} acciones registradas
+            </p>
+            <button (click)="loadAuditLog()"
+              class="text-xs text-teal-600 dark:text-teal-400 hover:underline">
+              Actualizar
+            </button>
+          </div>
+
+          @if (loadingAudit()) {
+            <div class="flex justify-center py-12">
+              <svg class="animate-spin h-6 w-6 text-teal-500" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            </div>
+          } @else {
+            <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 divide-y divide-gray-100 dark:divide-zinc-800">
+              @for (entry of auditLogs(); track entry.id) {
+                <div class="flex items-start gap-3 px-4 py-3">
+                  <div class="h-8 w-8 rounded-full bg-teal-100 dark:bg-teal-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span class="text-xs font-bold text-teal-700 dark:text-teal-300">
+                      {{ entry.actorDisplayName.charAt(0).toUpperCase() }}
+                    </span>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm text-gray-900 dark:text-white">
+                      <span class="font-medium">{{ entry.actorDisplayName }}</span>
+                      <span class="text-gray-500 dark:text-zinc-400"> · {{ entry.actorUsername }}</span>
+                    </p>
+                    <p class="text-sm text-gray-700 dark:text-zinc-300 mt-0.5">{{ entry.description }}</p>
+                  </div>
+                  <time class="text-xs text-gray-400 dark:text-zinc-500 flex-shrink-0 mt-0.5" [title]="entry.createdAt">
+                    {{ formatAuditDate(entry.createdAt) }}
+                  </time>
+                </div>
+              } @empty {
+                <div class="px-4 py-10 text-center text-gray-400 dark:text-zinc-500 text-sm">
+                  Sin actividad registrada
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
 
     <!-- ── MODAL CREAR USUARIO ── -->
@@ -633,7 +693,7 @@ const RANK_GROUPS = [
 export class AdminComponent implements OnInit {
   private readonly http = inject(HttpClient);
 
-  readonly activeTab = signal<'users' | 'groups' | 'departments'>('users');
+  readonly activeTab = signal<'users' | 'groups' | 'departments' | 'audit'>('users');
   readonly departments = signal<Department[]>([]);
   readonly users = signal<AdminUser[]>([]);
   readonly loadingUsers = signal(true);
@@ -696,6 +756,8 @@ export class AdminComponent implements OnInit {
   readonly availableSearch = signal('');
   readonly dropTarget = signal<'members' | 'available' | null>(null);
   readonly normalizingGroups = signal(false);
+  readonly auditLogs = signal<AuditEntry[]>([]);
+  readonly loadingAudit = signal(false);
   private dragSource: 'members' | 'available' | null = null;
   private draggedUser: GroupMember | null = null;
 
@@ -744,6 +806,29 @@ export class AdminComponent implements OnInit {
       next: (gs) => { this.groups.set(gs); this.loadingGroups.set(false); },
       error: () => this.loadingGroups.set(false),
     });
+  }
+
+  openAuditTab(): void {
+    this.activeTab.set('audit');
+    this.loadAuditLog();
+  }
+
+  loadAuditLog(): void {
+    this.loadingAudit.set(true);
+    this.http.get<{ logs: AuditEntry[]; total: number }>('/api/admin/audit-log?limit=200').subscribe({
+      next: (res) => { this.auditLogs.set(res.logs); this.loadingAudit.set(false); },
+      error: () => this.loadingAudit.set(false),
+    });
+  }
+
+  formatAuditDate(iso: string): string {
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+    if (diff < 60)   return 'hace un momento';
+    if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`;
+    if (diff < 86400) return `hace ${Math.floor(diff / 3600)} h`;
+    return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
   }
 
   normalizeGroupNames(): void {
@@ -806,23 +891,24 @@ export class AdminComponent implements OnInit {
     this.dragSource = null;
     if (!group) return;
 
+    const userName  = user.displayName || user.username;
+    const groupName = group.cn;
+
     if (target === 'members') {
-      // Add to group
-      this.http.post('/api/admin/groups/members', { groupDn: group.dn, userDn: user.dn }).subscribe({
+      this.http.post('/api/admin/groups/members', { groupDn: group.dn, userDn: user.dn, groupName, userName }).subscribe({
         next: () => {
           this.groupMembers.update(ms => [...ms, user]);
           this.groups.update(gs => gs.map(g => g.dn === group.dn ? { ...g, memberCount: g.memberCount + 1 } : g));
-          this.showToast(`${user.displayName || user.username} agregado al grupo`, 'success');
+          this.showToast(`${userName} agregado al grupo`, 'success');
         },
         error: (err) => this.showToast(err.error?.message ?? 'Error al agregar al grupo', 'error'),
       });
     } else {
-      // Remove from group
-      this.http.post('/api/admin/groups/members/remove', { groupDn: group.dn, userDn: user.dn }).subscribe({
+      this.http.post('/api/admin/groups/members/remove', { groupDn: group.dn, userDn: user.dn, groupName, userName }).subscribe({
         next: () => {
           this.groupMembers.update(ms => ms.filter(m => m.dn !== user.dn));
           this.groups.update(gs => gs.map(g => g.dn === group.dn ? { ...g, memberCount: Math.max(0, g.memberCount - 1) } : g));
-          this.showToast(`${user.displayName || user.username} quitado del grupo`, 'success');
+          this.showToast(`${userName} quitado del grupo`, 'success');
         },
         error: (err) => this.showToast(err.error?.message ?? 'Error al quitar del grupo', 'error'),
       });

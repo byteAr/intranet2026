@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Department } from './entities/department.entity';
+import { AdminAuditLog } from './entities/admin-audit-log.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateAdUserDto } from './dto/create-ad-user.dto';
 import { UpdateAdUserDto } from './dto/update-ad-user.dto';
@@ -68,7 +69,20 @@ export class AdminService implements OnApplicationBootstrap {
     private readonly departmentRepo: Repository<Department>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(AdminAuditLog)
+    private readonly auditRepo: Repository<AdminAuditLog>,
   ) {}
+
+  private async audit(actor: { id: string; username: string }, description: string): Promise<void> {
+    const user = await this.userRepo.findOne({ where: { id: actor.id } });
+    const displayName = user?.displayName ?? actor.username;
+    await this.auditRepo.save(this.auditRepo.create({ actorUsername: actor.username, actorDisplayName: displayName, description }));
+  }
+
+  async listAuditLog(limit = 100, offset = 0): Promise<{ logs: AdminAuditLog[]; total: number }> {
+    const [logs, total] = await this.auditRepo.findAndCount({ order: { createdAt: 'DESC' }, take: limit, skip: offset });
+    return { logs, total };
+  }
 
   async onApplicationBootstrap(): Promise<void> {
     // Seed default departments if table is empty
@@ -172,7 +186,7 @@ export class AdminService implements OnApplicationBootstrap {
 
   // ─── User management ────────────────────────────────────────────────────────
 
-  async createUser(dto: CreateAdUserDto): Promise<{ username: string }> {
+  async createUser(dto: CreateAdUserDto, actor: { id: string; username: string }): Promise<{ username: string }> {
     // Validate email domain
     if (!dto.email.toLowerCase().endsWith('@iugna.edu.ar')) {
       throw new BadRequestException('El correo institucional debe ser @iugna.edu.ar');
@@ -222,10 +236,11 @@ export class AdminService implements OnApplicationBootstrap {
     await this.userRepo.save(user);
 
     this.logger.log('Usuario creado: %s (%s)', username, dto.email);
+    await this.audit(actor, `Creó el usuario ${username} (${dto.firstName} ${dto.lastName})`);
     return { username };
   }
 
-  async updateUser(username: string, dto: UpdateAdUserDto): Promise<void> {
+  async updateUser(username: string, dto: UpdateAdUserDto, actor: { id: string; username: string }): Promise<void> {
     // Validate email domain if provided
     if (dto.email && !dto.email.toLowerCase().endsWith('@iugna.edu.ar')) {
       throw new BadRequestException('El correo institucional debe ser @iugna.edu.ar');
@@ -242,6 +257,11 @@ export class AdminService implements OnApplicationBootstrap {
       if (dto.email !== undefined)  user.email  = dto.email;
       await this.userRepo.save(user);
     }
+    const changes: string[] = [];
+    if (dto.office !== undefined) changes.push(`área: ${dto.office}`);
+    if (dto.title  !== undefined) changes.push(`jerarquía: ${dto.title}`);
+    if (dto.email  !== undefined) changes.push(`email: ${dto.email}`);
+    await this.audit(actor, `Modificó el usuario ${username}${changes.length ? ` (${changes.join(', ')})` : ''}`);
   }
 
   async listUsers(): Promise<object[]> {
@@ -289,16 +309,27 @@ export class AdminService implements OnApplicationBootstrap {
     return data.members ?? [];
   }
 
-  async addToGroup(dto: GroupMemberActionDto): Promise<void> {
+  async addToGroup(dto: GroupMemberActionDto, actor: { id: string; username: string }): Promise<void> {
     await this.callBridgePost('/add-to-group', { groupDn: dto.groupDn, userDn: dto.userDn });
+    const who   = dto.userName  ?? dto.userDn;
+    const where = dto.groupName ?? dto.groupDn;
+    await this.audit(actor, `Agregó a ${who} al grupo ${where}`);
   }
 
-  async removeFromGroup(dto: GroupMemberActionDto): Promise<void> {
+  async removeFromGroup(dto: GroupMemberActionDto, actor: { id: string; username: string }): Promise<void> {
     await this.callBridgePost('/remove-from-group', { groupDn: dto.groupDn, userDn: dto.userDn });
+    const who   = dto.userName  ?? dto.userDn;
+    const where = dto.groupName ?? dto.groupDn;
+    await this.audit(actor, `Quitó a ${who} del grupo ${where}`);
   }
 
-  async normalizeGroupNames(): Promise<{ renamed: object[]; skipped: object[]; errors: object[] }> {
-    return this.callBridgePost('/normalize-groups', {}) as Promise<{ renamed: object[]; skipped: object[]; errors: object[] }>;
+  async normalizeGroupNames(actor: { id: string; username: string }): Promise<{ renamed: object[]; skipped: object[]; errors: object[] }> {
+    const result = (await this.callBridgePost('/normalize-groups', {})) as { renamed: {from:string;to:string}[]; skipped: object[]; errors: object[] };
+    if (result.renamed.length) {
+      const names = result.renamed.map((r) => `${r.from} → ${r.to}`).join(', ');
+      await this.audit(actor, `Normalizó grupos a mayúsculas: ${names}`);
+    }
+    return result;
   }
 
   // ─── Department management ──────────────────────────────────────────────────
@@ -307,7 +338,7 @@ export class AdminService implements OnApplicationBootstrap {
     return this.departmentRepo.find({ order: { name: 'ASC' } });
   }
 
-  async createDepartment(name: string): Promise<Department> {
+  async createDepartment(name: string, actor: { id: string; username: string }): Promise<Department> {
     const trimmed = name.trim().toUpperCase();
     if (!trimmed) throw new BadRequestException('El nombre del área no puede estar vacío');
     const existing = await this.departmentRepo.findOne({ where: { name: trimmed } });
@@ -317,12 +348,15 @@ export class AdminService implements OnApplicationBootstrap {
     await this.callBridgePost('/create-group', { name: trimmed });
 
     const dept = this.departmentRepo.create({ name: trimmed });
-    return this.departmentRepo.save(dept);
+    const saved = await this.departmentRepo.save(dept);
+    await this.audit(actor, `Creó el área ${trimmed}`);
+    return saved;
   }
 
-  async deleteDepartment(id: string): Promise<void> {
+  async deleteDepartment(id: string, actor: { id: string; username: string }): Promise<void> {
     const dept = await this.departmentRepo.findOne({ where: { id } });
     if (!dept) throw new NotFoundException('Área no encontrada');
     await this.departmentRepo.remove(dept);
+    await this.audit(actor, `Eliminó el área ${dept.name}`);
   }
 }

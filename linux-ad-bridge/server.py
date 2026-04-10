@@ -309,15 +309,6 @@ def create_ad_user(data: dict) -> None:
     finally:
         conn2.unbind()
 
-    # Force password change at next Windows logon (pwdLastSet = 0)
-    conn3 = get_ldap_connection()
-    try:
-        conn3.modify(dn, {'pwdLastSet': [(ldap3.MODIFY_REPLACE, [0])]})
-        if conn3.result['result'] != 0:
-            logger.warning('No se pudo setear pwdLastSet=0 para %s: %s', username, conn3.result)
-    finally:
-        conn3.unbind()
-
     logger.info('Usuario AD creado y habilitado: %s (%s)', username, dn)
 
 

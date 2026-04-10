@@ -15,14 +15,14 @@ import { CreateAdUserDto } from './dto/create-ad-user.dto';
 import { UpdateAdUserDto } from './dto/update-ad-user.dto';
 import { GroupMemberActionDto } from './dto/group-member-action.dto';
 
-interface AdGroupEntry {
+export interface AdGroupEntry {
   cn: string;
   dn: string;
   description: string;
   memberCount: number;
 }
 
-interface AdGroupMember {
+export interface AdGroupMember {
   username: string;
   displayName: string;
   dn: string;

@@ -38,6 +38,21 @@ export class AdminController {
     return this.adminService.updateUser(username, dto, req.user);
   }
 
+  @Patch('users/:username/disable')
+  disableUser(@Param('username') username: string, @Request() req: any) {
+    return this.adminService.disableUser(username, req.user);
+  }
+
+  @Patch('users/:username/enable')
+  enableUser(@Param('username') username: string, @Request() req: any) {
+    return this.adminService.enableUser(username, req.user);
+  }
+
+  @Delete('users/:username')
+  deleteUser(@Param('username') username: string, @Request() req: any) {
+    return this.adminService.deleteUser(username, req.user);
+  }
+
   @Get('username-suggestion')
   suggestUsername(
     @Query('firstName') firstName: string,
@@ -72,6 +87,16 @@ export class AdminController {
   @Post('groups/normalize')
   normalizeGroupNames(@Request() req: any) {
     return this.adminService.normalizeGroupNames(req.user);
+  }
+
+  @Delete('groups')
+  deleteGroup(@Body() body: { groupDn: string; groupName: string }, @Request() req: any) {
+    return this.adminService.deleteGroup(body.groupDn, body.groupName, req.user);
+  }
+
+  @Post('cleanup')
+  triggerCleanup() {
+    return this.adminService.runCleanup();
   }
 
   // ─── Departments ─────────────────────────────────────────────────────────────

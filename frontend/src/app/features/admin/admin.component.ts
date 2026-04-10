@@ -287,16 +287,25 @@ const RANK_GROUPS = [
               } @else {
                 @for (group of filteredGroups(); track group.dn) {
                   <div (click)="selectGroup(group)"
-                    class="px-4 py-3 cursor-pointer border-b border-gray-50 dark:border-zinc-800 transition-colors"
+                    class="group px-4 py-3 cursor-pointer border-b border-gray-50 dark:border-zinc-800 transition-colors"
                     [class.bg-teal-50]="selectedGroup()?.dn === group.dn"
                     [class.dark:bg-teal-900/20]="selectedGroup()?.dn === group.dn"
                     [class.border-l-4]="selectedGroup()?.dn === group.dn"
                     [class.border-l-teal-500]="selectedGroup()?.dn === group.dn"
                     [class.hover:bg-gray-50]="selectedGroup()?.dn !== group.dn"
                     [class.dark:hover:bg-zinc-800]="selectedGroup()?.dn !== group.dn">
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm font-medium text-gray-900 dark:text-white truncate pr-2">{{ group.cn }}</span>
-                      <span class="text-xs bg-gray-100 dark:bg-zinc-700 text-gray-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full flex-shrink-0">{{ group.memberCount }}</span>
+                    <div class="flex items-center justify-between gap-1">
+                      <span class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ group.cn }}</span>
+                      <div class="flex items-center gap-1 flex-shrink-0">
+                        <span class="text-xs bg-gray-100 dark:bg-zinc-700 text-gray-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">{{ group.memberCount }}</span>
+                        <button (click)="$event.stopPropagation(); deleteGroup(group)"
+                          class="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 dark:hover:text-red-300 p-0.5 rounded transition-opacity"
+                          title="Eliminar grupo">
+                          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                     @if (group.description) {
                       <p class="text-xs text-gray-400 dark:text-zinc-500 mt-0.5 truncate">{{ group.description }}</p>
@@ -730,6 +739,28 @@ const RANK_GROUPS = [
               </select>
             </div>
 
+            <!-- Acciones peligrosas -->
+            <div class="border-t border-gray-100 dark:border-zinc-800 pt-4 space-y-2">
+              <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wider">Acciones de cuenta</p>
+              <div class="flex gap-2">
+                @if (editingUser()?.enabledInAd) {
+                  <button (click)="disableUser()" [disabled]="saving()"
+                    class="flex-1 px-3 py-2 text-xs font-medium rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-50 transition-colors">
+                    Deshabilitar cuenta
+                  </button>
+                } @else {
+                  <button (click)="enableUser()" [disabled]="saving()"
+                    class="flex-1 px-3 py-2 text-xs font-medium rounded-lg border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 transition-colors">
+                    Habilitar cuenta
+                  </button>
+                }
+                <button (click)="deleteUser()" [disabled]="saving()"
+                  class="flex-1 px-3 py-2 text-xs font-medium rounded-lg border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors">
+                  Eliminar usuario
+                </button>
+              </div>
+            </div>
+
             @if (editError()) {
               <p class="text-sm text-red-500">{{ editError() }}</p>
             }
@@ -1099,7 +1130,79 @@ export class AdminComponent implements OnInit {
     this.showEditModal.set(true);
   }
 
-  closeEditModal(): void { this.showEditModal.set(false); this.editingUser.set(null); }
+  closeEditModal(): void { this.showEditModal.set(false); this.editingUser.set(null); this.editError.set(null); }
+
+  disableUser(): void {
+    const user = this.editingUser();
+    if (!user) return;
+    if (!confirm(`¿Deshabilitar el usuario "${user.displayName}"?`)) return;
+    this.saving.set(true);
+    this.http.patch(`/api/admin/users/${user.username}/disable`, {}).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.closeEditModal();
+        this.loadUsers();
+        this.showToast(`Usuario "${user.displayName}" deshabilitado`, 'success');
+      },
+      error: (err) => {
+        this.saving.set(false);
+        this.editError.set(err.error?.message ?? 'Error al deshabilitar el usuario');
+      },
+    });
+  }
+
+  enableUser(): void {
+    const user = this.editingUser();
+    if (!user) return;
+    if (!confirm(`¿Habilitar el usuario "${user.displayName}"?`)) return;
+    this.saving.set(true);
+    this.http.patch(`/api/admin/users/${user.username}/enable`, {}).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.closeEditModal();
+        this.loadUsers();
+        this.showToast(`Usuario "${user.displayName}" habilitado`, 'success');
+      },
+      error: (err) => {
+        this.saving.set(false);
+        this.editError.set(err.error?.message ?? 'Error al habilitar el usuario');
+      },
+    });
+  }
+
+  deleteUser(): void {
+    const user = this.editingUser();
+    if (!user) return;
+    if (!confirm(`¿ELIMINAR el usuario "${user.displayName}" (${user.username}) del Active Directory?\n\nEsta acción no se puede deshacer.`)) return;
+    this.saving.set(true);
+    this.http.delete(`/api/admin/users/${user.username}`).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.closeEditModal();
+        this.loadUsers();
+        this.showToast(`Usuario "${user.displayName}" eliminado`, 'success');
+      },
+      error: (err) => {
+        this.saving.set(false);
+        this.editError.set(err.error?.message ?? 'Error al eliminar el usuario');
+      },
+    });
+  }
+
+  deleteGroup(group: AdGroup): void {
+    if (!confirm(`¿Eliminar el grupo "${group.cn}" del Active Directory?\n\nEsta acción no se puede deshacer.`)) return;
+    this.http.delete('/api/admin/groups', { body: { groupDn: group.dn, groupName: group.cn } }).subscribe({
+      next: () => {
+        if (this.selectedGroup()?.dn === group.dn) {
+          this.selectedGroup.set(null);
+          this.groupMembers.set([]);
+        }
+        this.groups.update(gs => gs.filter(g => g.dn !== group.dn));
+        this.showToast(`Grupo "${group.cn}" eliminado`, 'success');
+      },
+      error: (err) => this.showToast(err.error?.message ?? 'Error al eliminar el grupo', 'error'),
+    });
+  }
 
   onNameChange(): void {
     this.suggestedUsername.set(null);

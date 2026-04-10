@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cron } from '@nestjs/schedule';
 import { Repository } from 'typeorm';
 import { Department } from './entities/department.entity';
 import { AdminAuditLog } from './entities/admin-audit-log.entity';
@@ -408,5 +409,65 @@ export class AdminService implements OnApplicationBootstrap {
       groupPerms.forEach((m) => allowed.add(m));
     }
     return { allowedModules: ALL.filter((m) => allowed.has(m)) };
+  }
+
+  // ─── User enable / disable / delete ─────────────────────────────────────────
+
+  async disableUser(username: string, actor: { id: string; username: string }): Promise<void> {
+    await this.callBridgePost('/disable-user', { username });
+    await this.audit(actor, `Deshabilitó el usuario ${username}`);
+  }
+
+  async enableUser(username: string, actor: { id: string; username: string }): Promise<void> {
+    await this.callBridgePost('/enable-user', { username });
+    await this.audit(actor, `Habilitó el usuario ${username}`);
+  }
+
+  async deleteUser(username: string, actor: { id: string; username: string }): Promise<void> {
+    await this.callBridgePost('/delete-user', { username });
+    // Remove from local DB too if present
+    const user = await this.userRepo.findOne({ where: { username } });
+    if (user) await this.userRepo.remove(user);
+    await this.audit(actor, `Eliminó el usuario ${username}`);
+  }
+
+  // ─── Group delete ─────────────────────────────────────────────────────────
+
+  async deleteGroup(groupDn: string, groupName: string, actor: { id: string; username: string }): Promise<void> {
+    await this.callBridgePost('/delete-group', { groupDn });
+    await this.audit(actor, `Eliminó el grupo ${groupName}`);
+  }
+
+  // ─── Cleanup inactivos (cron diario a las 02:00) ─────────────────────────
+
+  @Cron('0 2 * * *')
+  async runCleanup(): Promise<void> {
+    this.logger.log('Ejecutando limpieza de usuarios inactivos...');
+    try {
+      const result = (await this.callBridgePost('/cleanup-inactive', {})) as {
+        disabled: string[];
+        deleted: string[];
+        errors: string[];
+      };
+      const { disabled = [], deleted = [], errors = [] } = result;
+      if (disabled.length || deleted.length) {
+        const description =
+          `Limpieza automática: ${disabled.length} deshabilitado(s) (${disabled.join(', ') || '-'})` +
+          `, ${deleted.length} eliminado(s) (${deleted.join(', ') || '-'})`;
+        await this.auditRepo.save(
+          this.auditRepo.create({
+            actorUsername: 'sistema',
+            actorDisplayName: 'Sistema (cron)',
+            description,
+          }),
+        );
+      }
+      if (errors.length) {
+        this.logger.warn('Errores en limpieza de inactivos: %s', errors.join(', '));
+      }
+      this.logger.log('Limpieza completada: %d deshabilitados, %d eliminados', disabled.length, deleted.length);
+    } catch (err) {
+      this.logger.error('Error en cron cleanup-inactive: %s', (err as Error).message);
+    }
   }
 }

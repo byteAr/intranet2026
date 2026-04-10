@@ -12,6 +12,7 @@ import { PushNotificationService } from '../../core/services/push.service';
 import { MailService } from '../../core/services/mail.service';
 import { DraftMailService } from '../../core/services/draft-mail.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { PermissionsService } from '../../core/services/permissions.service';
 
 @Component({
   selector: 'app-main-layout',
@@ -57,6 +58,7 @@ import { ThemeService } from '../../core/services/theme.service';
             @if (!collapsed()) { <span class="ml-3">Cuenta</span> }
           </a>
 
+          @if (permissionsService.isAllowed('chat')) {
           <a routerLink="/chat" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Conversaciones' : ''">
@@ -75,7 +77,9 @@ import { ThemeService } from '../../core/services/theme.service';
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
+          }
 
+          @if (permissionsService.isAllowed('incidencias')) {
           <a routerLink="/incidencias" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Ayuda técnica' : ''">
@@ -94,7 +98,9 @@ import { ThemeService } from '../../core/services/theme.service';
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
+          }
 
+          @if (permissionsService.isAllowed('correo')) {
           <a routerLink="/correo" routerLinkActive="active-nav" [routerLinkActiveOptions]="{exact: true}"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Correo' : ''">
@@ -113,6 +119,7 @@ import { ThemeService } from '../../core/services/theme.service';
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
+          }
 
           @if (authService.currentUser()?.roles?.includes('TICOM')) {
             <a routerLink="/correo/admin" routerLinkActive="active-nav"
@@ -126,6 +133,7 @@ import { ThemeService } from '../../core/services/theme.service';
             </a>
           }
 
+          @if (permissionsService.isAllowed('redactar-mto')) {
           <a routerLink="/correo/redactar-mto" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Redactar MTO' : ''">
@@ -144,6 +152,7 @@ import { ThemeService } from '../../core/services/theme.service';
               <span class="absolute top-1 right-1 h-2 w-2 bg-amber-500 rounded-full"></span>
             }
           </a>
+          }
 
           @if (isTicom()) {
             <a routerLink="/correo/para-enviar" routerLinkActive="active-nav"
@@ -190,6 +199,7 @@ import { ThemeService } from '../../core/services/theme.service';
             </a>
           }
 
+          @if (permissionsService.isAllowed('reservas')) {
           <a routerLink="/reservas" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Reservas' : ''">
@@ -207,6 +217,7 @@ import { ThemeService } from '../../core/services/theme.service';
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
+          }
 
         </nav>
 
@@ -538,6 +549,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly mailService = inject(MailService);
   readonly draftMailService = inject(DraftMailService);
   readonly themeService = inject(ThemeService);
+  readonly permissionsService = inject(PermissionsService);
   private readonly pushService = inject(PushNotificationService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -605,6 +617,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       this.showProfileModal.set(true);
     }
 
+    this.permissionsService.load();
     this.chatService.connect();
     void this.pushService.subscribe();
     this.mailService.connect();

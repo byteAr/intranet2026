@@ -26,6 +26,16 @@ interface UsernameSuggestion { username: string; available: boolean; }
 interface AdGroup { cn: string; dn: string; description: string; memberCount: number; }
 interface GroupMember { username: string; displayName: string; dn: string; office: string; title: string; enabled: boolean; }
 interface AuditEntry { id: string; actorUsername: string; actorDisplayName: string; description: string; createdAt: string; }
+interface GroupPermRow { groupName: string; allowedModules: string[] | null; saving?: boolean; }
+
+const MODULE_LABELS: Record<string, string> = {
+  'chat':          'Conversaciones',
+  'incidencias':   'Ayuda técnica',
+  'reservas':      'Reservas',
+  'correo':        'Correo',
+  'redactar-mto':  'Redactar MTO',
+};
+const ALL_MODULES = Object.keys(MODULE_LABELS);
 
 const RANK_GROUPS = [
   {
@@ -92,6 +102,15 @@ const RANK_GROUPS = [
           [class.border-transparent]="activeTab() !== 'departments'"
           [class.text-gray-500]="activeTab() !== 'departments'">
           Áreas de trabajo
+        </button>
+        <button (click)="openPermissionsTab()"
+          class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
+          [class.border-teal-600]="activeTab() === 'permissions'"
+          [class.text-teal-600]="activeTab() === 'permissions'"
+          [class.dark:text-teal-400]="activeTab() === 'permissions'"
+          [class.border-transparent]="activeTab() !== 'permissions'"
+          [class.text-gray-500]="activeTab() !== 'permissions'">
+          Permisos
         </button>
         <button (click)="openAuditTab()"
           class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
@@ -426,6 +445,62 @@ const RANK_GROUPS = [
         </div>
       }
 
+      <!-- ── PERMISOS ── -->
+      @if (activeTab() === 'permissions') {
+        <div>
+          <p class="text-sm text-gray-500 dark:text-zinc-400 mb-4">
+            Controlá qué módulos puede ver cada grupo del Active Directory. Los items exclusivos de TICOM (Para enviar, Importar PST, Autorizadores, Administración) no se configuran aquí.
+          </p>
+
+          @if (loadingPerms()) {
+            <div class="flex justify-center py-12">
+              <svg class="animate-spin h-6 w-6 text-teal-500" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            </div>
+          } @else {
+            <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 dark:bg-zinc-800">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Grupo</th>
+                    @for (mod of moduleKeys; track mod) {
+                      <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider whitespace-nowrap">
+                        {{ moduleLabels[mod] }}
+                      </th>
+                    }
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-zinc-800">
+                  @for (row of permRows(); track row.groupName) {
+                    <tr class="hover:bg-gray-50 dark:hover:bg-zinc-800/40">
+                      <td class="px-4 py-2.5 font-medium text-gray-900 dark:text-white">
+                        {{ row.groupName }}
+                        @if (row.allowedModules === null) {
+                          <span class="ml-2 text-xs text-gray-400 dark:text-zinc-500">(sin restricciones)</span>
+                        }
+                      </td>
+                      @for (mod of moduleKeys; track mod) {
+                        <td class="px-4 py-2.5 text-center">
+                          <input type="checkbox"
+                            [checked]="isModuleAllowed(row, mod)"
+                            [disabled]="row.saving"
+                            (change)="toggleModulePerm(row, mod)"
+                            class="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer disabled:opacity-50" />
+                        </td>
+                      }
+                    </tr>
+                  } @empty {
+                    <tr><td [attr.colspan]="moduleKeys.length + 1" class="px-4 py-8 text-center text-gray-400">No hay grupos en el AD</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      }
+
       <!-- ── ACTIVIDAD ── -->
       @if (activeTab() === 'audit') {
         <div>
@@ -693,7 +768,7 @@ const RANK_GROUPS = [
 export class AdminComponent implements OnInit {
   private readonly http = inject(HttpClient);
 
-  readonly activeTab = signal<'users' | 'groups' | 'departments' | 'audit'>('users');
+  readonly activeTab = signal<'users' | 'groups' | 'departments' | 'permissions' | 'audit'>('users');
   readonly departments = signal<Department[]>([]);
   readonly users = signal<AdminUser[]>([]);
   readonly loadingUsers = signal(true);
@@ -758,6 +833,10 @@ export class AdminComponent implements OnInit {
   readonly normalizingGroups = signal(false);
   readonly auditLogs = signal<AuditEntry[]>([]);
   readonly loadingAudit = signal(false);
+  readonly permRows = signal<GroupPermRow[]>([]);
+  readonly loadingPerms = signal(false);
+  readonly moduleKeys = ALL_MODULES;
+  readonly moduleLabels = MODULE_LABELS;
   private dragSource: 'members' | 'available' | null = null;
   private draggedUser: GroupMember | null = null;
 
@@ -805,6 +884,51 @@ export class AdminComponent implements OnInit {
     this.http.get<AdGroup[]>('/api/admin/groups').subscribe({
       next: (gs) => { this.groups.set(gs); this.loadingGroups.set(false); },
       error: () => this.loadingGroups.set(false),
+    });
+  }
+
+  openPermissionsTab(): void {
+    this.activeTab.set('permissions');
+    this.loadPermissions();
+  }
+
+  loadPermissions(): void {
+    this.loadingPerms.set(true);
+    this.http.get<GroupPermRow[]>('/api/admin/module-permissions').subscribe({
+      next: (rows) => { this.permRows.set(rows); this.loadingPerms.set(false); },
+      error: () => this.loadingPerms.set(false),
+    });
+  }
+
+  isModuleAllowed(row: GroupPermRow, mod: string): boolean {
+    if (row.allowedModules === null) return true; // sin config = todo permitido
+    return row.allowedModules.includes(mod);
+  }
+
+  toggleModulePerm(row: GroupPermRow, mod: string): void {
+    const current: string[] = row.allowedModules ?? [...ALL_MODULES];
+    const updated = current.includes(mod)
+      ? current.filter(m => m !== mod)
+      : [...current, mod];
+
+    // Actualización optimista
+    this.permRows.update(rows =>
+      rows.map(r => r.groupName === row.groupName ? { ...r, allowedModules: updated, saving: true } : r)
+    );
+
+    this.http.put(`/api/admin/module-permissions/${encodeURIComponent(row.groupName)}`, { allowedModules: updated }).subscribe({
+      next: () => {
+        this.permRows.update(rows =>
+          rows.map(r => r.groupName === row.groupName ? { ...r, saving: false } : r)
+        );
+      },
+      error: (err) => {
+        // Revertir
+        this.permRows.update(rows =>
+          rows.map(r => r.groupName === row.groupName ? { ...r, allowedModules: row.allowedModules, saving: false } : r)
+        );
+        this.showToast(err.error?.message ?? 'Error al guardar permisos', 'error');
+      },
     });
   }
 

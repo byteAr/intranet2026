@@ -24,6 +24,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { User } from './users/entities/user.entity';
 import { Department } from './admin/entities/department.entity';
 import { AdminAuditLog } from './admin/entities/admin-audit-log.entity';
+import { GroupPermission } from './admin/entities/group-permission.entity';
 import { Message } from './chat/entities/message.entity';
 import { Incident } from './incidents/entities/incident.entity';
 import { Reservation } from './reservations/entities/reservation.entity';
@@ -56,7 +57,7 @@ import { DraftMailAuthorizer } from './draft-mail/entities/draft-mail-authorizer
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, Department, AdminAuditLog],
+        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, Department, AdminAuditLog, GroupPermission],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),

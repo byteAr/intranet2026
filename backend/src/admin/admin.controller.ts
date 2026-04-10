@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Request,
 } from '@nestjs/common';
@@ -88,6 +89,22 @@ export class AdminController {
   @Delete('departments/:id')
   deleteDepartment(@Param('id') id: string, @Request() req: any) {
     return this.adminService.deleteDepartment(id, req.user);
+  }
+
+  // ─── Module permissions ───────────────────────────────────────────────────────
+
+  @Get('module-permissions')
+  getModulePermissions() {
+    return this.adminService.getModulePermissions();
+  }
+
+  @Put('module-permissions/:groupName')
+  setGroupPermissions(
+    @Param('groupName') groupName: string,
+    @Body() body: { allowedModules: string[] },
+    @Request() req: any,
+  ) {
+    return this.adminService.setGroupPermissions(groupName, body.allowedModules, req.user);
   }
 
   // ─── Audit log ───────────────────────────────────────────────────────────────

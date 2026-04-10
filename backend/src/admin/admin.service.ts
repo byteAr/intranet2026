@@ -11,6 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Department } from './entities/department.entity';
 import { AdminAuditLog } from './entities/admin-audit-log.entity';
+import { GroupPermission } from './entities/group-permission.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateAdUserDto } from './dto/create-ad-user.dto';
 import { UpdateAdUserDto } from './dto/update-ad-user.dto';
@@ -71,6 +72,8 @@ export class AdminService implements OnApplicationBootstrap {
     private readonly userRepo: Repository<User>,
     @InjectRepository(AdminAuditLog)
     private readonly auditRepo: Repository<AdminAuditLog>,
+    @InjectRepository(GroupPermission)
+    private readonly groupPermRepo: Repository<GroupPermission>,
   ) {}
 
   private async audit(actor: { id: string; username: string }, description: string): Promise<void> {
@@ -358,5 +361,52 @@ export class AdminService implements OnApplicationBootstrap {
     if (!dept) throw new NotFoundException('Área no encontrada');
     await this.departmentRepo.remove(dept);
     await this.audit(actor, `Eliminó el área ${dept.name}`);
+  }
+
+  // ─── Module permissions ──────────────────────────────────────────────────────
+
+  static readonly ALL_MODULES = ['chat', 'incidencias', 'reservas', 'correo', 'redactar-mto'] as const;
+
+  async getModulePermissions(): Promise<{ groupName: string; allowedModules: string[] | null }[]> {
+    const [adGroups, dbPerms] = await Promise.all([
+      this.listGroups(),
+      this.groupPermRepo.find(),
+    ]);
+    const permMap = new Map(dbPerms.map((p) => [p.groupName.toUpperCase(), p.allowedModules]));
+    return adGroups.map((g) => ({
+      groupName: g.cn,
+      allowedModules: permMap.get(g.cn.toUpperCase()) ?? null,
+    }));
+  }
+
+  async setGroupPermissions(groupName: string, allowedModules: string[], actor: { id: string; username: string }): Promise<void> {
+    const valid = allowedModules.filter((m) => (AdminService.ALL_MODULES as readonly string[]).includes(m));
+    let perm = await this.groupPermRepo.findOne({ where: { groupName } });
+    if (perm) {
+      perm.allowedModules = valid;
+    } else {
+      perm = this.groupPermRepo.create({ groupName, allowedModules: valid });
+    }
+    await this.groupPermRepo.save(perm);
+    await this.audit(actor, `Actualizó permisos de ${groupName}: ${valid.join(', ') || 'ningún módulo'}`);
+  }
+
+  async getEffectiveModules(userRoles: string[]): Promise<{ allowedModules: string[] }> {
+    const ALL = [...AdminService.ALL_MODULES];
+    if (!userRoles?.length) return { allowedModules: ALL };
+
+    const perms = await this.groupPermRepo.find();
+    const permMap = new Map(perms.map((p) => [p.groupName.toUpperCase(), p.allowedModules]));
+
+    const allowed = new Set<string>();
+    for (const role of userRoles) {
+      const groupPerms = permMap.get(role.toUpperCase());
+      if (groupPerms === undefined) {
+        // Grupo sin configuración explícita → acceso total
+        return { allowedModules: ALL };
+      }
+      groupPerms.forEach((m) => allowed.add(m));
+    }
+    return { allowedModules: ALL.filter((m) => allowed.has(m)) };
   }
 }

@@ -413,29 +413,32 @@ export class AdminService implements OnApplicationBootstrap {
 
   // ─── User enable / disable / delete ─────────────────────────────────────────
 
-  async disableUser(username: string, actor: { id: string; username: string }): Promise<void> {
+  async disableUser(username: string, actor: { id: string; username: string }): Promise<{ success: boolean }> {
     await this.callBridgePost('/disable-user', { username });
     await this.audit(actor, `Deshabilitó el usuario ${username}`);
+    return { success: true };
   }
 
-  async enableUser(username: string, actor: { id: string; username: string }): Promise<void> {
+  async enableUser(username: string, actor: { id: string; username: string }): Promise<{ success: boolean }> {
     await this.callBridgePost('/enable-user', { username });
     await this.audit(actor, `Habilitó el usuario ${username}`);
+    return { success: true };
   }
 
-  async deleteUser(username: string, actor: { id: string; username: string }): Promise<void> {
+  async deleteUser(username: string, actor: { id: string; username: string }): Promise<{ success: boolean }> {
     await this.callBridgePost('/delete-user', { username });
-    // Remove from local DB too if present
     const user = await this.userRepo.findOne({ where: { username } });
     if (user) await this.userRepo.remove(user);
     await this.audit(actor, `Eliminó el usuario ${username}`);
+    return { success: true };
   }
 
   // ─── Group delete ─────────────────────────────────────────────────────────
 
-  async deleteGroup(groupDn: string, groupName: string, actor: { id: string; username: string }): Promise<void> {
+  async deleteGroup(groupDn: string, groupName: string, actor: { id: string; username: string }): Promise<{ success: boolean }> {
     await this.callBridgePost('/delete-group', { groupDn });
     await this.audit(actor, `Eliminó el grupo ${groupName}`);
+    return { success: true };
   }
 
   // ─── Cleanup inactivos (cron diario a las 02:00) ─────────────────────────

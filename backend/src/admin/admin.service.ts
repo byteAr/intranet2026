@@ -297,6 +297,10 @@ export class AdminService implements OnApplicationBootstrap {
     await this.callBridgePost('/remove-from-group', { groupDn: dto.groupDn, userDn: dto.userDn });
   }
 
+  async normalizeGroupNames(): Promise<{ renamed: object[]; skipped: object[]; errors: object[] }> {
+    return this.callBridgePost('/normalize-groups', {}) as Promise<{ renamed: object[]; skipped: object[]; errors: object[] }>;
+  }
+
   // ─── Department management ──────────────────────────────────────────────────
 
   async getDepartments(): Promise<Department[]> {

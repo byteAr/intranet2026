@@ -233,10 +233,22 @@ const RANK_GROUPS = [
 
           <!-- Panel izquierdo: lista de grupos -->
           <div class="w-72 flex-shrink-0 flex flex-col bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden">
-            <div class="px-4 py-3 border-b border-gray-100 dark:border-zinc-700">
+            <div class="px-4 py-3 border-b border-gray-100 dark:border-zinc-700 space-y-2">
               <input [ngModel]="groupSearch()" (ngModelChange)="groupSearch.set($event)"
                 type="text" placeholder="Buscar grupo..."
                 class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+              <button (click)="normalizeGroupNames()" [disabled]="normalizingGroups()"
+                class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-50 transition-colors">
+                @if (normalizingGroups()) {
+                  <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  Normalizando...
+                } @else {
+                  Normalizar nombres a mayúsculas
+                }
+              </button>
             </div>
             <div class="flex-1 overflow-y-auto">
               @if (loadingGroups()) {
@@ -683,6 +695,7 @@ export class AdminComponent implements OnInit {
   readonly loadingMembers = signal(false);
   readonly availableSearch = signal('');
   readonly dropTarget = signal<'members' | 'available' | null>(null);
+  readonly normalizingGroups = signal(false);
   private dragSource: 'members' | 'available' | null = null;
   private draggedUser: GroupMember | null = null;
 
@@ -730,6 +743,27 @@ export class AdminComponent implements OnInit {
     this.http.get<AdGroup[]>('/api/admin/groups').subscribe({
       next: (gs) => { this.groups.set(gs); this.loadingGroups.set(false); },
       error: () => this.loadingGroups.set(false),
+    });
+  }
+
+  normalizeGroupNames(): void {
+    if (!confirm('¿Renombrar a mayúsculas todos los grupos de AD que no estén en mayúsculas?')) return;
+    this.normalizingGroups.set(true);
+    this.http.post<{ renamed: {from:string;to:string}[]; skipped: {name:string;reason:string}[]; errors: {name:string;error:string}[] }>('/api/admin/groups/normalize', {}).subscribe({
+      next: (res) => {
+        this.normalizingGroups.set(false);
+        const parts: string[] = [];
+        if (res.renamed.length)  parts.push(`${res.renamed.length} renombrado(s)`);
+        if (res.skipped.length)  parts.push(`${res.skipped.length} omitido(s) por conflicto`);
+        if (res.errors.length)   parts.push(`${res.errors.length} error(es)`);
+        const msg = parts.length ? parts.join(', ') : 'Todos los grupos ya estaban en mayúsculas';
+        this.showToast(msg, res.errors.length ? 'error' : 'success');
+        if (res.renamed.length) this.loadGroups();
+      },
+      error: (err) => {
+        this.normalizingGroups.set(false);
+        this.showToast(err.error?.message ?? 'Error al normalizar grupos', 'error');
+      },
     });
   }
 

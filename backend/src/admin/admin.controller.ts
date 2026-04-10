@@ -68,6 +68,11 @@ export class AdminController {
     return this.adminService.removeFromGroup(dto);
   }
 
+  @Post('groups/normalize')
+  normalizeGroupNames() {
+    return this.adminService.normalizeGroupNames();
+  }
+
   // ─── Departments ─────────────────────────────────────────────────────────────
 
   @Get('departments')

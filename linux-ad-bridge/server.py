@@ -186,6 +186,67 @@ def create_ad_group(name: str, description: str = '') -> str:
         conn2.unbind()
 
 
+def normalize_groups_to_uppercase() -> dict:
+    """Renombra todos los grupos de AD cuyo sAMAccountName no esté en mayúsculas."""
+    # Primero recolectamos los grupos que necesitan cambio
+    conn = get_ldap_connection()
+    try:
+        conn.search(
+            AD_BASE_DN,
+            '(&(objectClass=group)(!(isCriticalSystemObject=TRUE)))',
+            attributes=['sAMAccountName', 'cn'],
+        )
+        to_rename = [
+            {'dn': e.entry_dn, 'sam': str(e.sAMAccountName)}
+            for e in conn.entries
+            if str(e.sAMAccountName) != str(e.sAMAccountName).upper()
+        ]
+    finally:
+        conn.unbind()
+
+    renamed, skipped, errors = [], [], []
+
+    for entry in to_rename:
+        old_dn  = entry['dn']
+        old_sam = entry['sam']
+        new_name = old_sam.upper()
+
+        # 1. Renombrar CN via modifyDN
+        conn2 = get_ldap_connection()
+        try:
+            conn2.modify_dn(old_dn, f'CN={new_name}')
+            result_code = conn2.result['result']
+        finally:
+            conn2.unbind()
+
+        if result_code == 68:  # entryAlreadyExists → CN uppercase ya existe como otro objeto
+            skipped.append({'name': old_sam, 'reason': f'Ya existe un grupo llamado "{new_name}"'})
+            continue
+        if result_code != 0:
+            errors.append({'name': old_sam, 'error': f'modifyDN: {conn2.result["description"]}'})
+            continue
+
+        # 2. Calcular el nuevo DN y actualizar sAMAccountName
+        parent_dn = ','.join(old_dn.split(',')[1:])
+        new_dn    = f'CN={new_name},{parent_dn}'
+
+        conn3 = get_ldap_connection()
+        try:
+            conn3.modify(new_dn, {'sAMAccountName': [(ldap3.MODIFY_REPLACE, [new_name])]})
+            sam_result = conn3.result['result']
+        finally:
+            conn3.unbind()
+
+        if sam_result != 0:
+            errors.append({'name': old_sam, 'error': f'sAMAccountName: {conn3.result["description"]}'})
+            continue
+
+        renamed.append({'from': old_sam, 'to': new_name})
+        logger.info('Grupo normalizado a mayúsculas: %s -> %s', old_sam, new_name)
+
+    return {'renamed': renamed, 'skipped': skipped, 'errors': errors}
+
+
 def check_username_exists(username: str) -> bool:
     conn = get_ldap_connection()
     try:
@@ -450,6 +511,14 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {'success': True, 'dn': dn})
             except Exception as e:
                 logger.error('Error create-group %s: %s', name, e)
+                self.send_json(500, {'error': str(e)})
+
+        elif path == '/normalize-groups':
+            try:
+                result = normalize_groups_to_uppercase()
+                self.send_json(200, result)
+            except Exception as e:
+                logger.error('Error normalize-groups: %s', e)
                 self.send_json(500, {'error': str(e)})
 
         else:

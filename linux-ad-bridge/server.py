@@ -17,6 +17,7 @@ AD_USERS_OU    = os.environ.get('AD_USERS_OU') or f'CN=Users,{AD_BASE_DN}'
 AD_DOMAIN_FQDN = os.environ.get('AD_DOMAIN_FQDN', 'iugnad.lan')
 # Full DN for SIMPLE bind — evita NTLM que requiere MD4 (deshabilitado en OpenSSL 3.0)
 AD_BIND_DN     = os.environ.get('AD_BIND_DN') or f'CN={AD_USER},CN=Users,{AD_BASE_DN}'
+AD_GROUPS_OU   = os.environ.get('AD_GROUPS_OU') or AD_USERS_OU  # OU donde se crean grupos nuevos
 
 
 def get_ldap_connection():
@@ -150,6 +151,39 @@ def remove_from_group(group_dn: str, user_dn: str) -> None:
     finally:
         conn.unbind()
     logger.info('Usuario %s quitado del grupo %s', user_dn, group_dn)
+
+
+def create_ad_group(name: str, description: str = '') -> str:
+    """Crea un grupo de seguridad global en AD. Si ya existe, devuelve su DN sin error."""
+    conn = get_ldap_connection()
+    try:
+        safe_name = ldap3.utils.conv.escape_filter_chars(name)
+        conn.search(AD_BASE_DN, f'(&(objectClass=group)(sAMAccountName={safe_name}))', attributes=['distinguishedName'])
+        if conn.entries:
+            existing_dn = conn.entries[0].entry_dn
+            logger.info('Grupo AD ya existe, se omite creación: %s (%s)', name, existing_dn)
+            return existing_dn
+    finally:
+        conn.unbind()
+
+    conn2 = get_ldap_connection()
+    try:
+        group_dn = f'CN={name},{AD_GROUPS_OU}'
+        attributes = {
+            'objectClass': ['top', 'group'],
+            'cn': name,
+            'sAMAccountName': name,
+            'groupType': '-2147483646',  # Global Security Group
+        }
+        if description:
+            attributes['description'] = description
+        success = conn2.add(group_dn, attributes=attributes)
+        if not success:
+            raise RuntimeError(f'Error al crear grupo en AD: {conn2.result["description"]}')
+        logger.info('Grupo AD creado: %s (%s)', name, group_dn)
+        return group_dn
+    finally:
+        conn2.unbind()
 
 
 def check_username_exists(username: str) -> bool:
@@ -404,6 +438,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {'success': True})
             except Exception as e:
                 logger.error('Error update-user %s: %s', username, e)
+                self.send_json(500, {'error': str(e)})
+
+        elif path == '/create-group':
+            name = body.get('name', '').strip()
+            if not name:
+                return self.send_json(400, {'error': 'name es requerido'})
+            description = body.get('description', '').strip()
+            try:
+                dn = create_ad_group(name, description)
+                self.send_json(200, {'success': True, 'dn': dn})
+            except Exception as e:
+                logger.error('Error create-group %s: %s', name, e)
                 self.send_json(500, {'error': str(e)})
 
         else:

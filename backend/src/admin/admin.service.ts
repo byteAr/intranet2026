@@ -308,6 +308,10 @@ export class AdminService implements OnApplicationBootstrap {
     if (!trimmed) throw new BadRequestException('El nombre del área no puede estar vacío');
     const existing = await this.departmentRepo.findOne({ where: { name: trimmed } });
     if (existing) throw new ConflictException('Ya existe un área con ese nombre');
+
+    // Crear grupo en AD (idempotente: si ya existe devuelve su DN sin error)
+    await this.callBridgePost('/create-group', { name: trimmed });
+
     const dept = this.departmentRepo.create({ name: trimmed });
     return this.departmentRepo.save(dept);
   }

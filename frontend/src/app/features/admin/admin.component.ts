@@ -667,11 +667,15 @@ const RANK_GROUPS = [
 
             <div>
               <label class="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">
-                Correo personal de recuperación <span class="text-gray-400">(opcional)</span>
+                Correo personal de recuperación *
               </label>
               <input [(ngModel)]="form.recoveryEmail" type="email" placeholder="correo&#64;personal.com"
-                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
-              <p class="text-xs text-gray-400 mt-1">Para recuperación de la cuenta de Google Workspace</p>
+                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                [class.border-red-400]="form.recoveryEmail && !isValidPersonalEmail(form.recoveryEmail)" />
+              @if (form.recoveryEmail && !isValidPersonalEmail(form.recoveryEmail)) {
+                <p class="text-xs text-red-500 mt-1">Ingresá un correo personal válido (no institucional)</p>
+              }
+              <p class="text-xs text-gray-400 mt-1">Se enviará un email con las credenciales de acceso y las instrucciones</p>
             </div>
 
             <div>
@@ -1099,6 +1103,8 @@ export class AdminComponent implements OnInit {
       this.form.office &&
       this.form.email &&
       this.isValidEmail(this.form.email) &&
+      this.form.recoveryEmail &&
+      this.isValidPersonalEmail(this.form.recoveryEmail) &&
       this.suggestedUsername() &&
       this.usernameAvailable()
     );
@@ -1106,6 +1112,10 @@ export class AdminComponent implements OnInit {
 
   isValidEmail(email: string): boolean {
     return /^[^\s@]+@iugna\.edu\.ar$/i.test(email);
+  }
+
+  isValidPersonalEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !/@iugna\.edu\.ar$/i.test(email);
   }
 
   ngOnInit(): void {

@@ -18,6 +18,7 @@ import { CreateAdUserDto } from './dto/create-ad-user.dto';
 import { UpdateAdUserDto } from './dto/update-ad-user.dto';
 import { GroupMemberActionDto } from './dto/group-member-action.dto';
 import { GoogleWorkspaceService } from './google-workspace.service';
+import { WelcomeEmailService } from './welcome-email.service';
 
 export interface AdGroupEntry {
   cn: string;
@@ -69,6 +70,7 @@ export class AdminService implements OnApplicationBootstrap {
   constructor(
     private readonly configService: ConfigService,
     private readonly googleWorkspace: GoogleWorkspaceService,
+    private readonly welcomeEmail: WelcomeEmailService,
     @InjectRepository(Department)
     private readonly departmentRepo: Repository<Department>,
     @InjectRepository(User)
@@ -268,6 +270,17 @@ export class AdminService implements OnApplicationBootstrap {
       roles:     [],
     });
     await this.userRepo.save(user);
+
+    // Enviar email de bienvenida con credenciales e instrucciones de 2FA
+    const domain = this.configService.get<string>('GOOGLE_WORKSPACE_DOMAIN') ?? 'iugna.edu.ar';
+    this.welcomeEmail.sendWelcome({
+      to:                dto.recoveryEmail,
+      displayName:       `${dto.firstName} ${dto.lastName}`,
+      username,
+      password:          defaultPassword,
+      institutionalEmail: `${username}@${domain}`,
+      domain,
+    }).catch(err => this.logger.warn('No se pudo enviar email de bienvenida a %s: %s', dto.recoveryEmail, err.message));
 
     this.logger.log('Usuario creado: %s (%s)', username, dto.email);
     await this.audit(actor, `Creó el usuario ${username} (${dto.firstName} ${dto.lastName})`);

@@ -25,9 +25,8 @@ export class CreateAdUserDto {
   @Matches(/@iugna\.edu\.ar$/i, { message: 'El correo debe ser @iugna.edu.ar' })
   email: string;
 
-  @IsOptional()
   @IsEmail()
-  recoveryEmail?: string;
+  recoveryEmail: string;
 
   @IsOptional()
   @IsString()

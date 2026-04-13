@@ -1,0 +1,8 @@
+{
+  "name": "intranet-scripts",
+  "version": "1.0.0",
+  "description": "Scripts de utilidades para importación de datos",
+  "dependencies": {
+    "@kenjiuno/msgreader": "^3.10.0"
+  }
+}

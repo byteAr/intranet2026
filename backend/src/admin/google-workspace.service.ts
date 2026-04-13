@@ -52,21 +52,28 @@ export class GoogleWorkspaceService {
     const primaryEmail = `${params.username}@${domain}`;
     const admin = this.getAdminClient();
 
-    await admin.users.insert({
-      requestBody: {
-        primaryEmail,
-        name: {
-          givenName: params.firstName,
-          familyName: params.lastName,
+    try {
+      await admin.users.insert({
+        requestBody: {
+          primaryEmail,
+          name: {
+            givenName: params.firstName,
+            familyName: params.lastName,
+          },
+          password: params.password,
+          changePasswordAtNextLogin: true,
+          ...(params.recoveryEmail ? { recoveryEmail: params.recoveryEmail } : {}),
+          ...(params.recoveryPhone ? { recoveryPhone: params.recoveryPhone } : {}),
         },
-        password: params.password,
-        changePasswordAtNextLogin: true,
-        ...(params.recoveryEmail ? { recoveryEmail: params.recoveryEmail } : {}),
-        ...(params.recoveryPhone ? { recoveryPhone: params.recoveryPhone } : {}),
-      },
-    });
-
-    this.logger.log('Cuenta Google Workspace creada: %s', primaryEmail);
+      });
+      this.logger.log('Cuenta Google Workspace creada: %s', primaryEmail);
+    } catch (err: any) {
+      if (err?.code === 409) {
+        this.logger.warn('Cuenta Google Workspace ya existe, se continúa: %s', primaryEmail);
+        return;
+      }
+      throw err;
+    }
   }
 
   async deleteUser(username: string): Promise<void> {

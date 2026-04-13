@@ -44,8 +44,7 @@ export class GoogleWorkspaceService {
     recoveryPhone?: string;
   }): Promise<void> {
     if (!this.isConfigured) {
-      this.logger.warn('Google Workspace no configurado — se omite la creación del correo institucional');
-      return;
+      throw new Error('Google Workspace no está configurado. No se puede crear un usuario sin cuenta @iugna.edu.ar.');
     }
 
     const domain = this.configService.get<string>('GOOGLE_WORKSPACE_DOMAIN') ?? 'iugna.edu.ar';

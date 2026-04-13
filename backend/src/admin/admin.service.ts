@@ -216,15 +216,26 @@ export class AdminService implements OnApplicationBootstrap {
     const year2 = new Date().getFullYear().toString().slice(-2);
     const defaultPassword = `Iugna.${year2}`;
 
-    // Crear cuenta en Google Workspace primero (si está configurado)
-    await this.googleWorkspace.createUser({
-      username,
-      firstName:     dto.firstName,
-      lastName:      dto.lastName,
-      password:      defaultPassword,
-      recoveryEmail: dto.recoveryEmail,
-      recoveryPhone: dto.recoveryPhone,
-    });
+    // Crear cuenta en Google Workspace primero — obligatorio
+    try {
+      await this.googleWorkspace.createUser({
+        username,
+        firstName:     dto.firstName,
+        lastName:      dto.lastName,
+        password:      defaultPassword,
+        recoveryEmail: dto.recoveryEmail,
+        recoveryPhone: dto.recoveryPhone,
+      });
+    } catch (googleError: any) {
+      if (googleError?.code === 409 || googleError?.status === 409) {
+        throw new ConflictException(
+          `El correo institucional "${username}@${this.configService.get('GOOGLE_WORKSPACE_DOMAIN') ?? 'iugna.edu.ar'}" ya existe en Google Workspace y podría pertenecer a otro usuario. Agregue un segundo nombre para generar un usuario distinto.`,
+        );
+      }
+      throw new BadRequestException(
+        `No se pudo crear la cuenta de correo institucional: ${(googleError as Error).message ?? 'Error desconocido'}`,
+      );
+    }
 
     // Create in AD via bridge
     try {

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import type Mail from 'nodemailer/lib/mailer';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -28,7 +29,7 @@ export class WelcomeEmailService {
     });
 
     // ── Adjuntos inline (logo + instrucciones 1-7) ────────────────────────────
-    const attachments: nodemailer.Attachment[] = [];
+    const attachments: Mail.Attachment[] = [];
 
     const logoPath = path.join(process.cwd(), 'assets', 'logo.png');
     if (fs.existsSync(logoPath)) {
@@ -57,7 +58,7 @@ export class WelcomeEmailService {
 
   private buildHtml(
     p: { displayName: string; username: string; password: string; institutionalEmail: string; domain: string },
-    attachments: nodemailer.Attachment[],
+    attachments: Mail.Attachment[],
   ): string {
     const hasLogo = attachments.some(a => a.cid === 'logo@intranet');
     const logoHtml = hasLogo

@@ -1,5 +1,5 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import json, os, re, logging, subprocess, ssl
+import json, os, re, logging, subprocess, ssl, datetime
 from urllib.parse import urlparse, parse_qs
 import ldap3
 
@@ -247,6 +247,153 @@ def normalize_groups_to_uppercase() -> dict:
     return {'renamed': renamed, 'skipped': skipped, 'errors': errors}
 
 
+def _get_user_dn(conn, username: str) -> str:
+    """Busca el DN de un usuario por sAMAccountName. Lanza RuntimeError si no existe."""
+    safe = ldap3.utils.conv.escape_filter_chars(username)
+    conn.search(AD_BASE_DN, f'(sAMAccountName={safe})', attributes=['distinguishedName'])
+    if not conn.entries:
+        raise RuntimeError(f'Usuario {username} no encontrado en AD')
+    return conn.entries[0].entry_dn
+
+
+def disable_user(username: str) -> None:
+    conn = get_ldap_connection()
+    try:
+        dn = _get_user_dn(conn, username)
+        conn.modify(dn, {'userAccountControl': [(ldap3.MODIFY_REPLACE, [514])]})
+        if conn.result['result'] != 0:
+            raise RuntimeError(f'Error al deshabilitar: {conn.result["description"]}')
+    finally:
+        conn.unbind()
+    logger.info('Usuario deshabilitado: %s', username)
+
+
+def enable_user(username: str) -> None:
+    conn = get_ldap_connection()
+    try:
+        dn = _get_user_dn(conn, username)
+        conn.modify(dn, {'userAccountControl': [(ldap3.MODIFY_REPLACE, [512])]})
+        if conn.result['result'] != 0:
+            raise RuntimeError(f'Error al habilitar: {conn.result["description"]}')
+    finally:
+        conn.unbind()
+    logger.info('Usuario habilitado: %s', username)
+
+
+def delete_user(username: str) -> None:
+    conn = get_ldap_connection()
+    try:
+        dn = _get_user_dn(conn, username)
+        conn.delete(dn)
+        if conn.result['result'] != 0:
+            raise RuntimeError(f'Error al eliminar usuario: {conn.result["description"]}')
+    finally:
+        conn.unbind()
+    logger.info('Usuario eliminado del AD: %s', username)
+
+
+def delete_group(group_dn: str) -> None:
+    conn = get_ldap_connection()
+    try:
+        conn.delete(group_dn)
+        if conn.result['result'] != 0:
+            raise RuntimeError(f'Error al eliminar grupo: {conn.result["description"]}')
+    finally:
+        conn.unbind()
+    logger.info('Grupo eliminado del AD: %s', group_dn)
+
+
+def _filetime_to_dt(ft: int) -> datetime.datetime | None:
+    """Convierte Windows FILETIME (entero) a datetime UTC."""
+    if not ft or ft <= 0:
+        return None
+    EPOCH = datetime.datetime(1601, 1, 1)
+    return EPOCH + datetime.timedelta(microseconds=ft // 10)
+
+
+# Cuentas excluidas de la limpieza automática
+_CLEANUP_EXCLUDED = {'administrator', 'guest', 'krbtgt', AD_USER.lower()}
+
+
+def cleanup_inactive_users(disable_months: int = 7, delete_months: int = 8) -> dict:
+    """
+    Deshabilita usuarios sin actividad por disable_months meses.
+    Elimina usuarios ya deshabilitados sin actividad por delete_months meses.
+    Excluye cuentas de sistema y de servicio.
+    """
+    now = datetime.datetime.utcnow()
+    disable_cutoff = now - datetime.timedelta(days=disable_months * 30)
+    delete_cutoff  = now - datetime.timedelta(days=delete_months  * 30)
+
+    conn = get_ldap_connection()
+    try:
+        conn.search(
+            AD_BASE_DN,
+            '(&(objectClass=user)(objectCategory=person)(!(isCriticalSystemObject=TRUE)))',
+            attributes=['sAMAccountName', 'userAccountControl', 'lastLogonTimestamp', 'whenCreated'],
+        )
+        entries = list(conn.entries)
+    finally:
+        conn.unbind()
+
+    disabled_list, deleted_list, errors = [], [], []
+
+    for entry in entries:
+        username = str(entry.sAMAccountName).lower()
+        if username in _CLEANUP_EXCLUDED:
+            continue
+
+        uac = int(entry.userAccountControl.value) if entry.userAccountControl else 512
+        is_disabled = bool(uac & 2)
+
+        # Calcular última actividad
+        last_active: datetime.datetime | None = None
+        try:
+            ft = int(entry.lastLogonTimestamp.value) if entry.lastLogonTimestamp else 0
+            last_active = _filetime_to_dt(ft)
+        except Exception:
+            pass
+
+        if last_active is None:
+            try:
+                wc = entry.whenCreated.value
+                if isinstance(wc, datetime.datetime):
+                    last_active = wc.replace(tzinfo=None)
+                else:
+                    last_active = datetime.datetime.strptime(str(wc)[:14], '%Y%m%d%H%M%S')
+            except Exception:
+                continue
+
+        dn = entry.entry_dn
+        try:
+            if is_disabled and last_active < delete_cutoff:
+                conn2 = get_ldap_connection()
+                try:
+                    conn2.delete(dn)
+                    if conn2.result['result'] == 0:
+                        deleted_list.append(str(entry.sAMAccountName))
+                    else:
+                        errors.append({'user': str(entry.sAMAccountName), 'error': conn2.result['description']})
+                finally:
+                    conn2.unbind()
+            elif not is_disabled and last_active < disable_cutoff:
+                conn2 = get_ldap_connection()
+                try:
+                    conn2.modify(dn, {'userAccountControl': [(ldap3.MODIFY_REPLACE, [514])]})
+                    if conn2.result['result'] == 0:
+                        disabled_list.append(str(entry.sAMAccountName))
+                    else:
+                        errors.append({'user': str(entry.sAMAccountName), 'error': conn2.result['description']})
+                finally:
+                    conn2.unbind()
+        except Exception as e:
+            errors.append({'user': str(entry.sAMAccountName), 'error': str(e)})
+
+    logger.info('Cleanup: %d deshabilitados, %d eliminados, %d errores',
+                len(disabled_list), len(deleted_list), len(errors))
+    return {'disabled': disabled_list, 'deleted': deleted_list, 'errors': errors}
+
+
 def check_username_exists(username: str) -> bool:
     conn = get_ldap_connection()
     try:
@@ -300,16 +447,19 @@ def create_ad_user(data: dict) -> None:
     # Set password via net rpc (Samba) — no TLS cert issues
     reset_ad_password(username, password)
 
-    # Enable account
+    # Enable account + force password change on next Windows login
     conn2 = get_ldap_connection()
     try:
-        conn2.modify(dn, {'userAccountControl': [(ldap3.MODIFY_REPLACE, [512])]})
+        conn2.modify(dn, {
+            'userAccountControl': [(ldap3.MODIFY_REPLACE, [512])],
+            'pwdLastSet':         [(ldap3.MODIFY_REPLACE, [0])],
+        })
         if conn2.result['result'] != 0:
             logger.warning('No se pudo habilitar cuenta %s: %s', username, conn2.result)
     finally:
         conn2.unbind()
 
-    logger.info('Usuario AD creado y habilitado: %s (%s)', username, dn)
+    logger.info('Usuario AD creado y habilitado (debe cambiar contraseña): %s (%s)', username, dn)
 
 
 def update_ad_user(data: dict) -> None:
@@ -510,6 +660,60 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, result)
             except Exception as e:
                 logger.error('Error normalize-groups: %s', e)
+                self.send_json(500, {'error': str(e)})
+
+        elif path == '/disable-user':
+            username = body.get('username', '').strip()
+            if not username:
+                return self.send_json(400, {'error': 'username es requerido'})
+            try:
+                disable_user(username)
+                self.send_json(200, {'success': True})
+            except Exception as e:
+                logger.error('Error disable-user %s: %s', username, e)
+                self.send_json(500, {'error': str(e)})
+
+        elif path == '/enable-user':
+            username = body.get('username', '').strip()
+            if not username:
+                return self.send_json(400, {'error': 'username es requerido'})
+            try:
+                enable_user(username)
+                self.send_json(200, {'success': True})
+            except Exception as e:
+                logger.error('Error enable-user %s: %s', username, e)
+                self.send_json(500, {'error': str(e)})
+
+        elif path == '/delete-user':
+            username = body.get('username', '').strip()
+            if not username:
+                return self.send_json(400, {'error': 'username es requerido'})
+            try:
+                delete_user(username)
+                self.send_json(200, {'success': True})
+            except Exception as e:
+                logger.error('Error delete-user %s: %s', username, e)
+                self.send_json(500, {'error': str(e)})
+
+        elif path == '/delete-group':
+            group_dn = body.get('groupDn', '').strip()
+            if not group_dn:
+                return self.send_json(400, {'error': 'groupDn es requerido'})
+            try:
+                delete_group(group_dn)
+                self.send_json(200, {'success': True})
+            except Exception as e:
+                logger.error('Error delete-group %s: %s', group_dn, e)
+                self.send_json(500, {'error': str(e)})
+
+        elif path == '/cleanup-inactive':
+            disable_months = int(body.get('disableMonths', 7))
+            delete_months  = int(body.get('deleteMonths',  8))
+            try:
+                result = cleanup_inactive_users(disable_months, delete_months)
+                self.send_json(200, result)
+            except Exception as e:
+                logger.error('Error cleanup-inactive: %s', e)
                 self.send_json(500, {'error': str(e)})
 
         else:

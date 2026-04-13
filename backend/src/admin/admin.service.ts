@@ -261,13 +261,14 @@ export class AdminService implements OnApplicationBootstrap {
     const displayName = `${dto.firstName} ${dto.lastName}`;
     const user = this.userRepo.create({
       username,
-      email: dto.email,
+      email:         dto.email,
       displayName,
-      firstName: dto.firstName,
-      lastName:  dto.lastName,
-      office:    dto.office,
-      title:     dto.title,
-      roles:     [],
+      firstName:     dto.firstName,
+      lastName:      dto.lastName,
+      office:        dto.office,
+      title:         dto.title,
+      recoveryEmail: dto.recoveryEmail,
+      roles:         [],
     });
     await this.userRepo.save(user);
 

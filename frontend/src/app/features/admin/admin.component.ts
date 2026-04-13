@@ -665,6 +665,24 @@ const RANK_GROUPS = [
               }
             </div>
 
+            <div>
+              <label class="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">
+                Correo personal de recuperación <span class="text-gray-400">(opcional)</span>
+              </label>
+              <input [(ngModel)]="form.recoveryEmail" type="email" placeholder="correo&#64;personal.com"
+                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+              <p class="text-xs text-gray-400 mt-1">Para recuperación de la cuenta de Google Workspace</p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">
+                Teléfono de recuperación <span class="text-gray-400">(opcional)</span>
+              </label>
+              <input [(ngModel)]="form.recoveryPhone" type="tel" placeholder="+54 9 11 1234 5678"
+                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+              <p class="text-xs text-gray-400 mt-1">El usuario lo usará para configurar la verificación en dos pasos en el primer ingreso a Gmail</p>
+            </div>
+
             <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg px-4 py-3 text-xs text-amber-700 dark:text-amber-300">
               La contraseña inicial será <strong>Iugna.{{ currentYear2() }}</strong>. El usuario deberá cambiarla en su primer ingreso.
             </div>
@@ -825,7 +843,7 @@ export class AdminComponent implements OnInit {
   newDeptName = '';
   private suggestionTimer: ReturnType<typeof setTimeout> | null = null;
 
-  form = { firstName: '', secondName: '', lastName: '', office: '', title: '', email: '' };
+  form = { firstName: '', secondName: '', lastName: '', office: '', title: '', email: '', recoveryEmail: '', recoveryPhone: '' };
   editForm = { office: '', title: '' };
 
   readonly filteredUsers = computed(() => {

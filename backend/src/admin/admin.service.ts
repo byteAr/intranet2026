@@ -17,6 +17,7 @@ import { User } from '../users/entities/user.entity';
 import { CreateAdUserDto } from './dto/create-ad-user.dto';
 import { UpdateAdUserDto } from './dto/update-ad-user.dto';
 import { GroupMemberActionDto } from './dto/group-member-action.dto';
+import { GoogleWorkspaceService } from './google-workspace.service';
 
 export interface AdGroupEntry {
   cn: string;
@@ -67,6 +68,7 @@ export class AdminService implements OnApplicationBootstrap {
 
   constructor(
     private readonly configService: ConfigService,
+    private readonly googleWorkspace: GoogleWorkspaceService,
     @InjectRepository(Department)
     private readonly departmentRepo: Repository<Department>,
     @InjectRepository(User)
@@ -214,16 +216,33 @@ export class AdminService implements OnApplicationBootstrap {
     const year2 = new Date().getFullYear().toString().slice(-2);
     const defaultPassword = `Iugna.${year2}`;
 
-    // Create in AD via bridge (el bridge setea pwdLastSet=0 automáticamente)
-    await this.callBridgePost('/create-user', {
+    // Crear cuenta en Google Workspace primero (si está configurado)
+    await this.googleWorkspace.createUser({
       username,
-      firstName: dto.firstName,
-      lastName:  dto.lastName,
-      email:     dto.email,
-      office:    dto.office,
-      title:     dto.title ?? '',
-      password:  defaultPassword,
+      firstName:     dto.firstName,
+      lastName:      dto.lastName,
+      password:      defaultPassword,
+      recoveryEmail: dto.recoveryEmail,
+      recoveryPhone: dto.recoveryPhone,
     });
+
+    // Create in AD via bridge
+    try {
+      await this.callBridgePost('/create-user', {
+        username,
+        firstName: dto.firstName,
+        lastName:  dto.lastName,
+        email:     dto.email,
+        office:    dto.office,
+        title:     dto.title ?? '',
+        password:  defaultPassword,
+      });
+    } catch (adError) {
+      // Si AD falla después de crear en Google, intentar limpiar
+      this.logger.warn('AD falló tras crear cuenta Google para %s — limpiando Google Workspace', username);
+      await this.googleWorkspace.deleteUser(username);
+      throw adError;
+    }
 
     // Stub en DB para que el sistema lo reconozca cuando haga login
     const displayName = `${dto.firstName} ${dto.lastName}`;
@@ -427,6 +446,7 @@ export class AdminService implements OnApplicationBootstrap {
 
   async deleteUser(username: string, actor: { id: string; username: string }): Promise<{ success: boolean }> {
     await this.callBridgePost('/delete-user', { username });
+    await this.googleWorkspace.deleteUser(username);
     const user = await this.userRepo.findOne({ where: { username } });
     if (user) await this.userRepo.remove(user);
     await this.audit(actor, `Eliminó el usuario ${username}`);

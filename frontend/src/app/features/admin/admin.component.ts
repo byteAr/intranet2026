@@ -1142,7 +1142,7 @@ export class AdminComponent implements OnInit {
   }
 
   openCreateModal(): void {
-    this.form = { firstName: '', secondName: '', lastName: '', office: '', title: '', email: '' };
+    this.form = { firstName: '', secondName: '', lastName: '', office: '', title: '', email: '', recoveryEmail: '', recoveryPhone: '' };
     this.suggestedUsername.set(null);
     this.usernameAvailable.set(false);
     this.createError.set(null);

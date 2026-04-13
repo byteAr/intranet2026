@@ -18,7 +18,7 @@ Plataforma intranet institucional completa: comunicaciones internas, reserva de 
 - IP: `10.98.40.24`, OS: Debian
 - Path: `/usr/local/proyectos/intranet2026`
 - Compose: `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
-- Contenedores: `pac_postgres`, `pac_backend`, `pac_frontend`, `pac_openldap`, `pac_phpldapadmin`, `pac_ad_bridge`
+- Contenedores: `intranet_postgres`, `intranet_backend`, `intranet_frontend`, `intranet_openldap`, `intranet_phpldapadmin`, `intranet_ad_bridge`
 - Frontend: `http://10.98.40.24:8280` (externo)
 - Backend: `127.0.0.1:3001` (solo interno, prefix `/api`)
 
@@ -617,6 +617,96 @@ id: UUID | userId | endpoint (unique) | p256dh | auth | createdAt
 
 ---
 
+### 10. Admin (`admin/`)
+
+Panel de administración completo para usuarios TICOM.
+
+**Endpoints (`/api/admin/*`, todos requieren rol TICOM):**
+| Ruta | Método | Descripción |
+|------|--------|-------------|
+| `/api/admin/users` | GET | Listar usuarios (AD + DB merge) |
+| `/api/admin/users` | POST | Crear usuario (AD + Google Workspace) |
+| `/api/admin/users/:username` | PATCH | Editar área/jerarquía |
+| `/api/admin/users/:username/disable` | PATCH | Deshabilitar cuenta AD |
+| `/api/admin/users/:username/enable` | PATCH | Habilitar cuenta AD |
+| `/api/admin/users/:username` | DELETE | Eliminar de AD + Google Workspace + DB |
+| `/api/admin/username-suggestion` | GET | Sugerir username disponible |
+| `/api/admin/groups` | GET | Listar grupos AD |
+| `/api/admin/groups/members` | GET | Miembros de un grupo |
+| `/api/admin/groups/members` | POST | Agregar usuario a grupo |
+| `/api/admin/groups/members/remove` | POST | Quitar usuario de grupo |
+| `/api/admin/groups/normalize` | POST | Normalizar nombres a mayúsculas |
+| `/api/admin/groups` | DELETE | Eliminar grupo del AD |
+| `/api/admin/departments` | GET/POST | Listar/crear áreas (crea grupo AD) |
+| `/api/admin/departments/:id` | DELETE | Eliminar área |
+| `/api/admin/module-permissions` | GET | Permisos de módulos por grupo |
+| `/api/admin/module-permissions/:groupName` | PUT | Setear permisos de módulos |
+| `/api/admin/audit-log` | GET | Log de auditoría (paginado) |
+| `/api/admin/cleanup` | POST | Trigger manual de limpieza de inactivos |
+| `/api/permissions/me` | GET | JWT (sin TICOM) | Módulos permitidos del usuario actual |
+
+**Servicios:**
+- `admin.service.ts` — lógica central, llama al AD bridge para todas las ops de AD
+- `google-workspace.service.ts` — crea/elimina usuarios en Google Workspace vía Admin SDK con service account
+- `welcome-email.service.ts` — envía email HTML con credenciales + instrucciones 2FA (imágenes inline pasos 1-7)
+- `permissions.controller.ts` — controller separado sin `@Roles('TICOM')` para que cualquier usuario JWT consulte sus módulos
+
+**Entidades:**
+```
+AdminAuditLog:
+  id: UUID | actorUsername | actorDisplayName | description | createdAt
+
+GroupPermission:
+  id: UUID | groupName (unique) | allowedModules: string[] | updatedAt
+```
+
+**Creación de usuario — flujo completo:**
+1. Validar email `@iugna.edu.ar` y disponibilidad de username (AD + DB)
+2. Crear cuenta en **Google Workspace** vía Admin SDK (obligatorio — si falla, no se continúa)
+3. Crear usuario en **AD** vía bridge con `pwdLastSet=0` (fuerza cambio de contraseña en Windows)
+4. Si AD falla → rollback automático en Google Workspace
+5. Crear **stub en DB** con `recoveryEmail` incluido (evita pedirlo en el primer login)
+6. Enviar **email de bienvenida** al correo personal con credenciales e instrucciones de 2FA
+7. Registrar en **audit log**
+
+**Username generation:** `primera_letra_nombre + apellido` (ej: `mlopez`). Si existe → usa segundo nombre (ej: `mmlopez`). Mismo username en AD y en `@iugna.edu.ar`.
+
+**Módulos configurables por grupo:**
+`chat`, `incidencias`, `reservas`, `correo`, `redactar-mto`
+- Sin config explícita → acceso total (backward compatible)
+- Con config → solo los módulos asignados
+- Items TICOM (PST import, Para enviar, Autorizadores, Administración) no son configurables
+
+**Cron de limpieza de inactivos** (`@Cron('0 2 * * *')`):
+- Inactivo > 7 meses → deshabilita cuenta AD
+- Inactivo > 8 meses + deshabilitado → elimina de AD
+- Usa `lastLogonTimestamp` del AD (fallback: `whenCreated`)
+- Excluye: `administrator`, `guest`, `krbtgt`, `svc-pac`
+- Resultado registrado en audit log como "Sistema (cron)"
+
+**Error 773 (must change password):** `LdapAuthGuard` detecta este código y retorna mensaje claro: *"Debés cambiar tu contraseña en Windows antes de ingresar al sistema"*
+
+**Google Workspace — configuración:**
+- Service account con delegación en todo el dominio
+- Scope: `https://www.googleapis.com/auth/admin.directory.user`
+- JSON key en `/run/secrets/google-workspace-key.json` (montado vía Docker volume `./secrets:/run/secrets:ro`)
+- Si el correo ya existe en Google → error 409 bloqueante (puede pertenecer a otro usuario)
+
+**Email de bienvenida:**
+- Template HTML en teal con credenciales AD y Gmail
+- Imágenes inline (CID) pasos 1-7 desde `backend/assets/sfainstruction/`
+- Alerta obligatoria de 2FA con advertencia de pérdida de acceso
+- Envío no-bloqueante (si SMTP falla, el usuario igual se crea)
+
+**Panel Angular (`/administracion`):**
+- Tab Usuarios: tabla paginada con editar, deshabilitar/habilitar, eliminar
+- Tab Grupos: drag & drop para mover usuarios entre grupos, eliminar grupo
+- Tab Áreas: crear/eliminar áreas (crea grupo AD automáticamente)
+- Tab Permisos: matriz grupo × módulo con checkboxes (optimistic update)
+- Tab Actividad: audit log con timestamps relativos
+
+---
+
 ## Autenticación y autorización
 
 ### Flujo JWT
@@ -845,6 +935,13 @@ MAIL_PST_UPLOAD_PATH        # default: /app/storage/pst
 MAIL_POLL_INTERVAL_MS       # default: 30000
 MAIL_BRIDGE_URL             # si seteado: activa bridge mode (deshabilita IMAP poller)
 MAIL_BRIDGE_SECRET          # secreto compartido con el mail-bridge
+
+# Google Workspace (Admin SDK)
+GOOGLE_SERVICE_ACCOUNT_PATH=/run/secrets/google-workspace-key.json  # JSON key montado como volumen
+GOOGLE_WORKSPACE_ADMIN_EMAIL=mlopez@iugna.edu.ar                    # superadmin a impersonar
+GOOGLE_WORKSPACE_DOMAIN=iugna.edu.ar                                # dominio institucional
+# Prerequisito: service account con delegación en todo el dominio y scope admin.directory.user
+# JSON key en ./secrets/google-workspace-key.json (gitignoreado, montado como /run/secrets:ro)
 
 # Push Notifications
 VAPID_MAILTO | VAPID_PUBLIC_KEY | VAPID_PRIVATE_KEY

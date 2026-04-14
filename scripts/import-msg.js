@@ -26,12 +26,19 @@ const crypto = require('crypto');
 
 // ─── Validar dependencias ────────────────────────────────────────────────────
 
-let MsgReader;
+let MsgReader, fetch;
 try {
   const mod = require('@kenjiuno/msgreader');
   MsgReader = mod.default ?? mod.MsgReader ?? mod;
 } catch {
   console.error('Error: falta @kenjiuno/msgreader');
+  console.error('Ejecutá: cd scripts && npm install');
+  process.exit(1);
+}
+try {
+  fetch = require('node-fetch');
+} catch {
+  console.error('Error: falta node-fetch');
   console.error('Ejecutá: cd scripts && npm install');
   process.exit(1);
 }

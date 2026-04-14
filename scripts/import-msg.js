@@ -127,8 +127,10 @@ function parseRecipients(recipients) {
 }
 
 function parseMsg(filePath) {
-  const buffer = fs.readFileSync(filePath);
-  const reader = new MsgReader(buffer);
+  const nodeBuf = fs.readFileSync(filePath);
+  // msgreader v1.x espera ArrayBuffer
+  const arrayBuffer = nodeBuf.buffer.slice(nodeBuf.byteOffset, nodeBuf.byteOffset + nodeBuf.byteLength);
+  const reader = new MsgReader(arrayBuffer);
   const data   = reader.getFileData();
 
   // ─ Fecha ─
@@ -172,18 +174,21 @@ function parseMsg(filePath) {
   // ─ Adjuntos ─
   const attachments = [];
   if (Array.isArray(data.attachments)) {
-    for (const att of data.attachments) {
+    for (let i = 0; i < data.attachments.length; i++) {
+      const att = data.attachments[i];
       try {
+        // v1.x: getAttachment() devuelve { fileName, content: Uint8Array, ... }
         const attData = reader.getAttachment(att);
-        if (!attData || !attData.content) continue;
+        const content = attData?.content ?? att.content;
+        if (!content || content.length === 0) continue;
 
-        const filename    = (att.fileName || att.name || `attachment_${attachments.length + 1}`).trim();
+        const filename    = (att.fileName || att.name || attData?.fileName || `attachment_${i + 1}`).trim();
         const contentType = att.mimeTag || att.mimeType || att.mime || 'application/octet-stream';
 
         attachments.push({
           filename,
           contentType,
-          base64: Buffer.from(attData.content).toString('base64'),
+          base64: Buffer.from(content).toString('base64'),
         });
       } catch {
         // adjunto corrupto — ignorar

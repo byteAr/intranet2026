@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "description": "Scripts de utilidades para importación de datos",
   "dependencies": {
-    "@kenjiuno/msgreader": "^3.0.0"
+    "@kenjiuno/msgreader": "^1.28.0"
   }
 }

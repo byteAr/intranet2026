@@ -278,7 +278,9 @@ async function main() {
         else                  inserted++;
       } catch (e) {
         errors++;
-        errorLog.push(`INGEST ${relPath}: ${e.message}`);
+        const msg = `INGEST ${relPath}: ${e.message}`;
+        errorLog.push(msg);
+        if (errors <= 3) console.error('\n' + msg); // mostrar primeros 3 errores inmediatamente
       }
     }
 

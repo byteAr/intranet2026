@@ -512,7 +512,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                         </button>
 
                         <!-- Zona desencriptado — solo para adjuntos .~00 -->
-                        @if (att.filename && /\.\~\d{2}$/.test(att.filename)) {
+                        @if (isEncryptedFile(att.filename)) {
                           @if (isTicom) {
                             <label class="cursor-pointer" [title]="att.hasDecrypted ? 'Reemplazar desc.' : 'Subir desc.'">
                               <input type="file" class="hidden"
@@ -670,6 +670,10 @@ export class MailComponent implements OnInit {
 
   get isTicom(): boolean {
     return this.mailService.isTicom;
+  }
+
+  isEncryptedFile(filename: string): boolean {
+    return !!filename && /\.\~\d{2}$/.test(filename);
   }
 
   // Computed para evitar re-render del innerHTML en cada CD (perdería la selección de texto)

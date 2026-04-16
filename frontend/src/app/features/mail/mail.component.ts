@@ -496,19 +496,55 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 <div class="mt-3 pt-3 border-t border-gray-100">
                   <div class="flex flex-wrap gap-2">
                     @for (att of activeEmail()!.attachments!; track att.id) {
-                      <button
-                        (click)="mailService.downloadAttachment(activeEmail()!.id, att.id, att.filename)"
-                        class="flex flex-col items-center gap-0.5 p-1.5 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors w-11"
-                        [title]="att.filename + ' — ' + formatSize(att.size)">
-                        <!-- File type icon -->
-                        <div class="w-5 h-5 rounded flex items-center justify-center font-bold leading-none"
-                             style="font-size:7px"
-                             [style.background]="fileIcon(att.filename).bg"
-                             [style.color]="fileIcon(att.filename).fg">
-                          {{ fileIcon(att.filename).char }}
-                        </div>
-                        <span class="text-gray-600 truncate w-full text-center" style="font-size:9px" [innerHTML]="highlightText(att.filename)"></span>
-                      </button>
+                      <div class="flex flex-col items-center gap-1">
+                        <button
+                          (click)="mailService.downloadAttachment(activeEmail()!.id, att.id, att.filename)"
+                          class="flex flex-col items-center gap-0.5 p-1.5 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors w-11"
+                          [title]="att.filename + ' — ' + formatSize(att.size)">
+                          <!-- File type icon -->
+                          <div class="w-5 h-5 rounded flex items-center justify-center font-bold leading-none"
+                               style="font-size:7px"
+                               [style.background]="fileIcon(att.filename).bg"
+                               [style.color]="fileIcon(att.filename).fg">
+                            {{ fileIcon(att.filename).char }}
+                          </div>
+                          <span class="text-gray-600 truncate w-full text-center" style="font-size:9px" [innerHTML]="highlightText(att.filename)"></span>
+                        </button>
+
+                        <!-- Zona desencriptado — solo para adjuntos ._00 -->
+                        @if (att.filename.endsWith('._00')) {
+                          @if (isTicom) {
+                            <label class="cursor-pointer" [title]="att.hasDecrypted ? 'Reemplazar desencriptado' : 'Subir desencriptado'">
+                              <input type="file" class="hidden"
+                                     (change)="onDecryptedFileSelected(att, $event)"
+                                     [disabled]="uploadingDecryptedId() === att.id" />
+                              <span class="text-xs px-1 py-0.5 rounded border leading-none transition-colors"
+                                    [class.border-amber-400]="!att.hasDecrypted"
+                                    [class.text-amber-700]="!att.hasDecrypted"
+                                    [class.hover:bg-amber-50]="!att.hasDecrypted"
+                                    [class.border-green-400]="att.hasDecrypted"
+                                    [class.text-green-700]="att.hasDecrypted"
+                                    [class.hover:bg-green-50]="att.hasDecrypted">
+                                @if (uploadingDecryptedId() === att.id) { ... }
+                                @else if (att.hasDecrypted) { ↑ desc. }
+                                @else { ↑ subir }
+                              </span>
+                            </label>
+                          }
+                          @if (isEncriptado) {
+                            @if (att.hasDecrypted) {
+                              <button
+                                (click)="mailService.downloadDecrypted(activeEmail()!.id, att.id, att.filename)"
+                                class="text-xs px-1 py-0.5 rounded border border-teal-400 text-teal-700 hover:bg-teal-50 transition-colors leading-none"
+                                title="Descargar versión desencriptada">
+                                ↓ desc.
+                              </button>
+                            } @else {
+                              <span class="text-xs text-gray-400 italic leading-none">sin desc.</span>
+                            }
+                          }
+                        }
+                      </div>
                     }
                   </div>
                 </div>
@@ -633,6 +669,16 @@ export class MailComponent implements OnInit {
   readonly copyTooltip = signal<{ x: number; y: number; copied: boolean } | null>(null);
   private suppressTooltip = false;
 
+  readonly uploadingDecryptedId = signal<string | null>(null);
+
+  get isEncriptado(): boolean {
+    return this.mailService.isEncriptado;
+  }
+
+  get isTicom(): boolean {
+    return this.mailService.isTicom;
+  }
+
   // Computed para evitar re-render del innerHTML en cada CD (perdería la selección de texto)
   readonly highlightedBodyHtml = computed(() => {
     const email = this.activeEmail();
@@ -649,8 +695,22 @@ export class MailComponent implements OnInit {
     return escaped.replace(re, '<mark style="background:#ffff00;padding:0 1px;border-radius:2px;color:inherit">$1</mark>');
   }
 
-  get isTicom(): boolean {
-    return this.mailService.isTicom;
+  onDecryptedFileSelected(att: { id: string; filename: string }, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const emailId = this.activeEmail()!.id;
+    this.uploadingDecryptedId.set(att.id);
+    this.mailService.uploadDecrypted(emailId, att.id, file).subscribe({
+      next: () => {
+        this.uploadingDecryptedId.set(null);
+        this.mailService.getEmail(emailId).subscribe((full) => this.activeEmail.set(full));
+      },
+      error: () => {
+        this.uploadingDecryptedId.set(null);
+      },
+    });
+    input.value = '';
   }
 
   ngOnInit(): void {

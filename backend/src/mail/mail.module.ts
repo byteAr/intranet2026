@@ -11,6 +11,8 @@ import { ImapPollerService } from './imap-poller.service';
 import { MailIngestService } from './mail-ingest.service';
 import { MailService } from './mail.service';
 import { MailController } from './mail.controller';
+import { DecryptedAttachment } from './entities/decrypted-attachment.entity';
+import { DecryptedAttachmentService } from './decrypted-attachment.service';
 import { MailGateway } from './mail.gateway';
 import { SmtpSenderService } from './smtp-sender.service';
 import { LdapRecipientsService } from './ldap-recipients.service';
@@ -29,6 +31,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       EmailReference,
       PstImportLog,
       MailPendingSend,
+      DecryptedAttachment,
     ]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -39,7 +42,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [MailController, PstImportController],
-  providers: [MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService],
+  providers: [MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService, DecryptedAttachmentService],
   exports: [MailParserService, MailIngestService, ImapPollerService, MailService, SmtpSenderService],
 })
 export class MailModule {}

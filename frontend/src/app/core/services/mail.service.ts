@@ -11,6 +11,7 @@ export interface MailAttachment {
   filename: string;
   contentType: string;
   size: number;
+  hasDecrypted?: boolean;
 }
 
 export interface MailReadStatus {
@@ -102,6 +103,10 @@ export class MailService {
 
   get isTicom(): boolean {
     return this.authService.currentUser()?.roles?.includes('TICOM') ?? false;
+  }
+
+  get isEncriptado(): boolean {
+    return this.authService.currentUser()?.roles?.includes('ENCRIPTADO') ?? false;
   }
 
   connect(): void {
@@ -273,6 +278,37 @@ export class MailService {
           console.error(`No se pudo descargar el adjunto: ${filename}`);
         },
       });
+  }
+
+  uploadDecrypted(emailId: string, attachmentId: string, file: File): Observable<{ id: string; filename: string; size: number; uploadedAt: string; uploadedByName: string }> {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    return this.http.post<{ id: string; filename: string; size: number; uploadedAt: string; uploadedByName: string }>(
+      `/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted`,
+      fd,
+    );
+  }
+
+  downloadDecrypted(emailId: string, attachmentId: string, filename: string): void {
+    this.http
+      .get(`/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted`, { responseType: 'blob' })
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename.replace(/\._00$/i, '');
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        },
+        error: () => console.error('No se pudo descargar el archivo desencriptado'),
+      });
+  }
+
+  deleteDecrypted(emailId: string, attachmentId: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted`);
   }
 
 }

@@ -5,6 +5,7 @@ import { Email } from './entities/email.entity';
 import { Attachment } from './entities/attachment.entity';
 import { EmailReadStatus } from './entities/email-read-status.entity';
 import { EmailReference } from './entities/email-reference.entity';
+import { DecryptedAttachment } from './entities/decrypted-attachment.entity';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 
 @Injectable()
@@ -19,6 +20,8 @@ export class MailService implements OnApplicationBootstrap {
     private readonly readStatusRepo: Repository<EmailReadStatus>,
     @InjectRepository(EmailReference)
     private readonly referenceRepo: Repository<EmailReference>,
+    @InjectRepository(DecryptedAttachment)
+    private readonly decryptedRepo: Repository<DecryptedAttachment>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -165,7 +168,7 @@ export class MailService implements OnApplicationBootstrap {
     return { data, total, page, limit };
   }
 
-  async findOne(id: string, userId: string): Promise<Email> {
+  async findOne(id: string, userId: string, userRoles?: string[]): Promise<Email> {
     const email = await this.emailRepo
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.attachments', 'att')
@@ -175,6 +178,26 @@ export class MailService implements OnApplicationBootstrap {
       .getOne();
 
     if (!email) throw new NotFoundException('Correo no encontrado');
+
+    // Enriquecer adjuntos ._00 con hasDecrypted para TICOM y ENCRIPTADO
+    const canSeeDecrypted = userRoles?.some((r) => r === 'TICOM' || r === 'ENCRIPTADO') ?? false;
+    if (canSeeDecrypted && email.attachments?.length) {
+      const encryptedIds = email.attachments
+        .filter((a) => a.filename.endsWith('._00'))
+        .map((a) => a.id);
+      if (encryptedIds.length > 0) {
+        const decryptedRows = await this.decryptedRepo.find({
+          where: encryptedIds.map((aid) => ({ attachmentId: aid })),
+          select: ['attachmentId'],
+        });
+        const decryptedSet = new Set(decryptedRows.map((d) => d.attachmentId));
+        (email as any).attachments = email.attachments.map((att) => ({
+          ...att,
+          hasDecrypted: att.filename.endsWith('._00') ? decryptedSet.has(att.id) : undefined,
+        }));
+      }
+    }
+
     return email;
   }
 

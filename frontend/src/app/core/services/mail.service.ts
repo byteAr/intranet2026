@@ -297,7 +297,7 @@ export class MailService {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = filename.replace(/\.~00$/i, '');
+          a.download = filename.replace(/\.~\d{2}$/i, '');
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);

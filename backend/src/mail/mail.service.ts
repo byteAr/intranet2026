@@ -183,7 +183,7 @@ export class MailService implements OnApplicationBootstrap {
     const canSeeDecrypted = userRoles?.some((r) => r === 'TICOM' || r === 'ENCRIPTADO') ?? false;
     if (canSeeDecrypted && email.attachments?.length) {
       const encryptedIds = email.attachments
-        .filter((a) => a.filename.endsWith('.~00'))
+        .filter((a) => /\.\~\d{2}$/.test(a.filename))
         .map((a) => a.id);
       if (encryptedIds.length > 0) {
         const decryptedRows = await this.decryptedRepo.find({

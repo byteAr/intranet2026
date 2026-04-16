@@ -512,7 +512,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                         </button>
 
                         <!-- Zona desencriptado — solo para adjuntos .~00 -->
-                        @if (att.filename && att.filename.endsWith('.~00')) {
+                        @if (att.filename && /\.\~\d{2}$/.test(att.filename)) {
                           @if (isTicom) {
                             <label class="cursor-pointer" [title]="att.hasDecrypted ? 'Reemplazar desc.' : 'Subir desc.'">
                               <input type="file" class="hidden"

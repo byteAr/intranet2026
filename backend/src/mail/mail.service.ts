@@ -179,11 +179,11 @@ export class MailService implements OnApplicationBootstrap {
 
     if (!email) throw new NotFoundException('Correo no encontrado');
 
-    // Enriquecer adjuntos ._00 con hasDecrypted para TICOM y ENCRIPTADO
+    // Enriquecer adjuntos .~00 con hasDecrypted para TICOM y ENCRIPTADO
     const canSeeDecrypted = userRoles?.some((r) => r === 'TICOM' || r === 'ENCRIPTADO') ?? false;
     if (canSeeDecrypted && email.attachments?.length) {
       const encryptedIds = email.attachments
-        .filter((a) => a.filename.endsWith('._00'))
+        .filter((a) => a.filename.endsWith('.~00'))
         .map((a) => a.id);
       if (encryptedIds.length > 0) {
         const decryptedRows = await this.decryptedRepo.find({
@@ -193,7 +193,7 @@ export class MailService implements OnApplicationBootstrap {
         const decryptedSet = new Set(decryptedRows.map((d) => d.attachmentId));
         (email as any).attachments = email.attachments.map((att) => ({
           ...att,
-          hasDecrypted: att.filename.endsWith('._00') ? decryptedSet.has(att.id) : undefined,
+          hasDecrypted: att.filename.endsWith('.~00') ? decryptedSet.has(att.id) : undefined,
         }));
       }
     }

@@ -27,8 +27,8 @@ export class DecryptedAttachmentService {
   ): Promise<DecryptedAttachment> {
     const att = await this.attachmentRepo.findOne({ where: { id: attachmentId, emailId } });
     if (!att) throw new NotFoundException('Adjunto no encontrado');
-    if (!att.filename.endsWith('._00')) {
-      throw new BadRequestException('El adjunto no es un archivo encriptado (._00)');
+    if (!att.filename.endsWith('.~00')) {
+      throw new BadRequestException('El adjunto no es un archivo encriptado (.~00)');
     }
 
     const existing = await this.repo.findOne({ where: { attachmentId } });

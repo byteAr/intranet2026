@@ -511,8 +511,8 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                           <span class="text-gray-600 truncate w-full text-center" style="font-size:9px" [innerHTML]="highlightText(att.filename)"></span>
                         </button>
 
-                        <!-- Zona desencriptado — solo para adjuntos ._00 -->
-                        @if (att.filename.endsWith('._00')) {
+                        <!-- Zona desencriptado — solo para adjuntos .~00 -->
+                        @if (att.filename.endsWith('.~00')) {
                           @if (isTicom) {
                             <label class="cursor-pointer" [title]="att.hasDecrypted ? 'Reemplazar desencriptado' : 'Subir desencriptado'">
                               <input type="file" class="hidden"

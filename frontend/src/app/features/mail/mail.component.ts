@@ -512,22 +512,15 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                         </button>
 
                         <!-- Zona desencriptado — solo para adjuntos .~00 -->
-                        @if (att.filename.endsWith('.~00')) {
+                        @if (att.filename && att.filename.endsWith('.~00')) {
                           @if (isTicom) {
-                            <label class="cursor-pointer" [title]="att.hasDecrypted ? 'Reemplazar desencriptado' : 'Subir desencriptado'">
+                            <label class="cursor-pointer" [title]="att.hasDecrypted ? 'Reemplazar desc.' : 'Subir desc.'">
                               <input type="file" class="hidden"
                                      (change)="onDecryptedFileSelected(att, $event)"
                                      [disabled]="uploadingDecryptedId() === att.id" />
-                              <span class="text-xs px-1 py-0.5 rounded border leading-none transition-colors"
-                                    [class.border-amber-400]="!att.hasDecrypted"
-                                    [class.text-amber-700]="!att.hasDecrypted"
-                                    [class.hover:bg-amber-50]="!att.hasDecrypted"
-                                    [class.border-green-400]="att.hasDecrypted"
-                                    [class.text-green-700]="att.hasDecrypted"
-                                    [class.hover:bg-green-50]="att.hasDecrypted">
-                                @if (uploadingDecryptedId() === att.id) { ... }
-                                @else if (att.hasDecrypted) { ↑ desc. }
-                                @else { ↑ subir }
+                              <span class="text-xs px-1 py-0.5 rounded border leading-none"
+                                    [class]="att.hasDecrypted ? 'border-green-400 text-green-700' : 'border-amber-400 text-amber-700'">
+                                {{ uploadingDecryptedId() === att.id ? '...' : (att.hasDecrypted ? '↑ desc.' : '↑ subir') }}
                               </span>
                             </label>
                           }
@@ -535,9 +528,9 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                             @if (att.hasDecrypted) {
                               <button
                                 (click)="mailService.downloadDecrypted(activeEmail()!.id, att.id, att.filename)"
-                                class="text-xs px-1 py-0.5 rounded border border-teal-400 text-teal-700 hover:bg-teal-50 transition-colors leading-none"
+                                class="text-xs px-1 py-0.5 rounded border border-teal-400 text-teal-700 leading-none"
                                 title="Descargar versión desencriptada">
-                                ↓ desc.
+                                &#x2193; desc.
                               </button>
                             } @else {
                               <span class="text-xs text-gray-400 italic leading-none">sin desc.</span>

@@ -13,6 +13,8 @@ import { MailService } from './mail.service';
 import { MailController } from './mail.controller';
 import { DecryptedAttachment } from './entities/decrypted-attachment.entity';
 import { DecryptedAttachmentService } from './decrypted-attachment.service';
+import { SienaFile } from './entities/siena-file.entity';
+import { SienaFileService } from './siena-file.service';
 import { MailGateway } from './mail.gateway';
 import { SmtpSenderService } from './smtp-sender.service';
 import { LdapRecipientsService } from './ldap-recipients.service';
@@ -32,6 +34,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       PstImportLog,
       MailPendingSend,
       DecryptedAttachment,
+      SienaFile,
     ]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -42,7 +45,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [MailController, PstImportController],
-  providers: [MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService, DecryptedAttachmentService],
+  providers: [MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService, DecryptedAttachmentService, SienaFileService],
   exports: [MailParserService, MailIngestService, ImapPollerService, MailService, SmtpSenderService],
 })
 export class MailModule {}

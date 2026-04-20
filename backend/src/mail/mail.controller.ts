@@ -25,6 +25,7 @@ import { SmtpSenderService } from './smtp-sender.service';
 import { MailIngestService } from './mail-ingest.service';
 import { LdapRecipientsService } from './ldap-recipients.service';
 import { DecryptedAttachmentService } from './decrypted-attachment.service';
+import { SienaFileService } from './siena-file.service';
 import { BridgeSecretGuard } from './guards/bridge-secret.guard';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 import { SendEmailDto } from './dto/send-email.dto';
@@ -40,6 +41,7 @@ export class MailController {
     private readonly mailIngestService: MailIngestService,
     private readonly ldapRecipientsService: LdapRecipientsService,
     private readonly decryptedService: DecryptedAttachmentService,
+    private readonly sienaFileService: SienaFileService,
   ) {}
 
   @Get('unread-counts')
@@ -145,6 +147,55 @@ export class MailController {
     @Param('aid') aid: string,
   ) {
     await this.decryptedService.remove(id, aid);
+    return { ok: true };
+  }
+
+  @Post('emails/:id/siena-files')
+  @Roles('TICOM')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          SienaFileService.ensureStorageDir();
+          cb(null, SienaFileService.getStoragePath());
+        },
+        filename: (_req, file, cb) => {
+          const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+          cb(null, `${randomUUID()}_${safe}`);
+        },
+      }),
+    }),
+  )
+  async uploadSienaFile(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: any,
+  ) {
+    if (!file) throw new BadRequestException('Se requiere un archivo');
+    const f = await this.sienaFileService.upload(
+      id, file, req.user.id, req.user.displayName ?? req.user.username,
+    );
+    return { id: f.id, filename: f.filename, size: f.size, uploadedAt: f.uploadedAt, uploadedByName: f.uploadedByName };
+  }
+
+  @Get('emails/:id/siena-files/:fid')
+  @Roles('ENCRIPTADO')
+  async downloadSienaFile(
+    @Param('id') id: string,
+    @Param('fid') fid: string,
+    @Res() res: Response,
+  ) {
+    const f = await this.sienaFileService.get(id, fid);
+    res.download(f.storagePath, f.filename);
+  }
+
+  @Delete('emails/:id/siena-files/:fid')
+  @Roles('TICOM')
+  async deleteSienaFile(
+    @Param('id') id: string,
+    @Param('fid') fid: string,
+  ) {
+    await this.sienaFileService.remove(id, fid);
     return { ok: true };
   }
 

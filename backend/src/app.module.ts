@@ -37,6 +37,7 @@ import { EmailReference } from './mail/entities/email-reference.entity';
 import { PstImportLog } from './mail/entities/pst-import-log.entity';
 import { MailPendingSend } from './mail/entities/mail-pending-send.entity';
 import { DecryptedAttachment } from './mail/entities/decrypted-attachment.entity';
+import { SienaFile } from './mail/entities/siena-file.entity';
 import { DraftEmail } from './draft-mail/entities/draft-email.entity';
 import { DraftEmailAttachment } from './draft-mail/entities/draft-email-attachment.entity';
 import { DraftMailAuthorizer } from './draft-mail/entities/draft-mail-authorizer.entity';
@@ -58,7 +59,7 @@ import { DraftMailAuthorizer } from './draft-mail/entities/draft-mail-authorizer
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, Department, AdminAuditLog, GroupPermission],
+        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, Department, AdminAuditLog, GroupPermission],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),

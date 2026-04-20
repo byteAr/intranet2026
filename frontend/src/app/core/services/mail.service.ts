@@ -6,6 +6,14 @@ import { AuthService } from './auth.service';
 
 export type MailFolder = 'informativos' | 'ejecutivos' | 'redgen' | 'tx';
 
+export interface SienaFile {
+  id: string;
+  filename: string;
+  size: number;
+  uploadedAt: string;
+  uploadedByName: string;
+}
+
 export interface MailAttachment {
   id: string;
   filename: string;
@@ -42,6 +50,7 @@ export interface Email {
   attachmentCount?: number;
   readStatuses?: MailReadStatus[];
   outgoingRefs?: MailOutgoingRef[];
+  sienaFiles?: SienaFile[];
 }
 
 export interface EmailListResponse {
@@ -309,6 +318,34 @@ export class MailService {
 
   deleteDecrypted(emailId: string, attachmentId: string): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted`);
+  }
+
+  uploadSienaFile(emailId: string, file: File): Observable<SienaFile> {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    return this.http.post<SienaFile>(`/api/mail/emails/${emailId}/siena-files`, fd);
+  }
+
+  downloadSienaFile(emailId: string, fileId: string, filename: string): void {
+    this.http
+      .get(`/api/mail/emails/${emailId}/siena-files/${fileId}`, { responseType: 'blob' })
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        },
+        error: () => console.error('No se pudo descargar el archivo SIENA'),
+      });
+  }
+
+  deleteSienaFile(emailId: string, fileId: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/mail/emails/${emailId}/siena-files/${fileId}`);
   }
 
 }

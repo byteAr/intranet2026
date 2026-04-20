@@ -13,6 +13,7 @@ import {
   MailService,
   Email,
   MailFolder,
+  SienaFile,
   SendEmailDto,
   MailRecipient,
   MailUnreadCounts,
@@ -544,6 +545,53 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               }
             </div>
 
+            <!-- Archivos SIENA — solo para TICOM y ENCRIPTADO en emails con SOFTWARE SIENA -->
+            @if (activeEmail()!.sienaFiles !== undefined) {
+              <div class="mt-3 pt-3 border-t border-gray-100">
+                <p class="text-xs font-semibold text-gray-500 mb-2">Archivos SIENA desencriptados</p>
+
+                <!-- Lista de archivos subidos -->
+                @if (activeEmail()!.sienaFiles!.length > 0) {
+                  <div class="flex flex-col gap-1 mb-2">
+                    @for (sf of activeEmail()!.sienaFiles!; track sf.id) {
+                      <div class="flex items-center gap-2 text-xs">
+                        @if (isEncriptado) {
+                          <button
+                            (click)="mailService.downloadSienaFile(activeEmail()!.id, sf.id, sf.filename)"
+                            class="text-teal-700 hover:underline truncate max-w-48 text-left"
+                            [title]="sf.filename">
+                            {{ sf.filename }}
+                          </button>
+                        } @else {
+                          <span class="text-gray-600 truncate max-w-48" [title]="sf.filename">{{ sf.filename }}</span>
+                        }
+                        <span class="text-gray-400 shrink-0">{{ formatSize(sf.size) }}</span>
+                        @if (isTicom) {
+                          <button (click)="onSienaFileDelete(sf.id)" class="text-red-400 hover:text-red-600 shrink-0" title="Eliminar">&#x2715;</button>
+                        }
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  @if (isEncriptado && !isTicom) {
+                    <p class="text-xs text-gray-400 italic mb-2">Sin archivos desencriptados aún</p>
+                  }
+                }
+
+                <!-- Botón subir (solo TICOM) -->
+                @if (isTicom) {
+                  <label class="cursor-pointer inline-block">
+                    <input type="file" class="hidden"
+                           (change)="onSienaFileSelected($event)"
+                           [disabled]="uploadingSiena()" />
+                    <span class="text-xs px-2 py-1 rounded border border-blue-400 text-blue-700">
+                      {{ uploadingSiena() ? 'Subiendo...' : '+ Subir archivo SIENA' }}
+                    </span>
+                  </label>
+                }
+              </div>
+            }
+
             <!-- Body — codes highlighted green (exists) / red (not found) -->
             <div (click)="onBodyCodeClick($event)"
                  (mouseup)="onBodyMouseUp($event)"
@@ -663,6 +711,7 @@ export class MailComponent implements OnInit {
   private suppressTooltip = false;
 
   readonly uploadingDecryptedId = signal<string | null>(null);
+  readonly uploadingSiena = signal(false);
 
   get isEncriptado(): boolean {
     return this.mailService.isEncriptado;
@@ -690,6 +739,32 @@ export class MailComponent implements OnInit {
     const termRe = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
     const re = new RegExp(`(${termRe})`, 'gi');
     return escaped.replace(re, '<mark style="background:#ffff00;padding:0 1px;border-radius:2px;color:inherit">$1</mark>');
+  }
+
+  onSienaFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const emailId = this.activeEmail()!.id;
+    this.uploadingSiena.set(true);
+    this.mailService.uploadSienaFile(emailId, file).subscribe({
+      next: (newFile) => {
+        this.uploadingSiena.set(false);
+        this.activeEmail.update((e) => e ? { ...e, sienaFiles: [...(e.sienaFiles ?? []), newFile] } : e);
+      },
+      error: () => this.uploadingSiena.set(false),
+    });
+    input.value = '';
+  }
+
+  onSienaFileDelete(fileId: string): void {
+    const emailId = this.activeEmail()!.id;
+    this.mailService.deleteSienaFile(emailId, fileId).subscribe({
+      next: () => {
+        this.activeEmail.update((e) => e ? { ...e, sienaFiles: (e.sienaFiles ?? []).filter((f) => f.id !== fileId) } : e);
+      },
+      error: () => {},
+    });
   }
 
   onDecryptedFileSelected(att: { id: string; filename: string }, event: Event): void {

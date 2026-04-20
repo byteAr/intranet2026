@@ -6,6 +6,8 @@ import { Attachment } from './entities/attachment.entity';
 import { EmailReadStatus } from './entities/email-read-status.entity';
 import { EmailReference } from './entities/email-reference.entity';
 import { DecryptedAttachment } from './entities/decrypted-attachment.entity';
+import { SienaFile } from './entities/siena-file.entity';
+import { SienaFileService } from './siena-file.service';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 
 @Injectable()
@@ -22,6 +24,8 @@ export class MailService implements OnApplicationBootstrap {
     private readonly referenceRepo: Repository<EmailReference>,
     @InjectRepository(DecryptedAttachment)
     private readonly decryptedRepo: Repository<DecryptedAttachment>,
+    @InjectRepository(SienaFile)
+    private readonly sienaRepo: Repository<SienaFile>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -196,6 +200,14 @@ export class MailService implements OnApplicationBootstrap {
           hasDecrypted: att.filename.endsWith('.~00') ? decryptedSet.has(att.id) : undefined,
         }));
       }
+    }
+
+    // Incluir archivos SIENA para TICOM y ENCRIPTADO si el email es de tipo SIENA
+    if (canSeeDecrypted && SienaFileService.isSienaBody(email.bodyText)) {
+      (email as any).sienaFiles = await this.sienaRepo.find({
+        where: { emailId: id },
+        order: { uploadedAt: 'ASC' },
+      });
     }
 
     return email;

@@ -500,16 +500,16 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                       <div class="flex flex-col items-center gap-1">
                         <button
                           (click)="mailService.downloadAttachment(activeEmail()!.id, att.id, att.filename)"
-                          class="flex flex-col items-center gap-0.5 p-1.5 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors w-11"
+                          class="flex flex-col items-center gap-1 p-2 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors w-14"
                           [title]="att.filename + ' — ' + formatSize(att.size)">
                           <!-- File type icon -->
-                          <div class="w-5 h-5 rounded flex items-center justify-center font-bold leading-none"
-                               style="font-size:7px"
+                          <div class="w-8 h-8 rounded flex items-center justify-center font-bold leading-none"
+                               style="font-size:9px"
                                [style.background]="fileIcon(att.filename).bg"
                                [style.color]="fileIcon(att.filename).fg">
                             {{ fileIcon(att.filename).char }}
                           </div>
-                          <span class="text-gray-600 truncate w-full text-center" style="font-size:9px" [innerHTML]="highlightText(att.filename)"></span>
+                          <span class="text-gray-600 truncate w-full text-center" style="font-size:10px" [innerHTML]="highlightText(att.filename)"></span>
                         </button>
 
                         <!-- Zona desencriptado — solo para adjuntos .~00 -->

@@ -43,16 +43,13 @@ export class BroadcastDmService {
   ): Promise<void> {
     const pending = await this.bcRepo
       .createQueryBuilder('bc')
-      .where((qb) => {
-        const sub = qb
-          .subQuery()
-          .select('d.broadcastId')
-          .from(BroadcastDelivery, 'd')
-          .where('d.userId = :userId')
-          .getQuery();
-        return `bc.id::text NOT IN ${sub}`;
-      })
-      .setParameter('userId', userId)
+      .leftJoin(
+        BroadcastDelivery,
+        'd',
+        'd."broadcastId"::text = bc.id::text AND d."userId" = :userId',
+        { userId },
+      )
+      .where('d.id IS NULL')
       .orderBy('bc.createdAt', 'ASC')
       .getMany();
 

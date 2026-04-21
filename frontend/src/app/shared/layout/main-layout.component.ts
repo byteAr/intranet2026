@@ -30,7 +30,7 @@ import { PermissionsService } from '../../core/services/permissions.service';
         <div class="relative flex items-center justify-center px-4 py-3 flex-shrink-0 border-b border-gray-200 dark:border-zinc-800"
              style="min-height: 5rem">
           @if (!collapsed()) {
-            <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'" class="h-24 object-contain" alt="Diredtos" />
+            <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'" class="h-24 object-contain" [style.mix-blend-mode]="themeService.isDark() ? 'screen' : 'normal'" alt="Diredtos" />
           }
           <button (click)="collapsed.set(!collapsed())"
             class="absolute right-3 p-1.5 rounded-md transition-colors flex-shrink-0 text-gray-500 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800"

@@ -46,7 +46,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
 
         <!-- Header -->
         <div class="text-center">
-          <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'" class="mx-auto h-36 object-contain" alt="Diredtos Intranet" />
+          <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'" class="mx-auto h-36 object-contain" [style.mix-blend-mode]="themeService.isDark() ? 'screen' : 'normal'" alt="Diredtos Intranet" />
           @if (step() === 'login') {
             <p class="mt-2 text-sm text-gray-600 dark:text-zinc-400">Inicie sesión con el mismo usuario y contraseña que utiliza para ingresar a la PC</p>
           } @else if (step() === 'forgot-username') {

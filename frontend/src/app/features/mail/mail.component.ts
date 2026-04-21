@@ -651,7 +651,7 @@ export class MailComponent implements OnInit {
   readonly mailService = inject(MailService);
   private readonly sanitizer = inject(DomSanitizer);
 
-  readonly folders: MailFolder[] = ['informativos', 'ejecutivos', 'redgen', 'tx'];
+  readonly folders: MailFolder[] = ['ejecutivos', 'informativos', 'redgen', 'tx'];
 
   readonly activeFolder = signal<MailFolder | null>(null);
   readonly currentPage = signal(1);

@@ -93,10 +93,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log('[Chat] presence now:', Array.from(this.presence.keys()));
 
     try {
-      // Entregar broadcasts pendientes antes de cargar el historial
-      await this.broadcastDmService.deliverPendingToUser(userId, this.chatService, (msg) => {
-        socket.emit('message:new', msg);
-      });
+      // Entregar broadcasts pendientes (aislado para no bloquear el historial si falla)
+      try {
+        await this.broadcastDmService.deliverPendingToUser(userId, this.chatService, (msg) => {
+          socket.emit('message:new', msg);
+        });
+      } catch (err) {
+        console.error('[Chat] deliverPendingToUser failed:', err);
+      }
 
       // Run all initial queries in parallel for faster load
       const [unreadSummary, history, contactIds, lastMessages] = await Promise.all([

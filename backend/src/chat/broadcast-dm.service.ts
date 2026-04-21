@@ -57,6 +57,16 @@ export class BroadcastDmService {
       .getMany();
 
     for (const bc of pending) {
+      try {
+        // Insertar delivery primero — si falla por unique constraint,
+        // significa que otro proceso ya entregó este broadcast a este usuario
+        await this.deliveryRepo.save(
+          this.deliveryRepo.create({ broadcastId: bc.id, userId }),
+        );
+      } catch {
+        // Unique constraint violation: ya entregado, saltar
+        continue;
+      }
       const msg = await chatService.saveMessage({
         senderId: bc.senderId,
         senderName: bc.senderName,
@@ -68,9 +78,6 @@ export class BroadcastDmService {
         attachmentSize: bc.attachmentSize ?? undefined,
         attachmentMimeType: bc.attachmentMimeType ?? undefined,
       });
-      await this.deliveryRepo.save(
-        this.deliveryRepo.create({ broadcastId: bc.id, userId }),
-      );
       emitFn?.(msg);
     }
   }

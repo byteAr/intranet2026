@@ -50,7 +50,7 @@ export class BroadcastDmService {
           .from(BroadcastDelivery, 'd')
           .where('d.userId = :userId')
           .getQuery();
-        return `bc.id NOT IN ${sub}`;
+        return `bc.id::text NOT IN ${sub}`;
       })
       .setParameter('userId', userId)
       .orderBy('bc.createdAt', 'ASC')

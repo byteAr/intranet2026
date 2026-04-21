@@ -4,7 +4,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Unique, Index
 @Unique(['broadcastId', 'userId'])
 export class BroadcastDelivery {
   @PrimaryGeneratedColumn('uuid') id: string;
-  @Column() broadcastId: string;
+  @Column({ type: 'uuid' }) broadcastId: string;
   @Index() @Column() userId: string;
   @CreateDateColumn({ type: 'timestamptz' }) deliveredAt: Date;
 }

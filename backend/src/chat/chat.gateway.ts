@@ -251,4 +251,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!userData) return;
     userData.socketIds.forEach((id) => this.server.to(id).emit(event, data));
   }
+
+  emitDmToUser(userId: string, msg: unknown): void {
+    this.emitToUser(userId, 'message:new', msg);
+  }
+
+  getSenderAvatar(userId: string): string | undefined {
+    return this.presence.get(userId)?.avatar;
+  }
 }

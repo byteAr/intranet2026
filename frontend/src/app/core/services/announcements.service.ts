@@ -15,8 +15,11 @@ export class AnnouncementsService {
   private readonly authService = inject(AuthService);
   private readonly http = inject(HttpClient);
   private socket: Socket | null = null;
+  private dismissTimer: ReturnType<typeof setTimeout> | null = null;
+  private fadeTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly current = signal<Announcement | null>(null);
+  readonly fading = signal(false);
 
   constructor() {
     this.authService.onBeforeLogout(() => this.disconnect());
@@ -31,18 +34,33 @@ export class AnnouncementsService {
       transports: ['websocket', 'polling'],
     });
     this.socket.on('announcement', (data: Announcement) => {
-      this.current.set(data);
+      this.showAnnouncement(data);
     });
   }
 
+  private showAnnouncement(data: Announcement): void {
+    if (this.fadeTimer) clearTimeout(this.fadeTimer);
+    if (this.dismissTimer) clearTimeout(this.dismissTimer);
+    this.fading.set(false);
+    this.current.set(data);
+    this.fadeTimer = setTimeout(() => this.fading.set(true), 9500);
+    this.dismissTimer = setTimeout(() => this.current.set(null), 10000);
+  }
+
   disconnect(): void {
+    if (this.fadeTimer) clearTimeout(this.fadeTimer);
+    if (this.dismissTimer) clearTimeout(this.dismissTimer);
     this.socket?.disconnect();
     this.socket = null;
     this.current.set(null);
+    this.fading.set(false);
   }
 
   dismiss(): void {
-    this.current.set(null);
+    if (this.fadeTimer) clearTimeout(this.fadeTimer);
+    if (this.dismissTimer) clearTimeout(this.dismissTimer);
+    this.fading.set(true);
+    setTimeout(() => { this.current.set(null); this.fading.set(false); }, 500);
   }
 
   send(message: string): Observable<{ ok: boolean }> {

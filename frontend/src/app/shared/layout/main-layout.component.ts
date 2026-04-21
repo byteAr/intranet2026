@@ -14,6 +14,7 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { PermissionsService } from '../../core/services/permissions.service';
 import { AnnouncementsService } from '../../core/services/announcements.service';
+import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-main-layout',
@@ -244,6 +245,16 @@ import { AnnouncementsService } from '../../core/services/announcements.service'
             </div>
           }
           @if (isMlopez()) {
+            <button (click)="showBroadcastDmModal.set(true)"
+              class="flex items-center w-full px-3 py-2 mb-1 text-sm rounded-md transition-colors text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20">
+              <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              @if (!collapsed()) { <span class="ml-2 font-medium">Mensaje a todos</span> }
+            </button>
+          }
+          @if (isMlopez()) {
             <button (click)="showAnnouncementModal.set(true)"
               class="flex items-center w-full px-3 py-2 mb-1 text-sm rounded-md transition-colors text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20">
               <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -443,7 +454,8 @@ import { AnnouncementsService } from '../../core/services/announcements.service'
 
     <!-- ── Announcement banner (todos los usuarios) ─── -->
     @if (announcementsService.current(); as ann) {
-      <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[99998] w-full max-w-xl px-4">
+      <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[99998] w-full max-w-xl px-4 transition-opacity duration-500"
+           [class.opacity-0]="announcementsService.fading()" [class.pointer-events-none]="announcementsService.fading()">
         <div class="bg-amber-500 text-white rounded-2xl shadow-2xl px-5 py-4 flex items-start gap-3">
           <div class="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -460,6 +472,60 @@ import { AnnouncementsService } from '../../core/services/announcements.service'
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
+        </div>
+      </div>
+    }
+
+    <!-- ── Broadcast DM modal (solo mlopez) ────────────── -->
+    @if (showBroadcastDmModal()) {
+      <div class="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+           (click)="showBroadcastDmModal.set(false)">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-zinc-700"
+             (click)="$event.stopPropagation()">
+          <div class="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-zinc-700 flex items-center gap-3">
+            <div class="h-10 w-10 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center flex-shrink-0">
+              <svg class="h-5 w-5 text-teal-600 dark:text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-base font-semibold text-gray-900 dark:text-zinc-100">Mensaje a todos</h2>
+              <p class="text-xs text-gray-400 dark:text-zinc-500">Llega como DM a cada usuario del sistema</p>
+            </div>
+          </div>
+          <div class="px-6 py-4 space-y-3">
+            <textarea
+              [value]="broadcastDmText()"
+              (input)="broadcastDmText.set($any($event.target).value)"
+              placeholder="Escribí el mensaje..."
+              rows="4"
+              class="w-full rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder-gray-400 dark:placeholder-zinc-500">
+            </textarea>
+            <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-500 dark:text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+              <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              <span class="truncate">{{ broadcastDmFile() ? broadcastDmFile()!.name : 'Adjuntar archivo (imagen, PDF, DOC, XLS)' }}</span>
+              <input type="file" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                (change)="onBroadcastDmFileSelected($event)" />
+            </label>
+            @if (broadcastDmFile()) {
+              <button (click)="broadcastDmFile.set(null)" class="text-xs text-red-400 hover:text-red-600">Quitar adjunto</button>
+            }
+          </div>
+          <div class="px-6 pb-6 flex gap-3">
+            <button (click)="showBroadcastDmModal.set(false)"
+              class="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+              Cancelar
+            </button>
+            <button (click)="sendBroadcastDm()"
+              [disabled]="(!broadcastDmText().trim() && !broadcastDmFile()) || sendingBroadcastDm()"
+              class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 transition-colors">
+              {{ sendingBroadcastDm() ? 'Enviando...' : 'Enviar a todos' }}
+            </button>
+          </div>
         </div>
       </div>
     }
@@ -631,6 +697,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly permissionsService = inject(PermissionsService);
   private readonly pushService = inject(PushNotificationService);
   readonly announcementsService = inject(AnnouncementsService);
+  private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -680,6 +747,36 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly showAnnouncementModal = signal(false);
   readonly announcementText = signal('');
   readonly sendingAnnouncement = signal(false);
+
+  // Broadcast DM
+  readonly showBroadcastDmModal = signal(false);
+  readonly broadcastDmText = signal('');
+  readonly broadcastDmFile = signal<File | null>(null);
+  readonly sendingBroadcastDm = signal(false);
+
+  onBroadcastDmFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.broadcastDmFile.set(input.files?.[0] ?? null);
+  }
+
+  sendBroadcastDm(): void {
+    const content = this.broadcastDmText().trim();
+    const file = this.broadcastDmFile();
+    if ((!content && !file) || this.sendingBroadcastDm()) return;
+    this.sendingBroadcastDm.set(true);
+    const fd = new FormData();
+    if (content) fd.append('content', content);
+    if (file) fd.append('file', file, file.name);
+    this.http.post<{ ok: boolean; sent: number }>('/api/chat/broadcast-dm', fd).subscribe({
+      next: () => {
+        this.broadcastDmText.set('');
+        this.broadcastDmFile.set(null);
+        this.showBroadcastDmModal.set(false);
+        this.sendingBroadcastDm.set(false);
+      },
+      error: () => this.sendingBroadcastDm.set(false),
+    });
+  }
 
   sendAnnouncement(): void {
     const msg = this.announcementText().trim();

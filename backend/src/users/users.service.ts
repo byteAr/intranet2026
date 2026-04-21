@@ -66,6 +66,15 @@ export class UsersService {
     return this.userRepo.findOne({ where: { id } });
   }
 
+  findAllActiveIds(excludeId?: string): Promise<{ id: string }[]> {
+    return this.userRepo
+      .createQueryBuilder('u')
+      .select('u.id', 'id')
+      .where('u.isActive = true')
+      .andWhere(excludeId ? 'u.id != :excludeId' : '1=1', { excludeId })
+      .getRawMany<{ id: string }>();
+  }
+
   findByUsername(username: string): Promise<User | null> {
     return this.userRepo.findOne({ where: { username } });
   }

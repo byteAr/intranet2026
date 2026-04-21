@@ -11,6 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ChatService } from './chat.service';
+import { BroadcastDmService } from './broadcast-dm.service';
 import { UsersService } from '../users/users.service';
 import { PushService } from '../push/push.service';
 
@@ -36,6 +37,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   constructor(
     private readonly chatService: ChatService,
+    private readonly broadcastDmService: BroadcastDmService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
@@ -91,6 +93,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log('[Chat] presence now:', Array.from(this.presence.keys()));
 
     try {
+      // Entregar broadcasts pendientes antes de cargar el historial
+      await this.broadcastDmService.deliverPendingToUser(userId, this.chatService, (msg) => {
+        socket.emit('message:new', msg);
+      });
+
       // Run all initial queries in parallel for faster load
       const [unreadSummary, history, contactIds, lastMessages] = await Promise.all([
         this.chatService.getUnreadSummary(userId),

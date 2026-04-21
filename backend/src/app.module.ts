@@ -27,6 +27,8 @@ import { Department } from './admin/entities/department.entity';
 import { AdminAuditLog } from './admin/entities/admin-audit-log.entity';
 import { GroupPermission } from './admin/entities/group-permission.entity';
 import { Message } from './chat/entities/message.entity';
+import { BroadcastMessage } from './chat/entities/broadcast-message.entity';
+import { BroadcastDelivery } from './chat/entities/broadcast-delivery.entity';
 import { Incident } from './incidents/entities/incident.entity';
 import { Reservation } from './reservations/entities/reservation.entity';
 import { BlockedPeriod } from './reservations/entities/blocked-period.entity';
@@ -60,7 +62,7 @@ import { DraftMailAuthorizer } from './draft-mail/entities/draft-mail-authorizer
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, Department, AdminAuditLog, GroupPermission],
+        entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, Department, AdminAuditLog, GroupPermission],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),

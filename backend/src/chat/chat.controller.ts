@@ -22,6 +22,7 @@ import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
 import { ChatService } from './chat.service';
+import { BroadcastDmService } from './broadcast-dm.service';
 import { ChatGateway } from './chat.gateway';
 import { UsersService } from '../users/users.service';
 
@@ -43,6 +44,7 @@ const ALLOWED_TYPES = new Set([
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,
+    private readonly broadcastDmService: BroadcastDmService,
     private readonly chatGateway: ChatGateway,
     private readonly usersService: UsersService,
   ) {}
@@ -75,28 +77,25 @@ export class ChatController {
     if (req.user.username !== 'mlopez') throw new ForbiddenException('Sin permiso');
     if (!content?.trim() && !file) throw new BadRequestException('Se requiere contenido o archivo');
 
+    // 1. Guardar el broadcast en DB — garantiza entrega a futuros usuarios
+    await this.broadcastDmService.create({
+      senderId: req.user.id,
+      senderName: req.user.displayName ?? req.user.username,
+      senderAvatar: this.chatGateway.getSenderAvatar(req.user.id),
+      content: content?.trim() ?? '',
+      attachmentUrl: file ? `/api/chat/files/${file.filename}` : undefined,
+      attachmentName: file?.originalname,
+      attachmentSize: file?.size,
+      attachmentMimeType: file?.mimetype,
+    });
+
+    // 2. Entregar inmediatamente a todos los usuarios ya en DB
     const recipients = await this.usersService.findAllActiveIds(req.user.id);
-    const senderAvatar = this.chatGateway.getSenderAvatar(req.user.id);
-
-    const attachmentUrl = file ? `/api/chat/files/${file.filename}` : undefined;
-    const attachmentName = file?.originalname;
-    const attachmentSize = file?.size;
-    const attachmentMimeType = file?.mimetype;
-
     for (const { id: recipientId } of recipients) {
-      const msg = await this.chatService.saveMessage({
-        senderId: req.user.id,
-        senderName: req.user.displayName ?? req.user.username,
-        senderAvatar,
-        recipientId,
-        content: content?.trim() ?? '',
-        attachmentUrl,
-        attachmentName,
-        attachmentSize,
-        attachmentMimeType,
+      await this.broadcastDmService.deliverPendingToUser(recipientId, this.chatService, (msg) => {
+        this.chatGateway.emitDmToUser(recipientId, msg);
+        this.chatGateway.emitDmToUser(req.user.id, msg);
       });
-      this.chatGateway.emitDmToUser(recipientId, msg);
-      this.chatGateway.emitDmToUser(req.user.id, msg);
     }
 
     return { ok: true, sent: recipients.length };

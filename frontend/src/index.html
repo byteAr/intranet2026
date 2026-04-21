@@ -5,7 +5,9 @@
   <title>Intranet Diredtos</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/png" href="assets/images/diredtosintranetlogo.png">
+  <link rel="icon" type="image/png" href="assets/images/diredtosintranetlogo.png" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/png" href="assets/images/diredtosintranetlogodark.png" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="icons/icon-192x192.png">
   <link rel="manifest" href="manifest.webmanifest">
   <style>
     #splash {
@@ -30,6 +32,9 @@
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.75; transform: scale(0.97); }
+    }
+    @media (prefers-color-scheme: dark) {
+      #splash { background: #0f172a; }
     }
   </style>
 </head>

@@ -13,6 +13,7 @@ import { MailService } from '../../core/services/mail.service';
 import { DraftMailService } from '../../core/services/draft-mail.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { PermissionsService } from '../../core/services/permissions.service';
+import { AnnouncementsService } from '../../core/services/announcements.service';
 
 @Component({
   selector: 'app-main-layout',
@@ -242,6 +243,16 @@ import { PermissionsService } from '../../core/services/permissions.service';
               </div>
             </div>
           }
+          @if (isMlopez()) {
+            <button (click)="showAnnouncementModal.set(true)"
+              class="flex items-center w-full px-3 py-2 mb-1 text-sm rounded-md transition-colors text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20">
+              <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+              </svg>
+              @if (!collapsed()) { <span class="ml-2 font-medium">Enviar anuncio</span> }
+            </button>
+          }
           <button (click)="authService.logout()"
             class="flex items-center w-full px-3 py-2 text-sm rounded-md transition-colors text-gray-500 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-gray-900 dark:hover:text-white">
             <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -430,6 +441,71 @@ import { PermissionsService } from '../../core/services/permissions.service';
       </div>
     }
 
+    <!-- ── Announcement banner (todos los usuarios) ─── -->
+    @if (announcementsService.current(); as ann) {
+      <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[99998] w-full max-w-xl px-4">
+        <div class="bg-amber-500 text-white rounded-2xl shadow-2xl px-5 py-4 flex items-start gap-3">
+          <div class="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-wide opacity-80 mb-0.5">Anuncio de {{ ann.senderName }}</p>
+            <p class="text-sm font-medium leading-snug">{{ ann.message }}</p>
+          </div>
+          <button (click)="announcementsService.dismiss()" class="text-white/70 hover:text-white flex-shrink-0 mt-0.5">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ── Announcement send modal (solo mlopez) ─────── -->
+    @if (showAnnouncementModal()) {
+      <div class="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+           (click)="showAnnouncementModal.set(false)">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-zinc-700"
+             (click)="$event.stopPropagation()">
+          <div class="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-zinc-700 flex items-center gap-3">
+            <div class="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+              <svg class="h-5 w-5 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-base font-semibold text-gray-900 dark:text-zinc-100">Enviar anuncio</h2>
+              <p class="text-xs text-gray-400 dark:text-zinc-500">Visible para todos los usuarios conectados</p>
+            </div>
+          </div>
+          <div class="px-6 py-4">
+            <textarea
+              [value]="announcementText()"
+              (input)="announcementText.set($any($event.target).value)"
+              placeholder="Escribí el mensaje del anuncio..."
+              rows="4"
+              class="w-full rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder-gray-400 dark:placeholder-zinc-500">
+            </textarea>
+          </div>
+          <div class="px-6 pb-6 flex gap-3">
+            <button (click)="showAnnouncementModal.set(false)"
+              class="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+              Cancelar
+            </button>
+            <button (click)="sendAnnouncement()"
+              [disabled]="!announcementText().trim() || sendingAnnouncement()"
+              class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 transition-colors">
+              {{ sendingAnnouncement() ? 'Enviando...' : 'Enviar a todos' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
     <!-- ── Profile completion modal ─────────────────── -->
     @if (showProfileModal()) {
       <div class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -554,6 +630,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly themeService = inject(ThemeService);
   readonly permissionsService = inject(PermissionsService);
   private readonly pushService = inject(PushNotificationService);
+  readonly announcementsService = inject(AnnouncementsService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -597,6 +674,26 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly isSuperApprover = computed(() =>
     ['mlopez', 'sbatista'].includes(this.authService.currentUser()?.username?.toLowerCase() ?? '')
   );
+  readonly isMlopez = computed(() => this.authService.currentUser()?.username === 'mlopez');
+
+  // Announcements
+  readonly showAnnouncementModal = signal(false);
+  readonly announcementText = signal('');
+  readonly sendingAnnouncement = signal(false);
+
+  sendAnnouncement(): void {
+    const msg = this.announcementText().trim();
+    if (!msg || this.sendingAnnouncement()) return;
+    this.sendingAnnouncement.set(true);
+    this.announcementsService.send(msg).subscribe({
+      next: () => {
+        this.announcementText.set('');
+        this.showAnnouncementModal.set(false);
+        this.sendingAnnouncement.set(false);
+      },
+      error: () => this.sendingAnnouncement.set(false),
+    });
+  }
 
   readonly popupNewConvOpen = signal(false);
   readonly popupSearchResults = signal<UserSearchResult[]>([]);
@@ -633,6 +730,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.incidentsService.loadIncidents(this.incidentsService.isTicom ? false : true);
     this.reservationsService.connect();
     this.reservationsService.loadReservations(this.reservationsService.hasPrivilegedView ? false : true);
+    this.announcementsService.connect();
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
     this.isOnMailPage.set(this.router.url === '/correo');
     this.routerSub = this.router.events

@@ -19,6 +19,7 @@ import { PushModule } from './push/push.module';
 import { MailModule } from './mail/mail.module';
 import { DraftMailModule } from './draft-mail/draft-mail.module';
 import { AdminModule } from './admin/admin.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { User } from './users/entities/user.entity';
@@ -80,6 +81,7 @@ import { DraftMailAuthorizer } from './draft-mail/entities/draft-mail-authorizer
     MailModule,
     DraftMailModule,
     AdminModule,
+    AnnouncementsModule,
   ],
   providers: [
     // Apply JwtAuthGuard globally; routes marked @Public() bypass it

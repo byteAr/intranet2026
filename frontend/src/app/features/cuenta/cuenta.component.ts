@@ -216,30 +216,45 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Jerarquía</label>
-              <select [(ngModel)]="selectedRank"
-                class="w-full rounded-lg border-gray-300 shadow-sm text-sm focus:ring-teal-500 focus:border-teal-500">
-                <option value="">— Sin especificar —</option>
-                <optgroup label="Oficiales">
-                  <option value="SUBALF">SUBALFEREZ</option>
-                  <option value="ALF">ALFEREZ</option>
-                  <option value="1ER ALF">PRIMER ALFEREZ</option>
-                  <option value="2DO CTE">SEGUNDO COMANDANTE</option>
-                  <option value="CTE">COMANDANTE</option>
-                  <option value="CTE PR">COMANDANTE PRINCIPAL</option>
-                  <option value="CTE MY">COMANDANTE MAYOR</option>
-                  <option value="CTE GRL">COMANDANTE GENERAL</option>
-                </optgroup>
-                <optgroup label="Suboficiales">
-                  <option value="GEND">GENDARME</option>
-                  <option value="CBO">CABO</option>
-                  <option value="CRO">CABO PRIMERO</option>
-                  <option value="SARG">SARGENTO</option>
-                  <option value="SRO">SARGENTO PRIMERO</option>
-                  <option value="SAY">SARGENTO AYUDANTE</option>
-                  <option value="SPR">SUBOFICIAL PRINCIPAL</option>
-                  <option value="SMY">SUBOFICIAL MAYOR</option>
-                </optgroup>
-              </select>
+
+              <!-- Checkbox personal civil -->
+              <label class="flex items-center gap-2 mb-2 cursor-pointer select-none">
+                <input type="checkbox" [checked]="selectedRank === 'CIVIL'"
+                  (change)="onCivilToggle($event)"
+                  class="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                <span class="text-sm text-gray-700">No soy personal uniformado</span>
+              </label>
+
+              @if (selectedRank !== 'CIVIL') {
+                <select [(ngModel)]="selectedRank"
+                  class="w-full rounded-lg border-gray-300 shadow-sm text-sm focus:ring-teal-500 focus:border-teal-500">
+                  <option value="">— Sin especificar —</option>
+                  <optgroup label="Oficiales">
+                    <option value="SUBALF">SUBALFEREZ</option>
+                    <option value="ALF">ALFEREZ</option>
+                    <option value="1ER ALF">PRIMER ALFEREZ</option>
+                    <option value="2DO CTE">SEGUNDO COMANDANTE</option>
+                    <option value="CTE">COMANDANTE</option>
+                    <option value="CTE PR">COMANDANTE PRINCIPAL</option>
+                    <option value="CTE MY">COMANDANTE MAYOR</option>
+                    <option value="CTE GRL">COMANDANTE GENERAL</option>
+                  </optgroup>
+                  <optgroup label="Suboficiales">
+                    <option value="GEND">GENDARME</option>
+                    <option value="CBO">CABO</option>
+                    <option value="CRO">CABO PRIMERO</option>
+                    <option value="SARG">SARGENTO</option>
+                    <option value="SRO">SARGENTO PRIMERO</option>
+                    <option value="SAY">SARGENTO AYUDANTE</option>
+                    <option value="SPR">SUBOFICIAL PRINCIPAL</option>
+                    <option value="SMY">SUBOFICIAL MAYOR</option>
+                  </optgroup>
+                </select>
+              } @else {
+                <p class="text-sm text-teal-700 bg-teal-50 rounded-lg px-3 py-2">
+                  Registrado como personal civil.
+                </p>
+              }
             </div>
             <button (click)="saveRank()" [disabled]="savingRank()"
               class="px-6 py-2 rounded-lg text-sm font-medium text-white shadow disabled:opacity-50"
@@ -423,6 +438,10 @@ export class CuentaComponent {
         this.errorMsg.set('Error al guardar el correo de recuperación.');
       },
     });
+  }
+
+  onCivilToggle(event: Event): void {
+    this.selectedRank = (event.target as HTMLInputElement).checked ? 'CIVIL' : '';
   }
 
   saveRank(): void {

@@ -13,6 +13,6 @@ export class UpdateProfileDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['SUBALF','ALF','1ER ALF','2DO CTE','CTE','CTE PR','CTE MY','CTE GRL','GEND','CBO','CRO','SARG','SAY','SPR','SMY'])
+  @IsIn(['SUBALF','ALF','1ER ALF','2DO CTE','CTE','CTE PR','CTE MY','CTE GRL','GEND','CBO','CRO','SARG','SAY','SPR','SMY','CIVIL'])
   rank?: string;
 }

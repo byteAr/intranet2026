@@ -626,33 +626,49 @@ import { HttpClient } from '@angular/common/http';
                 <label class="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
                   Jerarquía <span class="text-red-500">*</span>
                 </label>
-                <select [(ngModel)]="modalRank"
-                  class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100"
-                  [class.border-red-400]="modalRankTouched() && !modalRank">
-                  <option value="">— Seleccioná tu jerarquía —</option>
-                  <optgroup label="Oficiales">
-                    <option value="SUBALF">SUBALFEREZ</option>
-                    <option value="ALF">ALFEREZ</option>
-                    <option value="1ER ALF">PRIMER ALFEREZ</option>
-                    <option value="2DO CTE">SEGUNDO COMANDANTE</option>
-                    <option value="CTE">COMANDANTE</option>
-                    <option value="CTE PR">COMANDANTE PRINCIPAL</option>
-                    <option value="CTE MY">COMANDANTE MAYOR</option>
-                    <option value="CTE GRL">COMANDANTE GENERAL</option>
-                  </optgroup>
-                  <optgroup label="Suboficiales">
-                    <option value="GEND">GENDARME</option>
-                    <option value="CBO">CABO</option>
-                    <option value="CRO">CABO PRIMERO</option>
-                    <option value="SARG">SARGENTO</option>
-                    <option value="SRO">SARGENTO PRIMERO</option>
-                    <option value="SAY">SARGENTO AYUDANTE</option>
-                    <option value="SPR">SUBOFICIAL PRINCIPAL</option>
-                    <option value="SMY">SUBOFICIAL MAYOR</option>
-                  </optgroup>
-                </select>
+
+                <!-- Checkbox personal civil -->
+                <label class="flex items-center gap-2 mb-2 cursor-pointer select-none">
+                  <input type="checkbox" [(ngModel)]="modalIsCivil"
+                    (ngModelChange)="modalIsCivil ? (modalRank = 'CIVIL') : (modalRank = '')"
+                    class="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                  <span class="text-sm text-gray-700 dark:text-zinc-300">No soy personal uniformado</span>
+                </label>
+
+                @if (!modalIsCivil) {
+                  <select [(ngModel)]="modalRank"
+                    class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100"
+                    [class.border-red-400]="modalRankTouched() && !modalRank">
+                    <option value="">— Seleccioná tu jerarquía —</option>
+                    <optgroup label="Oficiales">
+                      <option value="SUBALF">SUBALFEREZ</option>
+                      <option value="ALF">ALFEREZ</option>
+                      <option value="1ER ALF">PRIMER ALFEREZ</option>
+                      <option value="2DO CTE">SEGUNDO COMANDANTE</option>
+                      <option value="CTE">COMANDANTE</option>
+                      <option value="CTE PR">COMANDANTE PRINCIPAL</option>
+                      <option value="CTE MY">COMANDANTE MAYOR</option>
+                      <option value="CTE GRL">COMANDANTE GENERAL</option>
+                    </optgroup>
+                    <optgroup label="Suboficiales">
+                      <option value="GEND">GENDARME</option>
+                      <option value="CBO">CABO</option>
+                      <option value="CRO">CABO PRIMERO</option>
+                      <option value="SARG">SARGENTO</option>
+                      <option value="SRO">SARGENTO PRIMERO</option>
+                      <option value="SAY">SARGENTO AYUDANTE</option>
+                      <option value="SPR">SUBOFICIAL PRINCIPAL</option>
+                      <option value="SMY">SUBOFICIAL MAYOR</option>
+                    </optgroup>
+                  </select>
+                } @else {
+                  <p class="text-sm text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 rounded-lg px-3 py-2">
+                    Serás registrado como personal civil.
+                  </p>
+                }
+
                 @if (modalRankTouched() && !modalRank) {
-                  <p class="text-xs text-red-500 mt-1">Seleccioná tu jerarquía</p>
+                  <p class="text-xs text-red-500 mt-1">Seleccioná tu jerarquía o marcá que sos personal civil</p>
                 }
               </div>
             }
@@ -730,6 +746,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly modalError = signal<string | null>(null);
   modalEmail = '';
   modalRank = '';
+  modalIsCivil = false;
 
   readonly isTicom = computed(() => this.authService.currentUser()?.roles?.includes('TICOM') ?? false);
   readonly isAuthorizer = computed(() => {
@@ -952,7 +969,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.modalEmailTouched.set(true);
     this.modalRankTouched.set(true);
     if (this.modalNeedsEmail() && !this.isValidEmail(this.modalEmail)) return;
-    if (this.modalNeedsRank() && !this.modalRank) return;
+    if (this.modalNeedsRank() && !this.modalIsCivil && !this.modalRank) return;
+    if (this.modalNeedsRank() && this.modalIsCivil) this.modalRank = 'CIVIL';
 
     const payload: { recoveryEmail?: string; rank?: string } = {};
     if (this.modalNeedsEmail()) payload.recoveryEmail = this.modalEmail.trim();

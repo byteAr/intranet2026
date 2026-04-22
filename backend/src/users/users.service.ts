@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -24,10 +25,40 @@ export interface UpsertUserDto {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly configService: ConfigService,
   ) {}
+
+  private get bridgeUrl(): string {
+    return this.configService.get<string>('AD_BRIDGE_URL') ?? 'http://ad-bridge:3002';
+  }
+
+  private get bridgeSecret(): string {
+    return this.configService.get<string>('BRIDGE_SECRET') ?? 'pac-bridge-secret-change-me';
+  }
+
+  private async addToCivilesGroup(userDn: string): Promise<void> {
+    try {
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${this.bridgeSecret}` };
+      const listResp = await fetch(`${this.bridgeUrl}/list-groups`, { headers });
+      if (!listResp.ok) { this.logger.warn('addToCivilesGroup: no se pudo listar grupos del AD'); return; }
+      const data = (await listResp.json()) as { groups: { cn: string; dn: string }[] };
+      const civilesGroup = data.groups?.find((g) => g.cn === 'CIVILES');
+      if (!civilesGroup) { this.logger.warn('addToCivilesGroup: grupo CIVILES no existe en AD'); return; }
+      await fetch(`${this.bridgeUrl}/add-to-group`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ groupDn: civilesGroup.dn, userDn }),
+      });
+      this.logger.log(`Usuario ${userDn} agregado al grupo CIVILES`);
+    } catch (e) {
+      this.logger.warn(`addToCivilesGroup error: ${(e as Error).message}`);
+    }
+  }
 
   async upsert(dto: UpsertUserDto): Promise<User> {
     let user = await this.userRepo.findOne({
@@ -130,7 +161,11 @@ export class UsersService {
 
   async updateProfile(id: string, data: { recoveryEmail?: string; avatar?: string; rank?: string }): Promise<User> {
     await this.userRepo.update(id, data);
-    return this.userRepo.findOne({ where: { id } }) as Promise<User>;
+    const user = (await this.userRepo.findOne({ where: { id } })) as User;
+    if (data.rank === 'CIVIL' && user.adDn) {
+      void this.addToCivilesGroup(user.adDn);
+    }
+    return user;
   }
 
 }

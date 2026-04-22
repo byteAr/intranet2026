@@ -61,6 +61,7 @@ const DEFAULT_DEPARTMENTS = [
   'LOGISTICA',
   'CAMAREROS',
   'DESARROLLO',
+  'CIVILES',
 ];
 
 @Injectable()

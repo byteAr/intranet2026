@@ -2,6 +2,35 @@
 
 Plataforma intranet institucional completa: comunicaciones internas, reserva de equipos, seguimiento de incidencias, chat en tiempo real y gestión de correo institucional.
 
+---
+
+## ⚠️ REGLA OBLIGATORIA — Workflow tras cada cambio de código
+
+**SIEMPRE** al terminar cualquier edición de código:
+
+1. Hacer `git add` + `git commit` + `git push origin <rama-actual>`
+2. Dar al usuario los comandos exactos para aplicar en el servidor remoto
+
+**El usuario NO tiene Docker local. Todo corre en el servidor Debian `10.98.40.24`.**
+
+Comandos a dar siempre después de cada push:
+
+```bash
+ssh usuario@10.98.40.24
+cd /usr/local/proyectos/intranet2026
+git pull origin <rama>
+
+# Si hubo cambios en backend:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend
+
+# Si hubo cambios en frontend:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build frontend
+```
+
+Nunca terminar una sesión de cambios sin dar estos comandos. Es un requisito no negociable.
+
+---
+
 ## Stack
 - **Backend**: NestJS 11 (Node.js), puerto 3000 (prod: 3001 interno)
 - **Frontend**: Angular 20 standalone, puerto 4200 (prod: 8280)

@@ -6,6 +6,8 @@ import {
   OnInit,
   OnDestroy,
   DestroyRef,
+  ViewChild,
+  ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -142,18 +144,21 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                 <!-- EJECUTIVO (S) -->
                 <div class="border-b border-black p-2 relative">
                   <span class="font-bold">EJECUTIVO (S):</span>
-                  <span class="inline-flex flex-wrap items-baseline gap-0">
-                    @for (addr of toAddresses(); track addr; let i = $index) {
-                      @if (i > 0) {<span class="mx-1">–</span>}
-                      <span>{{ addr }}</span><button type="button" (click)="removeAddress('to', addr)" class="text-gray-300 hover:text-red-400 bg-transparent border-0 cursor-pointer px-0.5 text-xs leading-none">&times;</button>
+                  <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-3 pt-1">
+                    @for (addr of toAddresses(); track addr) {
+                      <span class="relative inline-flex items-center bg-gray-100 text-gray-700 text-xs border border-gray-200 rounded px-2 py-0.5">
+                        {{ addr }}
+                        <button type="button" (click)="removeAddress('to', addr)"
+                          class="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center text-sm leading-none shadow">&times;</button>
+                      </span>
                     }
-                    @if (toAddresses().length > 0) {<span class="mx-1">–</span>}
-                    <input [(ngModel)]="toInput" (ngModelChange)="onRecipientChange($event,'to')"
+                    <input #toInputEl [(ngModel)]="toInput" (ngModelChange)="onRecipientChange($event,'to')"
                       (keydown.enter)="$event.preventDefault();addManualAddress('to')"
                       (keydown.tab)="addManualAddress('to')"
                       (keydown.comma)="$event.preventDefault();addManualAddress('to')"
                       type="text" [placeholder]="toAddresses().length===0 ? 'Agregar ejecutivo...' : ''"
-                      class="border-0 outline-none bg-transparent min-w-[120px] font-mono text-sm p-0" />
+                      [class.ring-2]="toJustAdded()" [class.ring-green-500]="toJustAdded()" [class.rounded]="toJustAdded()"
+                      class="border-0 outline-none bg-transparent min-w-[160px] font-mono text-sm p-0 transition-all" />
                   </span>
                   @if (toSuggestions().length > 0) {
                     <div class="absolute top-full left-0 z-50 min-w-72 bg-white border border-gray-300 shadow-lg rounded mt-0.5 max-h-48 overflow-y-auto">
@@ -169,18 +174,21 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                 <!-- INFORMATIVO(S) -->
                 <div class="border-b border-black p-2 relative">
                   <span class="font-bold">INFORMATIVO(S):</span>
-                  <span class="inline-flex flex-wrap items-baseline gap-0">
-                    @for (addr of ccAddresses(); track addr; let i = $index) {
-                      @if (i > 0) {<span class="mx-1">–</span>}
-                      <span>{{ addr }}</span><button type="button" (click)="removeAddress('cc', addr)" class="text-gray-300 hover:text-red-400 bg-transparent border-0 cursor-pointer px-0.5 text-xs leading-none">&times;</button>
+                  <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-3 pt-1">
+                    @for (addr of ccAddresses(); track addr) {
+                      <span class="relative inline-flex items-center bg-gray-100 text-gray-700 text-xs border border-gray-200 rounded px-2 py-0.5">
+                        {{ addr }}
+                        <button type="button" (click)="removeAddress('cc', addr)"
+                          class="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center text-sm leading-none shadow">&times;</button>
+                      </span>
                     }
-                    @if (ccAddresses().length > 0) {<span class="mx-1">–</span>}
-                    <input [(ngModel)]="ccInput" (ngModelChange)="onRecipientChange($event,'cc')"
+                    <input #ccInputEl [(ngModel)]="ccInput" (ngModelChange)="onRecipientChange($event,'cc')"
                       (keydown.enter)="$event.preventDefault();addManualAddress('cc')"
                       (keydown.tab)="addManualAddress('cc')"
                       (keydown.comma)="$event.preventDefault();addManualAddress('cc')"
                       type="text" [placeholder]="ccAddresses().length===0 ? 'Agregar informativo...' : ''"
-                      class="border-0 outline-none bg-transparent min-w-[120px] font-mono text-sm p-0" />
+                      [class.ring-2]="ccJustAdded()" [class.ring-green-500]="ccJustAdded()" [class.rounded]="ccJustAdded()"
+                      class="border-0 outline-none bg-transparent min-w-[160px] font-mono text-sm p-0 transition-all" />
                   </span>
                   @if (ccSuggestions().length > 0) {
                     <div class="absolute top-full left-0 z-50 min-w-72 bg-white border border-gray-300 shadow-lg rounded mt-0.5 max-h-48 overflow-y-auto">
@@ -547,6 +555,34 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
         }
       </div>
     </div>
+
+    <!-- Modal: archivo muy grande para modo normal/PON -->
+    @if (showFileSizeModal()) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" (click)="showFileSizeModal.set(false)">
+        <div class="bg-white rounded-2xl shadow-xl p-6 max-w-sm mx-4 space-y-4" (click)="$event.stopPropagation()">
+          <div class="flex items-center gap-3">
+            <div class="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <svg class="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <h3 class="text-base font-bold text-gray-900">Adjunto demasiado grande</h3>
+          </div>
+          <p class="text-sm text-gray-600">
+            Los adjuntos mayores a <strong>5 MB</strong> solo pueden enviarse cuando se selecciona la modalidad
+            <strong>Adjuntos por SASS</strong> o <strong>Enviar por SIENA</strong>.
+          </p>
+          <p class="text-sm text-gray-500">
+            Seleccioná una de esas modalidades de envío antes de adjuntar archivos de mayor tamaño.
+          </p>
+          <button (click)="showFileSizeModal.set(false)"
+            class="w-full px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700">
+            Entendido
+          </button>
+        </div>
+      </div>
+    }
   `,
 })
 export class DraftMailComponent implements OnInit, OnDestroy {
@@ -555,6 +591,9 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   private readonly mailService = inject(MailService);
   private readonly destroyRef = inject(DestroyRef);
 
+  @ViewChild('toInputEl') toInputEl?: ElementRef<HTMLInputElement>;
+  @ViewChild('ccInputEl') ccInputEl?: ElementRef<HTMLInputElement>;
+
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly drafts = signal<DraftEmail[]>([]);
@@ -562,6 +601,9 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   readonly showForm = signal(false);
   readonly editingDraft = signal<DraftEmail | null>(null);
   readonly canSubmitAfterCorrection = signal(false);
+  readonly toJustAdded = signal(false);
+  readonly ccJustAdded = signal(false);
+  readonly showFileSizeModal = signal(false);
 
   // Form fields
   readonly toAddresses = signal<string[]>([]);
@@ -690,17 +732,15 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 
   selectRecipient(field: 'to' | 'cc', r: MailRecipient): void {
     if (field === 'to') {
-      if (!this.toAddresses().includes(r.email)) {
-        this.toAddresses.update((a) => [...a, r.email]);
-      }
+      if (!this.toAddresses().includes(r.email)) this.toAddresses.update((a) => [...a, r.email]);
       this.toInput = '';
       this.toSuggestions.set([]);
+      this.flashAndFocus('to');
     } else {
-      if (!this.ccAddresses().includes(r.email)) {
-        this.ccAddresses.update((a) => [...a, r.email]);
-      }
+      if (!this.ccAddresses().includes(r.email)) this.ccAddresses.update((a) => [...a, r.email]);
       this.ccInput = '';
       this.ccSuggestions.set([]);
+      this.flashAndFocus('cc');
     }
   }
 
@@ -711,11 +751,23 @@ export class DraftMailComponent implements OnInit, OnDestroy {
       if (!this.toAddresses().includes(raw)) this.toAddresses.update((a) => [...a, raw]);
       this.toInput = '';
       this.toSuggestions.set([]);
+      this.flashAndFocus('to');
     } else {
       if (!this.ccAddresses().includes(raw)) this.ccAddresses.update((a) => [...a, raw]);
       this.ccInput = '';
       this.ccSuggestions.set([]);
+      this.flashAndFocus('cc');
     }
+  }
+
+  private flashAndFocus(field: 'to' | 'cc'): void {
+    const justAdded = field === 'to' ? this.toJustAdded : this.ccJustAdded;
+    const inputEl = field === 'to' ? this.toInputEl : this.ccInputEl;
+    justAdded.set(true);
+    setTimeout(() => {
+      inputEl?.nativeElement.focus();
+      setTimeout(() => justAdded.set(false), 1500);
+    }, 0);
   }
 
   removeAddress(field: 'to' | 'cc', addr: string): void {
@@ -727,23 +779,25 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     const MAX_SIZE = 5 * 1024 * 1024;
     const input = event.target as HTMLInputElement;
     const newFiles = Array.from(input.files ?? []);
+    const mode = this.formSendMode();
+    const allowLarge = mode === 'sass' || mode === 'siena';
+
     const oversized = newFiles.filter(f => f.size > MAX_SIZE);
-    const valid = newFiles.filter(f => f.size <= MAX_SIZE);
-    if (oversized.length > 0) {
-      this.fileError.set(
-        `El archivo que intenta adjuntar pesa más de 5 MB. Si desea enviar MTO's con adjuntos de mayor peso considere enviarlos por el sistema de SASS o en el caso de encriptados por el sistema SIENA.`
-      );
+    const valid = allowLarge ? newFiles : newFiles.filter(f => f.size <= MAX_SIZE);
+
+    if (!allowLarge && oversized.length > 0) {
+      this.showFileSizeModal.set(true);
     } else {
       this.fileError.set(null);
     }
-    // Accumulate: merge with existing, deduplicate by name
+
     const existing = this.selectedFiles();
     const merged = [...existing];
     for (const f of valid) {
       if (!merged.some(e => e.name === f.name)) merged.push(f);
     }
     this.selectedFiles.set(merged.slice(0, 10));
-    input.value = ''; // reset so same file can be re-selected after removal
+    input.value = '';
   }
 
   removeFile(name: string): void {

@@ -237,7 +237,7 @@ export class DraftMailService {
     draft.status = 'approved';
     draft.approvedById = user.id;
     draft.approvedByName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
-    draft.approvedByRank = (user as User & { rank?: string }).rank ?? user.title ?? '';
+    draft.approvedByRank = [user.title, (user as any).rank].filter(Boolean).join(' ') || '';
     draft.approvedAt = new Date();
     draft.hash = await this.generateUniqueHash();
     draft.history = [...draft.history, {
@@ -419,7 +419,7 @@ export class DraftMailService {
     }
 
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
-    const rank = (user as User & { rank?: string }).rank ?? user.title ?? '';
+    const rank = [user.title, (user as any).rank].filter(Boolean).join(' ') || '';
     const now = new Date();
 
     const fdoGroup = this.fmtDateGroup(draft.approvedAt ?? now);

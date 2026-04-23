@@ -44,6 +44,7 @@ import { SienaFile } from './mail/entities/siena-file.entity';
 import { DraftEmail } from './draft-mail/entities/draft-email.entity';
 import { DraftEmailAttachment } from './draft-mail/entities/draft-email-attachment.entity';
 import { DraftMailAuthorizer } from './draft-mail/entities/draft-mail-authorizer.entity';
+import { DraftMailDirector } from './draft-mail/entities/draft-mail-director.entity';
 
 @Module({
   imports: [
@@ -62,7 +63,7 @@ import { DraftMailAuthorizer } from './draft-mail/entities/draft-mail-authorizer
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, Department, AdminAuditLog, GroupPermission],
+        entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, DraftMailDirector, Department, AdminAuditLog, GroupPermission],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),

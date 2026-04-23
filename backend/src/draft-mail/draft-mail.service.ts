@@ -285,6 +285,7 @@ export class DraftMailService {
     }
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
     draft.status = 'cancelled';
+    draft.hash = null;
     draft.cancelledById = user.id;
     draft.cancelledByName = byName;
     draft.cancellationReason = dto.notes ?? null;

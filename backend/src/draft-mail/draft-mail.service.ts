@@ -526,12 +526,13 @@ export class DraftMailService {
 
   // Director management (solo mlopez puede gestionar esto)
   async getDirector(): Promise<DraftMailDirector | null> {
-    return this.directorRepo.findOne({ where: {} });
+    const [director] = await this.directorRepo.find({ take: 1 });
+    return director ?? null;
   }
 
   async setDirector(dto: SetDirectorDto, user: User): Promise<DraftMailDirector> {
     if (!this.isMlopez(user)) throw new ForbiddenException('Solo mlopez puede designar al director');
-    await this.directorRepo.delete({});
+    await this.directorRepo.createQueryBuilder().delete().execute();
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
     const director = this.directorRepo.create({
       userId: dto.userId,
@@ -545,6 +546,6 @@ export class DraftMailService {
 
   async removeDirector(user: User): Promise<void> {
     if (!this.isMlopez(user)) throw new ForbiddenException('Solo mlopez puede quitar al director');
-    await this.directorRepo.delete({});
+    await this.directorRepo.createQueryBuilder().delete().execute();
   }
 }

@@ -1,5 +1,7 @@
+import { IsString } from 'class-validator';
+
 export class SetDirectorDto {
-  userId: string;
-  username: string;
-  displayName: string;
+  @IsString() userId: string;
+  @IsString() username: string;
+  @IsString() displayName: string;
 }

@@ -310,12 +310,6 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                   style="background:#0f766e">
                   {{ saving() ? 'Guardando...' : (editingDraft() ? 'Guardar cambios' : 'Guardar borrador') }}
                 </button>
-                @if (editingDraft() && editingDraft()!.status === 'needs_correction') {
-                  <button (click)="submitDraft(editingDraft()!.id)" [disabled]="saving()"
-                    class="px-5 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
-                    Reenviar a revisión
-                  </button>
-                }
                 <button (click)="closeForm()" class="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">Cancelar</button>
               </div>
 
@@ -447,6 +441,12 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                   <button (click)="openEdit(activeDraft()!)"
                     class="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50">Editar</button>
                 }
+                @if (isCreator(activeDraft()!) && activeDraft()!.status === 'needs_correction' && canSubmitAfterCorrection()) {
+                  <button (click)="submitDraft(activeDraft()!.id)" [disabled]="saving()"
+                    class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
+                    Reenviar a revisión
+                  </button>
+                }
                 @if (isCreator(activeDraft()!) && activeDraft()!.status === 'draft') {
                   <button (click)="submitDraft(activeDraft()!.id)" [disabled]="saving()"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
@@ -561,6 +561,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   readonly activeDraft = signal<DraftEmail | null>(null);
   readonly showForm = signal(false);
   readonly editingDraft = signal<DraftEmail | null>(null);
+  readonly canSubmitAfterCorrection = signal(false);
 
   // Form fields
   readonly toAddresses = signal<string[]>([]);
@@ -644,6 +645,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     this.editingDraft.set(null);
     this.showRejectForm.set(false);
     this.showCancelForm.set(false);
+    this.canSubmitAfterCorrection.set(false);
   }
 
   openNew(): void {
@@ -662,6 +664,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   }
 
   openEdit(draft: DraftEmail): void {
+    this.canSubmitAfterCorrection.set(false);
     this.editingDraft.set(draft);
     this.toAddresses.set([...draft.toAddresses]);
     this.ccAddresses.set([...draft.ccAddresses]);
@@ -799,6 +802,9 @@ export class DraftMailComponent implements OnInit, OnDestroy {
           this.activeDraft.set(updated);
           this.showForm.set(false);
           this.editingDraft.set(null);
+          if (updated.status === 'needs_correction') {
+            this.canSubmitAfterCorrection.set(true);
+          }
         },
         error: (err: { error?: { message?: string } }) => {
           this.saving.set(false);

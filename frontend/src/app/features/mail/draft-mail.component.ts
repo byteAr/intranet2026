@@ -586,15 +586,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   private readonly toSearchSubject = new Subject<string>();
   private readonly ccSearchSubject = new Subject<string>();
 
-  readonly isAuthorizer = computed(() => {
-    const user = this.authService.currentUser();
-    if (!user) return false;
-    return (
-      user.roles?.includes('MTOSAUTORIZADOS') ||
-      user.roles?.includes('TICOM') ||
-      ['mlopez', 'sbatista'].includes(user.username?.toLowerCase() ?? '')
-    );
-  });
+  readonly isAuthorizer = computed(() => this.draftMailService.isAuthorizerSignal());
 
   ngOnInit(): void {
     this.loadDrafts();

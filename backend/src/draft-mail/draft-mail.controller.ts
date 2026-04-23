@@ -50,6 +50,11 @@ export class DraftMailController {
     return draft;
   }
 
+  @Get('is-authorizer')
+  async isAuthorizer(@Request() req: { user: User }) {
+    return { value: await this.service.isAuthorizer(req.user) };
+  }
+
   @Get('pending-count')
   async getPendingCount(@Request() req: { user: User }) {
     return { count: await this.service.getPendingCountForAuthorizer(req.user) };

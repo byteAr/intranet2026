@@ -95,6 +95,7 @@ export class DraftMailService {
 
   readonly pendingCount = signal(0);
   readonly approvedCount = signal(0);
+  readonly isAuthorizerSignal = signal(false);
   readonly draftStatusChanged$ = new Subject<{ id: string; event: string }>();
 
   constructor() {
@@ -139,6 +140,14 @@ export class DraftMailService {
     this.socket = null;
     this.pendingCount.set(0);
     this.approvedCount.set(0);
+    this.isAuthorizerSignal.set(false);
+  }
+
+  loadIsAuthorizer(): void {
+    this.http.get<{ value: boolean }>('/api/draft-mail/is-authorizer').subscribe({
+      next: (r) => this.isAuthorizerSignal.set(r.value),
+      error: () => {},
+    });
   }
 
   loadPendingCount(): void {

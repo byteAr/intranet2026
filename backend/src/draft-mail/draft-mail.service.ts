@@ -278,7 +278,8 @@ export class DraftMailService {
   async cancel(id: string, dto: ReviewActionDto, user: User): Promise<DraftEmail> {
     const draft = await this.findOne(id, user);
     const isAuth = await this.isAuthorizer(user);
-    if (!isAuth) throw new ForbiddenException('Solo MTOSAUTORIZADOS puede cancelar definitivamente');
+    const isCreator = draft.creatorId === user.id;
+    if (!isAuth && !isCreator) throw new ForbiddenException('No tenés permiso para cancelar este borrador');
     if (!['pending_review', 'needs_correction'].includes(draft.status)) {
       throw new BadRequestException('No se puede cancelar en el estado actual');
     }

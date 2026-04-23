@@ -455,7 +455,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                   <button (click)="promptDelete(activeDraft()!.id)"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Eliminar</button>
                 }
-                @if (isCreator(activeDraft()!) && ['pending_review','needs_correction'].includes(activeDraft()!.status)) {
+                @if (isCreator(activeDraft()!) && !isAuthorizer() && ['pending_review','needs_correction'].includes(activeDraft()!.status)) {
                   <button (click)="promptCancel()"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Cancelar</button>
                 }

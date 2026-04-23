@@ -115,10 +115,10 @@ export class DraftMailService {
         statuses: ['approved', 'sent'],
       });
     } else if (isAuth) {
-      // Authorizer sees own drafts + pending_review + needs_correction + assigned
+      // Authorizer sees own drafts + pending_review + needs_correction + approved + sent + cancelled + assigned
       qb.where('d.creatorId = :uid OR d.status IN (:...statuses) OR d.assignedReviewerId = :uid', {
         uid: user.id,
-        statuses: ['pending_review', 'needs_correction', 'approved', 'sent'],
+        statuses: ['pending_review', 'needs_correction', 'approved', 'sent', 'cancelled'],
       });
     } else {
       // Regular user: only own drafts

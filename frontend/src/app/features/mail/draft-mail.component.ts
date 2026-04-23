@@ -149,7 +149,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                       <span class="relative inline-flex items-center bg-gray-100 text-gray-700 text-xs border border-gray-200 rounded px-2 py-0.5">
                         {{ addr }}
                         <button type="button" (click)="removeAddress('to', addr)"
-                          class="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center text-sm leading-none shadow">&times;</button>
+                          class="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center text-xs leading-none shadow">&times;</button>
                       </span>
                     }
                     <input #toInputEl [(ngModel)]="toInput" (ngModelChange)="onRecipientChange($event,'to')"
@@ -179,7 +179,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                       <span class="relative inline-flex items-center bg-gray-100 text-gray-700 text-xs border border-gray-200 rounded px-2 py-0.5">
                         {{ addr }}
                         <button type="button" (click)="removeAddress('cc', addr)"
-                          class="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center text-sm leading-none shadow">&times;</button>
+                          class="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center text-xs leading-none shadow">&times;</button>
                       </span>
                     }
                     <input #ccInputEl [(ngModel)]="ccInput" (ngModelChange)="onRecipientChange($event,'cc')"
@@ -313,7 +313,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
               }
 
               <div class="mt-4 flex items-center gap-3">
-                <button (click)="saveDraft()" [disabled]="saving()"
+                <button (click)="saveDraft()" [disabled]="saving() || toAddresses().length === 0 || !formBody.trim()"
                   class="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
                   style="background:#0f766e">
                   {{ saving() ? 'Guardando...' : (editingDraft() ? 'Guardar cambios' : 'Guardar borrador') }}

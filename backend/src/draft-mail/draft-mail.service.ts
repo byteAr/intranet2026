@@ -23,6 +23,33 @@ import { DraftMailGateway } from './draft-mail.gateway';
 // Detects PON codes in email body
 const PON_REGEX = /\bPON\s+\d+\/\d+/i;
 
+// Expansión de abreviaturas de jerarquía GN
+const RANK_EXPANSIONS: Record<string, string> = {
+  'CTE GRL':       'COMANDANTE GENERAL',
+  'SCTE GRL':      'SUBCOMANDANTE GENERAL',
+  'SUB CTE GRL':   'SUBCOMANDANTE GENERAL',
+  'GEN DIV':       'GENERAL DE DIVISIÓN',
+  'GEN BRI':       'GENERAL DE BRIGADA',
+  'GRL DIV':       'GENERAL DE DIVISIÓN',
+  'GRL BRI':       'GENERAL DE BRIGADA',
+  'CRL':           'CORONEL',
+  'TCL':           'TENIENTE CORONEL',
+  'TTE CRL':       'TENIENTE CORONEL',
+  'MY':            'MAYOR',
+  'CAP':           'CAPITÁN',
+  'TTE 1°':        'TENIENTE PRIMERO',
+  'TTE 2°':        'TENIENTE SEGUNDO',
+  'ALF':           'ALFÉREZ',
+  'SMYOR':         'SUBOFICIAL MAYOR',
+  'SBRIG':         'SUBOFICIAL BRIGADIER',
+};
+
+function expandRank(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const upper = raw.trim().toUpperCase();
+  return RANK_EXPANSIONS[upper] ?? raw.trim();
+}
+
 @Injectable()
 export class DraftMailService {
   private readonly ADMIN_USERNAME = 'mlopez';
@@ -237,7 +264,7 @@ export class DraftMailService {
     draft.status = 'approved';
     draft.approvedById = user.id;
     draft.approvedByName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
-    draft.approvedByRank = [user.title, (user as any).rank].filter(Boolean).join(' ') || '';
+    draft.approvedByRank = expandRank((user as any).rank || user.title);
     draft.approvedAt = new Date();
     draft.hash = await this.generateUniqueHash();
     draft.history = [...draft.history, {
@@ -419,7 +446,7 @@ export class DraftMailService {
     }
 
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
-    const rank = [user.title, (user as any).rank].filter(Boolean).join(' ') || '';
+    const rank = expandRank((user as any).rank || user.title);
     const now = new Date();
 
     const fdoGroup = this.fmtDateGroup(draft.approvedAt ?? now);

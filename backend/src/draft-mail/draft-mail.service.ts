@@ -7,6 +7,7 @@ import { readFileSync } from 'fs';
 import { DraftEmail, DraftHistoryEntry } from './entities/draft-email.entity';
 import { DraftEmailAttachment } from './entities/draft-email-attachment.entity';
 import { DraftMailAuthorizer } from './entities/draft-mail-authorizer.entity';
+import { DraftMailDirector } from './entities/draft-mail-director.entity';
 import { Email } from '../mail/entities/email.entity';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
@@ -14,6 +15,7 @@ import { ReviewActionDto } from './dto/review-action.dto';
 import { SendDraftDto } from './dto/send-draft.dto';
 import { DelegateDto } from './dto/delegate.dto';
 import { AddAuthorizerDto } from './dto/add-authorizer.dto';
+import { SetDirectorDto } from './dto/set-director.dto';
 import { User } from '../users/entities/user.entity';
 import { SmtpSenderService } from '../mail/smtp-sender.service';
 import { DraftMailGateway } from './draft-mail.gateway';
@@ -23,27 +25,31 @@ const PON_REGEX = /\bPON\s+\d+\/\d+/i;
 
 @Injectable()
 export class DraftMailService {
-  private readonly superApprovers: string[];
+  private readonly ADMIN_USERNAME = 'mlopez';
 
   constructor(
     @InjectRepository(DraftEmail) private readonly draftRepo: Repository<DraftEmail>,
     @InjectRepository(DraftEmailAttachment) private readonly attachmentRepo: Repository<DraftEmailAttachment>,
     @InjectRepository(DraftMailAuthorizer) private readonly authorizerRepo: Repository<DraftMailAuthorizer>,
+    @InjectRepository(DraftMailDirector) private readonly directorRepo: Repository<DraftMailDirector>,
     @InjectRepository(Email) private readonly emailRepo: Repository<Email>,
     private readonly configService: ConfigService,
     private readonly smtpSender: SmtpSenderService,
     @Inject(forwardRef(() => DraftMailGateway)) private readonly gateway: DraftMailGateway,
-  ) {
-    const raw = this.configService.get<string>('DRAFT_MAIL_SUPER_APPROVERS') ?? 'mlopez,sbatista';
-    this.superApprovers = raw.split(',').map((s) => s.trim().toLowerCase());
+  ) {}
+
+  isMlopez(user: User): boolean {
+    return user.username.toLowerCase() === this.ADMIN_USERNAME;
   }
 
-  isSuperApprover(user: User): boolean {
-    return this.superApprovers.includes(user.username.toLowerCase());
+  async isSuperApprover(user: User): Promise<boolean> {
+    if (this.isMlopez(user)) return true;
+    const director = await this.directorRepo.findOne({ where: { userId: user.id } });
+    return !!director;
   }
 
   async isAuthorizer(user: User): Promise<boolean> {
-    if (this.isSuperApprover(user)) return true;
+    if (await this.isSuperApprover(user)) return true;
     if (user.roles?.includes('MTOSAUTORIZADOS')) return true;
     const found = await this.authorizerRepo.findOne({ where: { userId: user.id } });
     return !!found;
@@ -320,7 +326,7 @@ export class DraftMailService {
   }
 
   async delegate(id: string, dto: DelegateDto, user: User): Promise<DraftEmail> {
-    if (!this.isSuperApprover(user)) throw new ForbiddenException('Solo mlopez/sbatista pueden delegar aprobación');
+    if (!(await this.isSuperApprover(user))) throw new ForbiddenException('Solo el director o mlopez pueden delegar aprobación');
     const draft = await this.findOne(id, user);
     if (draft.status !== 'pending_review') throw new BadRequestException();
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
@@ -487,7 +493,7 @@ export class DraftMailService {
   }
 
   async addAuthorizer(dto: AddAuthorizerDto, user: User): Promise<DraftMailAuthorizer> {
-    if (!this.isSuperApprover(user)) throw new ForbiddenException();
+    if (!(await this.isSuperApprover(user))) throw new ForbiddenException();
     const existing = await this.authorizerRepo.findOne({ where: { userId: dto.userId } });
     if (existing) throw new BadRequestException('El usuario ya es autorizador');
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
@@ -502,7 +508,7 @@ export class DraftMailService {
   }
 
   async removeAuthorizer(userId: string, user: User): Promise<void> {
-    if (!this.isSuperApprover(user)) throw new ForbiddenException();
+    if (!(await this.isSuperApprover(user))) throw new ForbiddenException();
     const auth = await this.authorizerRepo.findOne({ where: { userId } });
     if (!auth) throw new NotFoundException();
     await this.authorizerRepo.remove(auth);
@@ -516,5 +522,29 @@ export class DraftMailService {
 
   async getApprovedCount(): Promise<number> {
     return this.draftRepo.count({ where: { status: 'approved' } });
+  }
+
+  // Director management (solo mlopez puede gestionar esto)
+  async getDirector(): Promise<DraftMailDirector | null> {
+    return this.directorRepo.findOne({ where: {} });
+  }
+
+  async setDirector(dto: SetDirectorDto, user: User): Promise<DraftMailDirector> {
+    if (!this.isMlopez(user)) throw new ForbiddenException('Solo mlopez puede designar al director');
+    await this.directorRepo.delete({});
+    const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
+    const director = this.directorRepo.create({
+      userId: dto.userId,
+      username: dto.username,
+      displayName: dto.displayName,
+      setById: user.id,
+      setByName: byName,
+    });
+    return this.directorRepo.save(director);
+  }
+
+  async removeDirector(user: User): Promise<void> {
+    if (!this.isMlopez(user)) throw new ForbiddenException('Solo mlopez puede quitar al director');
+    await this.directorRepo.delete({});
   }
 }

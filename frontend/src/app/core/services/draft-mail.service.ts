@@ -77,6 +77,16 @@ export interface DraftMailAuthorizer {
   createdAt: string;
 }
 
+export interface DraftMailDirector {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  setById: string;
+  setByName: string;
+  createdAt: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class DraftMailService {
   private readonly http = inject(HttpClient);
@@ -229,6 +239,19 @@ export class DraftMailService {
     const fd = new FormData();
     files.forEach((f) => fd.append('files', f, f.name));
     return this.http.post<DraftEmail>(`/api/draft-mail/${draftId}/attachments`, fd);
+  }
+
+  // Director
+  getDirector(): Observable<DraftMailDirector | null> {
+    return this.http.get<DraftMailDirector | null>('/api/draft-mail/director');
+  }
+
+  setDirector(userId: string, username: string, displayName: string): Observable<DraftMailDirector> {
+    return this.http.post<DraftMailDirector>('/api/draft-mail/director', { userId, username, displayName });
+  }
+
+  removeDirector(): Observable<void> {
+    return this.http.delete<void>('/api/draft-mail/director');
   }
 
   // Authorizers

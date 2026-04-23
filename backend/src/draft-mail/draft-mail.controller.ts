@@ -17,6 +17,7 @@ import { ReviewActionDto } from './dto/review-action.dto';
 import { SendDraftDto } from './dto/send-draft.dto';
 import { DelegateDto } from './dto/delegate.dto';
 import { AddAuthorizerDto } from './dto/add-authorizer.dto';
+import { SetDirectorDto } from './dto/set-director.dto';
 import { DraftEmailAttachment } from './entities/draft-email-attachment.entity';
 import { User } from '../users/entities/user.entity';
 
@@ -60,9 +61,24 @@ export class DraftMailController {
     return { count: await this.service.getApprovedCount() };
   }
 
+  @Get('director')
+  getDirector() {
+    return this.service.getDirector();
+  }
+
+  @Post('director')
+  setDirector(@Body() dto: SetDirectorDto, @Request() req: { user: User }) {
+    return this.service.setDirector(dto, req.user);
+  }
+
+  @Delete('director')
+  removeDirector(@Request() req: { user: User }) {
+    return this.service.removeDirector(req.user);
+  }
+
   @Get('authorizers')
-  getAuthorizers(@Request() req: { user: User }) {
-    if (!this.service.isSuperApprover(req.user)) return [];
+  async getAuthorizers(@Request() req: { user: User }) {
+    if (!(await this.service.isSuperApprover(req.user))) return [];
     return this.service.getAuthorizers();
   }
 

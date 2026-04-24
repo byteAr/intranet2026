@@ -134,6 +134,11 @@ export class DraftMailController {
     return this.service.findOne(draft.id, req.user);
   }
 
+  @Get(':id/references')
+  getBodyReferences(@Param('id') id: string, @Request() req: { user: User }) {
+    return this.service.getBodyReferences(id, req.user);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @Request() req: { user: User }) {
     return this.service.findOne(id, req.user);

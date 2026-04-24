@@ -250,6 +250,10 @@ export class DraftMailService {
     return this.http.post<DraftEmail>(`/api/draft-mail/${draftId}/attachments`, fd);
   }
 
+  getBodyReferences(id: string): Observable<{ referencedCode: string; referencedEmailId: string | null }[]> {
+    return this.http.get<{ referencedCode: string; referencedEmailId: string | null }[]>(`/api/draft-mail/${id}/references`);
+  }
+
   // Director
   getDirector(): Observable<DraftMailDirector | null> {
     return this.http.get<DraftMailDirector | null>('/api/draft-mail/director');

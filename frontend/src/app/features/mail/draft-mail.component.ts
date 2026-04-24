@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Subject, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -19,7 +20,7 @@ import {
   DraftStatus,
 } from '../../core/services/draft-mail.service';
 import { AuthService } from '../../core/services/auth.service';
-import { MailService, MailRecipient } from '../../core/services/mail.service';
+import { MailService, MailRecipient, Email, MailOutgoingRef } from '../../core/services/mail.service';
 
 const STATUS_LABELS: Record<DraftStatus, string> = {
   draft: 'Borrador',
@@ -372,7 +373,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                   <span class="font-bold">EXCEPTUADO (S):</span>
                 </div>
                 <!-- Body -->
-                <div class="border-b border-black p-4 min-h-[250px] whitespace-pre-wrap leading-relaxed uppercase">{{ activeDraft()!.bodyText }}</div>
+                <div class="border-b border-black p-4 min-h-[250px] whitespace-pre-wrap leading-relaxed uppercase" (click)="onDraftBodyCodeClick($event)" [innerHTML]="highlightedDraftBody()"></div>
                 <!-- Footer -->
                 <div class="grid grid-cols-12">
                   <div class="col-span-3 border-r border-black">
@@ -516,6 +517,71 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                 </div>
               }
 
+              <!-- Antecedentes (emails referenciados en el cuerpo del MTO) -->
+              @if (activeRefEmail()) {
+                <div class="rounded-xl border border-gray-200 bg-white shadow overflow-hidden">
+                  <!-- Header bar -->
+                  <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Antecedente</span>
+                      @if (refNavHistory().length > 1) {
+                        <div class="flex items-center gap-1 ml-2">
+                          <button (click)="refNavBack()" [disabled]="refNavIndex() <= 0"
+                            class="flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded border border-gray-200 disabled:opacity-30">
+                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                            Atrás
+                          </button>
+                          <span class="text-xs text-gray-400">{{ refNavIndex() + 1 }}/{{ refNavHistory().length }}</span>
+                          <button (click)="refNavForward()" [disabled]="refNavIndex() >= refNavHistory().length - 1"
+                            class="flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded border border-gray-200 disabled:opacity-30">
+                            Adelante
+                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                          </button>
+                        </div>
+                      }
+                    </div>
+                    <button (click)="closeRefEmail()" class="text-gray-400 hover:text-gray-700 text-sm leading-none px-1" title="Cerrar">✕</button>
+                  </div>
+                  <!-- Metadata -->
+                  <div class="px-4 py-3 border-b border-gray-100">
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                      <h3 class="text-sm font-semibold text-gray-900 leading-snug">{{ activeRefEmail()!.subject }}</h3>
+                      @if (activeRefEmail()!.mailCode) {
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200 flex-shrink-0 font-mono">
+                          {{ activeRefEmail()!.mailCode }}
+                        </span>
+                      }
+                    </div>
+                    <div class="space-y-0.5 text-xs text-gray-500">
+                      <p><span class="font-medium text-gray-600">De:</span> {{ activeRefEmail()!.fromAddress }}</p>
+                      <p><span class="font-medium text-gray-600">Para:</span> {{ activeRefEmail()!.toAddresses?.join(', ') }}</p>
+                      @if (activeRefEmail()!.ccAddresses?.length) {
+                        <p><span class="font-medium text-gray-600">CC:</span> {{ activeRefEmail()!.ccAddresses.join(', ') }}</p>
+                      }
+                      <p><span class="font-medium text-gray-600">Fecha:</span> {{ formatRefDate(activeRefEmail()!.date) }}</p>
+                    </div>
+                    @if (activeRefEmail()!.attachments?.length) {
+                      <div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-2">
+                        @for (att of activeRefEmail()!.attachments!; track att.id) {
+                          <button (click)="mailService.downloadAttachment(activeRefEmail()!.id, att.id, att.filename)"
+                            class="flex items-center gap-1 text-xs text-teal-700 hover:underline">
+                            <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                            </svg>
+                            {{ att.filename }}
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+                  <!-- Body with code highlighting (recursive navigation) -->
+                  <div class="px-4 py-3 text-sm font-mono whitespace-pre-wrap leading-relaxed"
+                       (click)="onRefBodyCodeClick($event)"
+                       [innerHTML]="highlightedRefBody()"></div>
+                </div>
+              }
+
               <!-- History -->
               @if (activeDraft()!.history.length > 0) {
                 <div class="border-t border-gray-300 pt-3">
@@ -588,8 +654,9 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
 export class DraftMailComponent implements OnInit, OnDestroy {
   readonly draftMailService = inject(DraftMailService);
   private readonly authService = inject(AuthService);
-  private readonly mailService = inject(MailService);
+  readonly mailService = inject(MailService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sanitizer = inject(DomSanitizer);
 
   @ViewChild('toInputEl') toInputEl?: ElementRef<HTMLInputElement>;
   @ViewChild('ccInputEl') ccInputEl?: ElementRef<HTMLInputElement>;
@@ -626,10 +693,45 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   cancelNotes = '';
   cancelIsTicom = false;
 
+  // Body references (mailCode highlighting)
+  readonly draftRefs = signal<{ referencedCode: string; referencedEmailId: string | null }[]>([]);
+
+  // Referenced email viewer
+  readonly activeRefEmail = signal<Email | null>(null);
+  readonly refNavHistory = signal<Email[]>([]);
+  readonly refNavIndex = signal(0);
+
   private readonly toSearchSubject = new Subject<string>();
   private readonly ccSearchSubject = new Subject<string>();
 
   readonly isAuthorizer = computed(() => this.draftMailService.isAuthorizerSignal());
+
+  readonly highlightedDraftBody = computed((): SafeHtml => {
+    const draft = this.activeDraft();
+    if (!draft) return this.sanitizer.bypassSecurityTrustHtml('');
+    const refs = this.draftRefs();
+    const refMap = new Map<string, string | null>();
+    for (const r of refs) refMap.set(r.referencedCode.toUpperCase(), r.referencedEmailId ?? null);
+    const body = draft.bodyText ?? '';
+    const escaped = body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const CODE_RE = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[^\w\/]*\/[^\w]*(\d[^\w\/]*\d)\b/g;
+    const EXCLUDED = new Set(['PON', 'DDNG']);
+    const highlighted = escaped.replace(CODE_RE, (match, p1, p2, p3) => {
+      if (EXCLUDED.has(p1.toUpperCase())) return match;
+      const code = `${p1.toUpperCase()} ${p2}/${p3.replace(/\D/g, '')}`;
+      if (!refMap.has(code)) return match;
+      const emailId = refMap.get(code)!;
+      if (emailId) return `<span class="text-green-600 font-medium cursor-pointer hover:underline" data-ref-id="${emailId}" title="Ver ${code}">${match}</span>`;
+      return `<span class="text-red-500 font-medium" title="${code} — no encontrado en la base de datos">${match}</span>`;
+    });
+    return this.sanitizer.bypassSecurityTrustHtml(highlighted);
+  });
+
+  readonly highlightedRefBody = computed((): SafeHtml => {
+    const email = this.activeRefEmail();
+    if (!email) return this.sanitizer.bypassSecurityTrustHtml('');
+    return this.buildHighlightedMailBody(email);
+  });
 
   ngOnInit(): void {
     this.loadDrafts();
@@ -688,6 +790,11 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     this.showRejectForm.set(false);
     this.showCancelForm.set(false);
     this.canSubmitAfterCorrection.set(false);
+    this.draftRefs.set([]);
+    this.activeRefEmail.set(null);
+    this.refNavHistory.set([]);
+    this.refNavIndex.set(0);
+    this.loadDraftRefs(draft.id);
   }
 
   openNew(): void {
@@ -1135,5 +1242,95 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 
   private escapeHtml(text: string): string {
     return (text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // ── Body refs & antecedentes ─────────────────────────────
+
+  loadDraftRefs(id: string): void {
+    this.draftMailService.getBodyReferences(id).subscribe({
+      next: (refs) => this.draftRefs.set(refs),
+      error: () => {},
+    });
+  }
+
+  onDraftBodyCodeClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    const emailId = target.getAttribute('data-ref-id');
+    if (!emailId) return;
+    this.mailService.getEmail(emailId).subscribe({
+      next: (email) => {
+        this.refNavHistory.set([email]);
+        this.refNavIndex.set(0);
+        this.activeRefEmail.set(email);
+      },
+    });
+  }
+
+  onRefBodyCodeClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    const emailId = target.getAttribute('data-ref-id');
+    if (!emailId) return;
+    this.mailService.getEmail(emailId).subscribe({
+      next: (email) => {
+        const truncated = this.refNavHistory().slice(0, this.refNavIndex() + 1);
+        this.refNavHistory.set([...truncated, email]);
+        this.refNavIndex.set(truncated.length);
+        this.activeRefEmail.set(email);
+      },
+    });
+  }
+
+  refNavBack(): void {
+    const idx = this.refNavIndex();
+    if (idx <= 0) return;
+    this.refNavIndex.set(idx - 1);
+    this.activeRefEmail.set(this.refNavHistory()[idx - 1]);
+  }
+
+  refNavForward(): void {
+    const idx = this.refNavIndex();
+    const history = this.refNavHistory();
+    if (idx >= history.length - 1) return;
+    this.refNavIndex.set(idx + 1);
+    this.activeRefEmail.set(history[idx + 1]);
+  }
+
+  closeRefEmail(): void {
+    this.activeRefEmail.set(null);
+    this.refNavHistory.set([]);
+    this.refNavIndex.set(0);
+  }
+
+  formatRefDate(dateStr: string): string {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  private buildHighlightedMailBody(email: Email): SafeHtml {
+    const refs = email.outgoingRefs ?? [];
+    const refMap = new Map<string, string | null>();
+    for (const r of refs) refMap.set(r.referencedCode.toUpperCase(), r.referencedEmailId ?? null);
+
+    if (!email.bodyText?.trim()) {
+      return this.sanitizer.bypassSecurityTrustHtml(
+        `<div class="prose prose-sm max-w-none text-gray-700 text-sm leading-relaxed">${email.bodyHtml ?? ''}</div>`
+      );
+    }
+    const escaped = (email.bodyText ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const CODE_RE = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[^\w\/]*\/[^\w]*(\d[^\w\/]*\d)\b/g;
+    const EXCLUDED = new Set(['PON', 'DDNG']);
+    const selfCode = (email.mailCode ?? '').toUpperCase();
+    const highlighted = escaped.replace(CODE_RE, (match, p1, p2, p3) => {
+      if (EXCLUDED.has(p1.toUpperCase())) return match;
+      const code = `${p1.toUpperCase()} ${p2}/${p3.replace(/\D/g, '')}`;
+      if (code === selfCode) return `<span class="font-semibold text-gray-800">${match}</span>`;
+      if (!refMap.has(code)) return match;
+      const emailId = refMap.get(code)!;
+      if (emailId) return `<span class="text-green-600 font-medium cursor-pointer hover:underline" data-ref-id="${emailId}" title="Ver ${code}">${match}</span>`;
+      return `<span class="text-red-500 font-medium" title="${code} — no encontrado en la base de datos">${match}</span>`;
+    });
+    return this.sanitizer.bypassSecurityTrustHtml(highlighted);
   }
 }

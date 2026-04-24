@@ -578,4 +578,24 @@ export class DraftMailService {
     if (!this.isMlopez(user)) throw new ForbiddenException('Solo mlopez puede quitar al director');
     await this.directorRepo.createQueryBuilder().delete().execute();
   }
+
+  async getBodyReferences(id: string, user: User): Promise<{ referencedCode: string; referencedEmailId: string | null }[]> {
+    const draft = await this.findOne(id, user);
+    const body = draft.bodyText ?? '';
+    const CODE_RE = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[^\w\/]*\/[^\w]*(\d[^\w\/]*\d)\b/g;
+    const EXCLUDED = new Set(['PON', 'DDNG']);
+    const seen = new Set<string>();
+    const results: { referencedCode: string; referencedEmailId: string | null }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = CODE_RE.exec(body)) !== null) {
+      const prefix = m[1].toUpperCase();
+      if (EXCLUDED.has(prefix)) continue;
+      const code = `${prefix} ${m[2]}/${m[3].replace(/\D/g, '')}`;
+      if (seen.has(code)) continue;
+      seen.add(code);
+      const email = await this.emailRepo.findOne({ where: { mailCode: code } });
+      results.push({ referencedCode: code, referencedEmailId: email?.id ?? null });
+    }
+    return results;
+  }
 }

@@ -1389,8 +1389,8 @@ export class MailComponent implements OnInit {
   }
 
   onBodyCodeClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    const emailId = target.getAttribute('data-ref-id');
+    const span = (event.target as HTMLElement).closest<HTMLElement>('[data-ref-id]');
+    const emailId = span?.getAttribute('data-ref-id');
     if (!emailId) return;
     this.mailService.getEmail(emailId).subscribe({
       next: (email) => {

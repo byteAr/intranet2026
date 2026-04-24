@@ -839,6 +839,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.mailService.loadUnreadCounts();
     this.draftMailService.connect();
     this.draftMailService.loadIsAuthorizer();
+    this.draftMailService.loadIsSuperApprover();
     this.draftMailService.loadPendingCount();
     this.draftMailService.loadApprovedCount();
     this.incidentsService.connect();

@@ -255,6 +255,30 @@ export class DraftMailService {
     return saved;
   }
 
+  async selfApprove(id: string, user: User): Promise<DraftEmail> {
+    if (!(await this.isSuperApprover(user))) throw new ForbiddenException('Solo el director puede auto-aprobar');
+    const draft = await this.findOne(id, user);
+    if (draft.creatorId !== user.id) throw new ForbiddenException('Solo podés auto-aprobar tus propios borradores');
+    if (!['draft', 'needs_correction'].includes(draft.status)) throw new BadRequestException('Solo se pueden auto-aprobar borradores en estado borrador o requiere corrección');
+
+    draft.status = 'approved';
+    draft.approvedById = user.id;
+    draft.approvedByName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
+    draft.approvedByRank = expandRank((user as any).rank || user.title);
+    draft.approvedAt = new Date();
+    draft.hash = await this.generateUniqueHash();
+    draft.history = [...draft.history, {
+      type: 'approved',
+      at: new Date().toISOString(),
+      byId: user.id,
+      byName: draft.approvedByName,
+    }];
+    const saved = await this.draftRepo.save(draft);
+    this.gateway.notifyRole('', 'draft_ready_to_send', { id: draft.id, subject: draft.subject });
+    this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
+    return saved;
+  }
+
   async approve(id: string, user: User): Promise<DraftEmail> {
     const draft = await this.findOne(id, user);
     const canApprove = await this.isAuthorizer(user) || draft.assignedReviewerId === user.id;

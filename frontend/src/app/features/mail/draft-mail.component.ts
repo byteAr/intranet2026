@@ -57,7 +57,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
           <h2 class="text-sm font-semibold text-gray-700">
             @if (isAuthorizer()) { Revisión de borradores } @else { Mis borradores }
           </h2>
-          @if (!isAuthorizer()) {
+          @if (!isAuthorizer() || isTicomUser() || isSuperApprover()) {
             <button (click)="openNew()"
               class="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-white"
               style="background:#0f766e">
@@ -450,17 +450,28 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                   <button (click)="openEdit(activeDraft()!)"
                     class="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50">Editar</button>
                 }
-                @if (isCreator(activeDraft()!) && activeDraft()!.status === 'needs_correction' && canSubmitAfterCorrection()) {
+                @if (isCreator(activeDraft()!) && isSuperApprover() && (activeDraft()!.status === 'draft' || activeDraft()!.status === 'needs_correction')) {
+                  <button (click)="selfApproveDraft()" [disabled]="saving()"
+                    class="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                    style="background:#0f766e">
+                    Aprobar directamente
+                  </button>
+                }
+                @if (isCreator(activeDraft()!) && !isSuperApprover() && activeDraft()!.status === 'needs_correction' && canSubmitAfterCorrection()) {
                   <button (click)="submitDraft(activeDraft()!.id)" [disabled]="saving()"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
                     Reenviar a revisión
                   </button>
                 }
-                @if (isCreator(activeDraft()!) && activeDraft()!.status === 'draft') {
+                @if (isCreator(activeDraft()!) && !isSuperApprover() && activeDraft()!.status === 'draft') {
                   <button (click)="submitDraft(activeDraft()!.id)" [disabled]="saving()"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
                     Enviar a revisión
                   </button>
+                  <button (click)="promptDelete(activeDraft()!.id)"
+                    class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Eliminar</button>
+                }
+                @if (isCreator(activeDraft()!) && isSuperApprover() && activeDraft()!.status === 'draft') {
                   <button (click)="promptDelete(activeDraft()!.id)"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Eliminar</button>
                 }
@@ -706,6 +717,8 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   private readonly ccSearchSubject = new Subject<string>();
 
   readonly isAuthorizer = computed(() => this.draftMailService.isAuthorizerSignal());
+  readonly isSuperApprover = computed(() => this.draftMailService.isSuperApproverSignal());
+  readonly isTicomUser = computed(() => !!this.authService.currentUser()?.roles?.includes('TICOM'));
 
   readonly highlightedDraftBody = computed((): SafeHtml => {
     const draft = this.activeDraft();
@@ -1020,6 +1033,22 @@ export class DraftMailComponent implements OnInit, OnDestroy {
         this.saving.set(false);
         this.drafts.update((list) => list.map((d) => d.id === updated.id ? updated : d));
         this.activeDraft.set(updated);
+      },
+      error: () => this.saving.set(false),
+    });
+  }
+
+  selfApproveDraft(): void {
+    const id = this.activeDraft()?.id;
+    if (!id) return;
+    this.saving.set(true);
+    this.draftMailService.selfApprove(id).subscribe({
+      next: (updated) => {
+        this.saving.set(false);
+        this.drafts.update((list) => list.map((d) => d.id === updated.id ? updated : d));
+        this.activeDraft.set(updated);
+        this.showForm.set(false);
+        this.editingDraft.set(null);
       },
       error: () => this.saving.set(false),
     });

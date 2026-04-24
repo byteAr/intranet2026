@@ -55,6 +55,11 @@ export class DraftMailController {
     return { value: await this.service.isAuthorizer(req.user) };
   }
 
+  @Get('is-super-approver')
+  async isSuperApprover(@Request() req: { user: User }) {
+    return { value: await this.service.isSuperApprover(req.user) };
+  }
+
   @Get('pending-count')
   async getPendingCount(@Request() req: { user: User }) {
     return { count: await this.service.getPendingCountForAuthorizer(req.user) };
@@ -157,6 +162,11 @@ export class DraftMailController {
   @Post(':id/submit')
   submit(@Param('id') id: string, @Request() req: { user: User }) {
     return this.service.submit(id, req.user);
+  }
+
+  @Post(':id/self-approve')
+  selfApprove(@Param('id') id: string, @Request() req: { user: User }) {
+    return this.service.selfApprove(id, req.user);
   }
 
   @Post(':id/approve')

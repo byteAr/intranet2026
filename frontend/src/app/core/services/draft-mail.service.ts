@@ -96,6 +96,7 @@ export class DraftMailService {
   readonly pendingCount = signal(0);
   readonly approvedCount = signal(0);
   readonly isAuthorizerSignal = signal(false);
+  readonly isSuperApproverSignal = signal(false);
   readonly draftStatusChanged$ = new Subject<{ id: string; event: string }>();
 
   constructor() {
@@ -141,11 +142,19 @@ export class DraftMailService {
     this.pendingCount.set(0);
     this.approvedCount.set(0);
     this.isAuthorizerSignal.set(false);
+    this.isSuperApproverSignal.set(false);
   }
 
   loadIsAuthorizer(): void {
     this.http.get<{ value: boolean }>('/api/draft-mail/is-authorizer').subscribe({
       next: (r) => this.isAuthorizerSignal.set(r.value),
+      error: () => {},
+    });
+  }
+
+  loadIsSuperApprover(): void {
+    this.http.get<{ value: boolean }>('/api/draft-mail/is-super-approver').subscribe({
+      next: (r) => this.isSuperApproverSignal.set(r.value),
       error: () => {},
     });
   }
@@ -194,6 +203,10 @@ export class DraftMailService {
 
   submit(id: string): Observable<DraftEmail> {
     return this.http.post<DraftEmail>(`/api/draft-mail/${id}/submit`, {});
+  }
+
+  selfApprove(id: string): Observable<DraftEmail> {
+    return this.http.post<DraftEmail>(`/api/draft-mail/${id}/self-approve`, {});
   }
 
   approve(id: string): Observable<DraftEmail> {

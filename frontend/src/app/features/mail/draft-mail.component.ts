@@ -519,7 +519,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
 
               <!-- Antecedentes (emails referenciados en el cuerpo del MTO) -->
               @if (activeRefEmail()) {
-                <div class="rounded-xl border border-gray-200 bg-white shadow overflow-hidden">
+                <div #refEmailViewer class="rounded-xl border border-gray-200 bg-white shadow overflow-hidden">
                   <!-- Header bar -->
                   <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
                     <div class="flex items-center gap-2">
@@ -660,6 +660,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 
   @ViewChild('toInputEl') toInputEl?: ElementRef<HTMLInputElement>;
   @ViewChild('ccInputEl') ccInputEl?: ElementRef<HTMLInputElement>;
+  @ViewChild('refEmailViewer') refEmailViewerEl?: ElementRef<HTMLElement>;
 
   readonly loading = signal(false);
   readonly saving = signal(false);
@@ -1262,6 +1263,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
         this.refNavHistory.set([email]);
         this.refNavIndex.set(0);
         this.activeRefEmail.set(email);
+        setTimeout(() => this.refEmailViewerEl?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
       },
     });
   }

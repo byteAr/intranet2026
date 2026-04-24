@@ -63,4 +63,5 @@ export class AuthController {
     await this.passwordResetService.changePassword(req.user.id, dto.currentPassword, dto.newPassword);
     return { message: 'Contraseña actualizada exitosamente' };
   }
+
 }

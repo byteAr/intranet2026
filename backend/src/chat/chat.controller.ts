@@ -4,11 +4,14 @@ import {
   Get,
   Param,
   Query,
+  Req,
+  Body,
   Res,
   UseInterceptors,
   UploadedFile,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -18,6 +21,10 @@ import { existsSync, mkdirSync } from 'fs';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
+import { ChatService } from './chat.service';
+import { BroadcastDmService } from './broadcast-dm.service';
+import { ChatGateway } from './chat.gateway';
+import { UsersService } from '../users/users.service';
 
 const UPLOAD_DIR = '/app/uploads/chat';
 
@@ -35,6 +42,65 @@ const ALLOWED_TYPES = new Set([
 
 @Controller('chat')
 export class ChatController {
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly broadcastDmService: BroadcastDmService,
+    private readonly chatGateway: ChatGateway,
+    private readonly usersService: UsersService,
+  ) {}
+
+  @Post('broadcast-dm')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
+          cb(null, UPLOAD_DIR);
+        },
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname);
+          cb(null, `${crypto.randomUUID()}${ext}`);
+        },
+      }),
+      limits: { fileSize: 50 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        ALLOWED_TYPES.has(file.mimetype) ? cb(null, true) : cb(new BadRequestException('Tipo de archivo no permitido'), false);
+      },
+    }),
+  )
+  async broadcastDm(
+    @Req() req: any,
+    @Body('content') content: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (req.user.username !== 'mlopez') throw new ForbiddenException('Sin permiso');
+    if (!content?.trim() && !file) throw new BadRequestException('Se requiere contenido o archivo');
+
+    // 1. Guardar el broadcast en DB — garantiza entrega a futuros usuarios
+    await this.broadcastDmService.create({
+      senderId: req.user.id,
+      senderName: req.user.displayName ?? req.user.username,
+      senderAvatar: this.chatGateway.getSenderAvatar(req.user.id),
+      content: content?.trim() ?? '',
+      attachmentUrl: file ? `/api/chat/files/${file.filename}` : undefined,
+      attachmentName: file?.originalname,
+      attachmentSize: file?.size,
+      attachmentMimeType: file?.mimetype,
+    });
+
+    // 2. Entregar inmediatamente a todos los usuarios ya en DB
+    const recipients = await this.usersService.findAllActiveIds(req.user.id);
+    for (const { id: recipientId } of recipients) {
+      await this.broadcastDmService.deliverPendingToUser(recipientId, this.chatService, (msg) => {
+        this.chatGateway.emitDmToUser(recipientId, msg);
+        this.chatGateway.emitDmToUser(req.user.id, msg);
+      });
+    }
+
+    return { ok: true, sent: recipients.length };
+  }
+
   @Post('upload')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(

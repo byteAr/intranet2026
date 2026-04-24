@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -10,4 +10,9 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(5_000_000, { message: 'La imagen es demasiado grande' })
   avatar?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['SUBALF','ALF','1ER ALF','2DO CTE','CTE','CTE PR','CTE MY','CTE GRL','GEND','CBO','CRO','SARG','SRO','SAY','SPR','SMY','CIVIL'])
+  rank?: string;
 }

@@ -7,6 +7,7 @@ import {
   UseInterceptors,
   BadRequestException,
   NotFoundException,
+  HttpCode,
 } from '@nestjs/common';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -66,6 +67,17 @@ export class PstImportController {
   @Get('history')
   async getHistory() {
     return this.pstImportService.getHistory();
+  }
+
+  @Post('reprocess-references')
+  @HttpCode(200)
+  async reprocessReferences() {
+    return this.pstImportService.reprocessReferences();
+  }
+
+  @Get('reprocess-status')
+  async reprocessStatus() {
+    return this.pstImportService.getReprocessStatus();
   }
 
   @Get('files')

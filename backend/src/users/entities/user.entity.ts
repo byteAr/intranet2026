@@ -71,6 +71,12 @@ export class User {
   @Column({ type: 'text', nullable: true })
   avatar: string;
 
+  @Column({ nullable: true, type: 'varchar' })
+  rank: string | null;
+
+  @Column({ default: false })
+  mustChangePassword: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

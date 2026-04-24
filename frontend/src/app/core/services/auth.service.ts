@@ -76,7 +76,7 @@ export class AuthService {
     return this.http.post<{ message: string }>('/api/auth/change-password', { currentPassword, newPassword });
   }
 
-  updateProfile(data: { recoveryEmail?: string; avatar?: string }): Observable<User> {
+  updateProfile(data: { recoveryEmail?: string; avatar?: string; rank?: string }): Observable<User> {
     return this.http.patch<User>('/api/users/me', data).pipe(
       tap((user) => {
         const updated = { ...this._user(), ...user } as User;

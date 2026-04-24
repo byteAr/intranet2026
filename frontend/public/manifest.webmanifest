@@ -1,7 +1,7 @@
 {
   "name": "Intranet Diredtos",
   "short_name": "Intranet",
-  "description": "Intranet División tecnología de la información y comunicaciones",
+  "description": "Intranet División Tecnologías de la Información y Comunicaciones",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0f766e",
@@ -55,6 +55,28 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable any"
+    },
+    {
+      "src": "icons/dark/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any",
+      "color_scheme": "dark"
+    },
+    {
+      "src": "icons/dark/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any",
+      "color_scheme": "dark"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "icons/splash-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "label": "Intranet Diredtos"
     }
   ]
 }

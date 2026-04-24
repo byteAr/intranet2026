@@ -215,7 +215,7 @@ import { AttachmentPreviewComponent } from './attachment-preview.component';
                   }
                   <!-- Text content -->
                   @if (msg.content) {
-                    <p class="px-4 py-2.5 break-words">{{ msg.content }}</p>
+                    <p class="px-4 py-2.5 break-words whitespace-pre-wrap">{{ msg.content }}</p>
                   }
                 </div>
                 <p class="text-xs text-gray-400 mt-1" [class.text-right]="isOwn(msg)" [class.ml-1]="!isOwn(msg)">

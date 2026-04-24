@@ -2,6 +2,8 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import * as ldap from 'ldapjs';
+import * as path from 'path';
+import * as fs from 'fs';
 import { UsersService } from '../users/users.service';
 
 interface OtpEntry {
@@ -238,19 +240,87 @@ export class PasswordResetService {
       tls: { rejectUnauthorized: false },
     });
 
+    const year = new Date().getFullYear();
+    const logoPath = path.join(process.cwd(), 'assets', 'logo.png');
+    const logoExists = fs.existsSync(logoPath);
+
     await transporter.sendMail({
       from: this.configService.get<string>('SMTP_FROM') ?? 'noreply@iugnad.lan',
       to,
       subject: 'Recuperación de contraseña - Intranet Diredtos',
+      attachments: logoExists ? [{
+        filename: 'logo.png',
+        path: logoPath,
+        cid: 'logo@intranet',
+      }] : [],
       html: `
-        <div style="font-family:Arial,sans-serif;max-width:420px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:12px">
-          <h2 style="background:linear-gradient(to right,#14B8A5,#22C562);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-top:0">Intranet Diredtos</h2>
-          <p style="color:#374151">Hemos recibido una solicitud de recupero de contraseña en la división informática para su cuenta de dominio, esta es la clave de seguridad otorgada:</p>
-          <div style="font-size:40px;font-weight:bold;letter-spacing:10px;text-align:center;padding:20px;background:linear-gradient(to right,#14B8A5,#22C562);color:#ffffff;border-radius:8px;margin:16px 0">
-            ${otp}
-          </div>
-          <p style="color:#6b7280;font-size:13px">Este código expira en <strong>10 minutos</strong>.<br>Si no solicitaste este cambio, ignora este correo.</p>
-        </div>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+        <body style="margin:0;padding:0;background-color:#f3f4f6;font-family:Arial,Helvetica,sans-serif">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;padding:32px 0">
+            <tr><td align="center">
+              <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+
+                <!-- Header -->
+                <tr>
+                  <td style="background:linear-gradient(135deg,#0d9488,#166534);padding:28px 32px;text-align:center">
+                    <img src="cid:logo@intranet" alt="Intranet Diredtos" height="80"
+                         style="height:80px;object-fit:contain;display:block;margin:0 auto" />
+                  </td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                  <td style="padding:32px">
+                    <h1 style="margin:0 0 8px 0;font-size:20px;color:#111827;font-weight:700">
+                      Recuperación de contraseña
+                    </h1>
+                    <p style="margin:0 0 24px 0;font-size:15px;color:#374151;line-height:1.6">
+                      Hemos recibido una solicitud para restablecer la contraseña de su cuenta de dominio.
+                      Utilice el siguiente código de verificación:
+                    </p>
+
+                    <!-- OTP -->
+                    <div style="background:linear-gradient(135deg,#0d9488,#166534);border-radius:12px;padding:28px;text-align:center;margin:0 0 24px 0">
+                      <p style="margin:0 0 6px 0;font-size:12px;color:rgba(255,255,255,0.8);text-transform:uppercase;letter-spacing:2px;font-weight:600">
+                        Código de verificación
+                      </p>
+                      <p style="margin:0;font-size:64px;font-weight:900;letter-spacing:18px;color:#ffffff;font-family:Georgia,'Times New Roman',serif">
+                        ${otp}
+                      </p>
+                    </div>
+
+                    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fef3c7;border-radius:8px;margin:0 0 24px 0">
+                      <tr>
+                        <td style="padding:14px 16px">
+                          <p style="margin:0;font-size:13px;color:#92400e;line-height:1.5">
+                            ⏱ Este código expira en <strong>10 minutos</strong>.<br>
+                            Si no solicitaste este cambio, ignorá este correo — tu contraseña permanece sin cambios.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center">
+                    <p style="margin:0 0 4px 0;font-size:12px;color:#6b7280;font-weight:600">
+                      División Tecnologías de la Información y Comunicaciones
+                    </p>
+                    <p style="margin:0;font-size:11px;color:#9ca3af">
+                      Dirección de Educación e Institutos &nbsp;·&nbsp; ${year}
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td></tr>
+          </table>
+        </body>
+        </html>
       `,
     });
   }

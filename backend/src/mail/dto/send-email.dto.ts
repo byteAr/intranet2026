@@ -19,6 +19,12 @@ export class SendEmailDto {
   @IsEmail({}, { each: true })
   cc?: string[];
 
+  @Transform(({ value }) => (value !== undefined ? toArray(value) : undefined))
+  @IsOptional()
+  @IsArray()
+  @IsEmail({}, { each: true })
+  bcc?: string[];
+
   @IsString()
   @IsNotEmpty()
   subject: string;

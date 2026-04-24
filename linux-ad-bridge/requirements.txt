@@ -1,1 +1,1 @@
-# sin dependencias Python externas, usa samba-common-bin del sistema
+ldap3==2.9.1

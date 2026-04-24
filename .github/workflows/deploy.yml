@@ -1,0 +1,33 @@
+name: Deploy to production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd /usr/local/proyectos/intranet2026
+
+            echo ">>> git pull"
+            git pull origin main
+
+            echo ">>> rebuild backend"
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend
+
+            echo ">>> rebuild frontend"
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build frontend
+
+            echo ">>> deploy finalizado OK"

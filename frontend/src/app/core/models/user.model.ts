@@ -12,6 +12,7 @@ export interface User {
   updatedAt: string;
   recoveryEmail?: string;
   avatar?: string;
+  rank?: string;
   upn?: string;
   title?: string;
   department?: string;
@@ -21,6 +22,7 @@ export interface User {
   office?: string;
   manager?: string;
   employeeId?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface LoginResponse {

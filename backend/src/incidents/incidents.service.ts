@@ -79,6 +79,7 @@ export class IncidentsService {
   async resolve(
     incidentId: string,
     technicianId: string,
+    technicianName: string,
     resolution: string,
   ): Promise<Incident> {
     const incident = await this.findById(incidentId);
@@ -88,16 +89,20 @@ export class IncidentsService {
         'Solo se pueden finalizar incidencias en proceso o en espera',
       );
     }
+    if (incident.status === 'en_proceso' && incident.technicianId !== technicianId) {
+      throw new ForbiddenException('Esta incidencia está siendo atendida por otro técnico');
+    }
     incident.status = 'finalizada';
     incident.resolution = resolution;
     incident.resolvedAt = new Date();
-    this.pushHistory(incident, 'finalizada', incident.technicianName, resolution);
+    this.pushHistory(incident, 'finalizada', technicianName, resolution);
     return this.incidentRepo.save(incident);
   }
 
   async putOnHold(
     incidentId: string,
     technicianId: string,
+    technicianName: string,
     waitingReason: string,
   ): Promise<Incident> {
     const incident = await this.findById(incidentId);
@@ -107,16 +112,20 @@ export class IncidentsService {
         'Solo se pueden poner en espera incidencias en proceso',
       );
     }
+    if (incident.technicianId !== technicianId) {
+      throw new ForbiddenException('Esta incidencia está siendo atendida por otro técnico');
+    }
     incident.status = 'en_espera';
     incident.waitingReason = waitingReason;
     incident.waitingSince = new Date();
-    this.pushHistory(incident, 'en_espera', incident.technicianName, waitingReason);
+    this.pushHistory(incident, 'en_espera', technicianName, waitingReason);
     return this.incidentRepo.save(incident);
   }
 
   async reactivate(
     incidentId: string,
     technicianId: string,
+    technicianName: string,
   ): Promise<Incident> {
     const incident = await this.findById(incidentId);
     if (!incident) throw new ConflictException('Incidencia no encontrada');
@@ -126,9 +135,11 @@ export class IncidentsService {
       );
     }
     incident.status = 'en_proceso';
+    incident.technicianId = technicianId;
+    incident.technicianName = technicianName;
     incident.waitingReason = undefined;
     incident.waitingSince = undefined;
-    this.pushHistory(incident, 'reactivada', incident.technicianName);
+    this.pushHistory(incident, 'reactivada', technicianName);
     return this.incidentRepo.save(incident);
   }
 
@@ -144,6 +155,9 @@ export class IncidentsService {
       throw new ConflictException(
         'Solo se pueden cerrar incidencias en proceso o en espera',
       );
+    }
+    if (incident.status === 'en_proceso' && incident.technicianId !== technicianId) {
+      throw new ForbiddenException('Esta incidencia está siendo atendida por otro técnico');
     }
     incident.status = 'no_resuelta';
     incident.unresolvedReason = unresolvedReason;

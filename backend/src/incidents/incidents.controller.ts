@@ -142,7 +142,9 @@ export class IncidentsController {
     if (!resolution?.trim()) {
       throw new BadRequestException('La resolución es obligatoria');
     }
-    const incident = await this.incidentsService.resolve(id, req.user.id, resolution.trim());
+    const user = req.user;
+    const techName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName || user.username;
+    const incident = await this.incidentsService.resolve(id, user.id, techName, resolution.trim());
     this.incidentsGateway.notifyIncidentUpdate(incident);
     return incident;
   }
@@ -157,7 +159,9 @@ export class IncidentsController {
     if (!waitingReason?.trim()) {
       throw new BadRequestException('Debes indicar qué falta para continuar');
     }
-    const incident = await this.incidentsService.putOnHold(id, req.user.id, waitingReason.trim());
+    const user = req.user;
+    const techName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName || user.username;
+    const incident = await this.incidentsService.putOnHold(id, user.id, techName, waitingReason.trim());
     this.incidentsGateway.notifyIncidentUpdate(incident);
     return incident;
   }
@@ -165,7 +169,9 @@ export class IncidentsController {
   @Patch(':id/reactivate')
   @Roles('TICOM')
   async reactivate(@Param('id') id: string, @Req() req: any) {
-    const incident = await this.incidentsService.reactivate(id, req.user.id);
+    const user = req.user;
+    const techName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName || user.username;
+    const incident = await this.incidentsService.reactivate(id, user.id, techName);
     this.incidentsGateway.notifyIncidentUpdate(incident);
     return incident;
   }

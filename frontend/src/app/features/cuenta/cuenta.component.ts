@@ -1,14 +1,14 @@
-import { Component, inject, signal, ElementRef, ViewChild } from '@angular/core';
+import { Component, inject, signal, computed, effect, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule, FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 
-type Panel = 'info' | 'password' | 'recovery';
+type Panel = 'info' | 'password' | 'recovery' | 'rank';
 
 @Component({
   selector: 'app-cuenta',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, DatePipe],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, DatePipe],
   template: `
     <div class="space-y-6 max-w-3xl mx-auto">
 
@@ -35,6 +35,17 @@ type Panel = 'info' | 'password' | 'recovery';
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </button>
+            @if (user()?.avatar) {
+              <button (click)="deleteAvatar()" [disabled]="deletingAvatar()"
+                class="absolute h-7 w-7 rounded-full border-2 border-white flex items-center justify-center shadow text-white disabled:opacity-50"
+                style="background: #ef4444; bottom: 28px; right: -4px;"
+                title="Eliminar foto">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            }
             <input #fileInput type="file" accept="image/*" class="hidden" (change)="onAvatarSelected($event)" />
           </div>
 
@@ -179,7 +190,11 @@ type Panel = 'info' | 'password' | 'recovery';
                 [class.border-red-300]="isInvalid(recoveryForm, 'recoveryEmail')"
                 placeholder="tucorreo@personal.com" />
               @if (isInvalid(recoveryForm, 'recoveryEmail')) {
-                <p class="mt-1 text-xs text-red-600">Ingresa un correo válido.</p>
+                @if (recoveryForm.get('recoveryEmail')?.errors?.['institutionalEmail']) {
+                  <p class="mt-1 text-xs text-red-600">No podés usar un correo institucional (@iugna.edu.ar) como correo de recuperación.</p>
+                } @else {
+                  <p class="mt-1 text-xs text-red-600">Ingresá un correo válido.</p>
+                }
               }
             </div>
             <button type="submit" [disabled]="savingRecovery()"
@@ -188,6 +203,65 @@ type Panel = 'info' | 'password' | 'recovery';
               {{ savingRecovery() ? 'Guardando...' : 'Guardar correo' }}
             </button>
           </form>
+        </div>
+      }
+
+      <!-- Panel: Jerarquía -->
+      @if (activePanel() === 'rank') {
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-1">Jerarquía</h3>
+          <p class="text-sm text-gray-500 mb-4">
+            Seleccioná tu jerarquía para que figure correctamente en los documentos.
+          </p>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Jerarquía</label>
+
+              <!-- Checkbox personal civil -->
+              <label class="flex items-center gap-2 mb-2 cursor-pointer select-none">
+                <input type="checkbox" [checked]="selectedRank === 'CIVIL'"
+                  (change)="onCivilToggle($event)"
+                  class="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                <span class="text-sm text-gray-700">No soy personal uniformado</span>
+              </label>
+
+              @if (selectedRank !== 'CIVIL') {
+                <select [(ngModel)]="selectedRank"
+                  class="w-full rounded-lg border-gray-300 shadow-sm text-sm focus:ring-teal-500 focus:border-teal-500">
+                  <option value="">— Sin especificar —</option>
+                  <optgroup label="Oficiales">
+                    <option value="SUBALF">SUBALFEREZ</option>
+                    <option value="ALF">ALFEREZ</option>
+                    <option value="1ER ALF">PRIMER ALFEREZ</option>
+                    <option value="2DO CTE">SEGUNDO COMANDANTE</option>
+                    <option value="CTE">COMANDANTE</option>
+                    <option value="CTE PR">COMANDANTE PRINCIPAL</option>
+                    <option value="CTE MY">COMANDANTE MAYOR</option>
+                    <option value="CTE GRL">COMANDANTE GENERAL</option>
+                  </optgroup>
+                  <optgroup label="Suboficiales">
+                    <option value="GEND">GENDARME</option>
+                    <option value="CBO">CABO</option>
+                    <option value="CRO">CABO PRIMERO</option>
+                    <option value="SARG">SARGENTO</option>
+                    <option value="SRO">SARGENTO PRIMERO</option>
+                    <option value="SAY">SARGENTO AYUDANTE</option>
+                    <option value="SPR">SUBOFICIAL PRINCIPAL</option>
+                    <option value="SMY">SUBOFICIAL MAYOR</option>
+                  </optgroup>
+                </select>
+              } @else {
+                <p class="text-sm text-teal-700 bg-teal-50 rounded-lg px-3 py-2">
+                  Registrado como personal civil.
+                </p>
+              }
+            </div>
+            <button (click)="saveRank()" [disabled]="savingRank()"
+              class="px-6 py-2 rounded-lg text-sm font-medium text-white shadow disabled:opacity-50"
+              style="background: linear-gradient(to right, #14B8A5, #22C562)">
+              {{ savingRank() ? 'Guardando...' : 'Guardar jerarquía' }}
+            </button>
+          </div>
         </div>
       }
 
@@ -205,15 +279,29 @@ export class CuentaComponent {
   showCurrent = signal(false);
   showNew = signal(false);
   savingAvatar = signal(false);
+  deletingAvatar = signal(false);
   savingPwd = signal(false);
   savingRecovery = signal(false);
+  savingRank = signal(false);
   avatarChanged = signal(false);
   pendingAvatar = signal<string | null>(null);
+  selectedRank = this.authService.currentUser()?.rank ?? '';
+
+  constructor() {
+    // Keep selectedRank and recoveryForm in sync when the user signal updates
+    // (e.g. after the profile completion modal saves while this component is mounted)
+    effect(() => {
+      const u = this.authService.currentUser();
+      this.selectedRank = u?.rank ?? '';
+      this.recoveryForm.patchValue({ recoveryEmail: u?.recoveryEmail ?? '' });
+    });
+  }
 
   panels = [
     { id: 'info' as Panel, label: 'Información', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
     { id: 'password' as Panel, label: 'Contraseña', icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' },
     { id: 'recovery' as Panel, label: 'Recuperación', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+    { id: 'rank' as Panel, label: 'Jerarquía', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
   ];
 
   passwordForm: FormGroup = this.fb.group({
@@ -223,8 +311,13 @@ export class CuentaComponent {
   });
 
   recoveryForm: FormGroup = this.fb.group({
-    recoveryEmail: [this.user()?.recoveryEmail ?? '', [Validators.required, Validators.email]],
+    recoveryEmail: [this.user()?.recoveryEmail ?? '', [Validators.required, Validators.email, this.noInstitutionalEmail]],
   });
+
+  noInstitutionalEmail(control: AbstractControl): ValidationErrors | null {
+    const v = (control.value ?? '').toLowerCase();
+    return v.endsWith('@iugna.edu.ar') ? { institutionalEmail: true } : null;
+  }
 
   initials(): string {
     return (this.user()?.displayName ?? this.user()?.username ?? '?')
@@ -237,6 +330,7 @@ export class CuentaComponent {
       { label: 'Usuario', value: u?.username },
       { label: 'Correo educativo', value: u?.email },
       { label: 'Correo de recuperación', value: u?.recoveryEmail },
+      { label: 'Jerarquía', value: u?.rank },
       { label: 'Cargo', value: u?.title },
       { label: 'Departamento', value: u?.department },
       { label: 'Empresa', value: u?.company },
@@ -292,6 +386,24 @@ export class CuentaComponent {
     });
   }
 
+  deleteAvatar(): void {
+    this.clear();
+    this.deletingAvatar.set(true);
+    this.pendingAvatar.set(null);
+    this.avatarChanged.set(false);
+    this.authService.updateProfile({ avatar: null as unknown as string }).subscribe({
+      next: () => {
+        this.deletingAvatar.set(false);
+        this.authService['_user'].set({ ...this.user()!, avatar: undefined });
+        this.successMsg.set('Foto de perfil eliminada.');
+      },
+      error: () => {
+        this.deletingAvatar.set(false);
+        this.errorMsg.set('Error al eliminar la foto.');
+      },
+    });
+  }
+
   onChangePassword(): void {
     if (this.passwordForm.invalid) { this.passwordForm.markAllAsTouched(); return; }
     if (this.pwdMismatch()) return;
@@ -324,6 +436,25 @@ export class CuentaComponent {
       error: () => {
         this.savingRecovery.set(false);
         this.errorMsg.set('Error al guardar el correo de recuperación.');
+      },
+    });
+  }
+
+  onCivilToggle(event: Event): void {
+    this.selectedRank = (event.target as HTMLInputElement).checked ? 'CIVIL' : '';
+  }
+
+  saveRank(): void {
+    this.clear();
+    this.savingRank.set(true);
+    this.authService.updateProfile({ rank: this.selectedRank }).subscribe({
+      next: () => {
+        this.savingRank.set(false);
+        this.successMsg.set('Jerarquía guardada correctamente.');
+      },
+      error: () => {
+        this.savingRank.set(false);
+        this.errorMsg.set('Error al guardar la jerarquía.');
       },
     });
   }

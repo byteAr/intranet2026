@@ -8,6 +8,7 @@ import {
 import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../../../core/services/auth.service';
+import { ThemeService } from '../../../core/services/theme.service';
 
 type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
 
@@ -16,20 +17,44 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterModule],
   template: `
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-green-100">
-      <div class="max-w-md w-full space-y-8 p-10 bg-white rounded-2xl shadow-xl">
+    <!-- Dark mode toggle (top right) -->
+    <div class="fixed top-4 right-4 z-50">
+      <button
+        (click)="themeService.toggle()"
+        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm border border-gray-200 dark:border-zinc-700 shadow-sm transition-colors hover:bg-white dark:hover:bg-zinc-800"
+        [attr.aria-label]="themeService.isDark() ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'">
+        @if (themeService.isDark()) {
+          <svg class="h-4 w-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+          </svg>
+        } @else {
+          <svg class="h-4 w-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+          </svg>
+        }
+        <div class="relative w-8 h-[18px] rounded-full transition-colors duration-300"
+             [class]="themeService.isDark() ? 'bg-green-800' : 'bg-gray-300'">
+          <div class="absolute top-[2px] w-3.5 h-3.5 bg-white rounded-full shadow-sm transition-all duration-300"
+               [class]="themeService.isDark() ? 'left-[18px]' : 'left-[2px]'">
+          </div>
+        </div>
+      </button>
+    </div>
+
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-green-100 dark:from-zinc-950 dark:to-zinc-900">
+      <div class="max-w-md w-full space-y-8 p-10 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl dark:shadow-black/50 border border-transparent dark:border-zinc-800">
 
         <!-- Header -->
         <div class="text-center">
-          <img src="assets/images/diredtosintranet.png" class="mx-auto h-36 object-contain" alt="Diredtos Intranet" />
+          <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'" class="mx-auto h-36 object-contain" [style.mix-blend-mode]="themeService.isDark() ? 'screen' : 'normal'" alt="Diredtos Intranet" />
           @if (step() === 'login') {
-            <p class="mt-2 text-sm text-gray-600">Inicie sesión con el mismo usuario y contraseña que utiliza para ingresar a la PC</p>
+            <p class="mt-2 text-sm text-gray-600 dark:text-zinc-400">Inicie sesión con el mismo usuario y contraseña que utiliza para ingresar a la PC</p>
           } @else if (step() === 'forgot-username') {
-            <p class="mt-2 text-sm text-gray-600">Paso 1 de 3 — Ingresa tu usuario</p>
+            <p class="mt-2 text-sm text-gray-600 dark:text-zinc-400">Paso 1 de 3 — Ingresa tu usuario</p>
           } @else if (step() === 'forgot-otp') {
-            <p class="mt-2 text-sm text-gray-600">Paso 2 de 3 — Código enviado a tu correo educativo</p>
+            <p class="mt-2 text-sm text-gray-600 dark:text-zinc-400">Paso 2 de 3 — Código enviado a tu correo de recuperación</p>
           } @else {
-            <p class="mt-2 text-sm text-gray-600">Paso 3 de 3 — Establece tu nueva contraseña</p>
+            <p class="mt-2 text-sm text-gray-600 dark:text-zinc-400">Paso 3 de 3 — Establece tu nueva contraseña</p>
           }
         </div>
 
@@ -64,17 +89,20 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
         @if (step() === 'login') {
           <form [formGroup]="loginForm" (ngSubmit)="onLogin()" class="space-y-6">
             <div>
-              <label for="username" class="block text-sm font-medium text-gray-700">Usuario</label>
+              <label for="username" class="block text-sm font-medium text-gray-700 dark:text-zinc-300">Usuario</label>
               <input
                 id="username"
                 type="text"
                 formControlName="username"
                 autocomplete="username"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                       focus:border-teal-500 focus:ring-teal-500 sm:text-sm
-                       disabled:bg-gray-50 disabled:text-gray-500"
+                class="mt-1 block w-full rounded-md border-gray-300 dark:border-zinc-700 shadow-sm
+                       bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100
+                       placeholder-gray-400 dark:placeholder-zinc-500
+                       focus:border-teal-500 dark:focus:border-green-700
+                       focus:ring-teal-500 dark:focus:ring-green-700 sm:text-sm
+                       disabled:bg-gray-50 dark:disabled:bg-zinc-900 disabled:text-gray-500 dark:disabled:text-zinc-600"
                 [class.border-red-300]="isInvalid(loginForm, 'username')"
-                placeholder="usuario.apellido"
+                placeholder="Ingrese el usuario con el que ingresa a la PC"
               />
               @if (isInvalid(loginForm, 'username')) {
                 <p class="mt-1 text-xs text-red-600">El usuario es requerido.</p>
@@ -82,17 +110,20 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
             </div>
 
             <div>
-              <label for="password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+              <label for="password" class="block text-sm font-medium text-gray-700 dark:text-zinc-300">Contraseña</label>
               <div class="mt-1 relative">
                 <input
                   id="password"
                   [type]="showPassword() ? 'text' : 'password'"
                   formControlName="password"
                   autocomplete="current-password"
-                  class="block w-full rounded-md border-gray-300 shadow-sm pr-10
-                         focus:border-teal-500 focus:ring-teal-500 sm:text-sm
-                         disabled:bg-gray-50 disabled:text-gray-500"
+                  class="block w-full rounded-md border-gray-300 dark:border-zinc-700 shadow-sm pr-10
+                         bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100
+                         focus:border-teal-500 dark:focus:border-green-700
+                         focus:ring-teal-500 dark:focus:ring-green-700 sm:text-sm
+                         disabled:bg-gray-50 dark:disabled:bg-zinc-900 disabled:text-gray-500 dark:disabled:text-zinc-600"
                   [class.border-red-300]="isInvalid(loginForm, 'password')"
+                  placeholder="Ingrese su contraseña"
                 />
                 <button type="button"
                   class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
@@ -142,7 +173,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
               class="text-sm hover:underline focus:outline-none" style="color: #14B8A5">
               ¿Olvidaste tu contraseña?
             </button>
-            <p class="text-xs text-gray-400 mt-6">División tecnología de la información y comunicaciones</p>
+            <p class="text-xs text-gray-400 dark:text-zinc-600 mt-6">División Tecnologías de la Información y Comunicaciones</p>
           </div>
         }
 
@@ -150,7 +181,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
         @if (step() === 'forgot-username') {
           <form [formGroup]="forgotUsernameForm" (ngSubmit)="onSendOtp()" class="space-y-6">
             <div>
-              <label for="forgot-user" class="block text-sm font-medium text-gray-700">
+              <label for="forgot-user" class="block text-sm font-medium text-gray-700 dark:text-zinc-300">
                 Tu usuario
               </label>
               <input
@@ -158,23 +189,25 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                 type="text"
                 formControlName="username"
                 autocomplete="username"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                       focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                class="mt-1 block w-full rounded-md border-gray-300 dark:border-zinc-700 shadow-sm
+                       bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100
+                       focus:border-teal-500 dark:focus:border-green-700
+                       focus:ring-teal-500 dark:focus:ring-green-700 sm:text-sm"
                 [class.border-red-300]="isInvalid(forgotUsernameForm, 'username')"
                 placeholder="Tu usuario"
               />
               @if (isInvalid(forgotUsernameForm, 'username')) {
                 <p class="mt-1 text-xs text-red-600">El usuario es requerido.</p>
               }
-              <p class="mt-2 text-xs text-gray-500">
-                Se enviará un código de 4 dígitos al correo educativo asociado a este usuario.
+              <p class="mt-2 text-xs text-gray-500 dark:text-zinc-500">
+                Se enviará un código de 4 dígitos al correo de recuperación asociado a este usuario.
               </p>
             </div>
 
             <div class="flex gap-3">
               <button type="button" (click)="backToLogin()"
-                class="flex-1 py-2.5 px-4 border border-gray-300 rounded-md text-sm font-medium
-                       text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200">
+                class="flex-1 py-2.5 px-4 border border-gray-300 dark:border-zinc-700 rounded-md text-sm font-medium
+                       text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors duration-200">
                 Volver
               </button>
               <button type="submit" [disabled]="loading()"
@@ -201,7 +234,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
         @if (step() === 'forgot-otp') {
           <div class="space-y-6">
             <div>
-              <p class="block text-sm font-medium text-gray-700 text-center mb-6">
+              <p class="block text-sm font-medium text-gray-700 dark:text-zinc-300 text-center mb-6">
                 Código de verificación
               </p>
 
@@ -237,16 +270,16 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                 </div>
               }
 
-              <p class="mt-4 text-xs text-gray-500 text-center">
-                Revisa el correo educativo del usuario <strong>{{ forgotUsername() }}</strong>.
+              <p class="mt-4 text-xs text-gray-500 dark:text-zinc-500 text-center">
+                Revisá el correo de recuperación del usuario <strong>{{ forgotUsername() }}</strong>.
                 El código expira en 10 minutos.
               </p>
             </div>
 
             <div class="flex gap-3">
               <button type="button" (click)="step.set('forgot-username')"
-                class="flex-1 py-2.5 px-4 border border-gray-300 rounded-md text-sm font-medium
-                       text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200">
+                class="flex-1 py-2.5 px-4 border border-gray-300 dark:border-zinc-700 rounded-md text-sm font-medium
+                       text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors duration-200">
                 Volver
               </button>
             </div>
@@ -257,7 +290,7 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
         @if (step() === 'forgot-newpass') {
           <form [formGroup]="newPasswordForm" (ngSubmit)="onResetPassword()" class="space-y-6">
             <div>
-              <label for="newpass" class="block text-sm font-medium text-gray-700">
+              <label for="newpass" class="block text-sm font-medium text-gray-700 dark:text-zinc-300">
                 Nueva contraseña
               </label>
               <div class="mt-1 relative">
@@ -265,8 +298,10 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
                   id="newpass"
                   [type]="showNewPassword() ? 'text' : 'password'"
                   formControlName="newPassword"
-                  class="block w-full rounded-md border-gray-300 shadow-sm pr-10
-                         focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                  class="block w-full rounded-md border-gray-300 dark:border-zinc-700 shadow-sm pr-10
+                         bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100
+                         focus:border-teal-500 dark:focus:border-green-700
+                         focus:ring-teal-500 dark:focus:ring-green-700 sm:text-sm"
                   [class.border-red-300]="isInvalid(newPasswordForm, 'newPassword')"
                   placeholder="Mínimo 8 caracteres"
                 />
@@ -287,15 +322,17 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
             </div>
 
             <div>
-              <label for="confirmpass" class="block text-sm font-medium text-gray-700">
+              <label for="confirmpass" class="block text-sm font-medium text-gray-700 dark:text-zinc-300">
                 Confirmar contraseña
               </label>
               <input
                 id="confirmpass"
                 [type]="showNewPassword() ? 'text' : 'password'"
                 formControlName="confirmPassword"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                       focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                class="mt-1 block w-full rounded-md border-gray-300 dark:border-zinc-700 shadow-sm
+                       bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100
+                       focus:border-teal-500 dark:focus:border-green-700
+                       focus:ring-teal-500 dark:focus:ring-green-700 sm:text-sm"
                 [class.border-red-300]="isInvalid(newPasswordForm, 'confirmPassword') || passwordMismatch()"
               />
               @if (passwordMismatch()) {
@@ -305,8 +342,8 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
 
             <div class="flex gap-3">
               <button type="button" (click)="step.set('forgot-otp')"
-                class="flex-1 py-2.5 px-4 border border-gray-300 rounded-md text-sm font-medium
-                       text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200">
+                class="flex-1 py-2.5 px-4 border border-gray-300 dark:border-zinc-700 rounded-md text-sm font-medium
+                       text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors duration-200">
                 Volver
               </button>
               <button type="submit" [disabled]="loading()"
@@ -366,6 +403,21 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
       caret-color: #14B8A5;
       transition: color 0.2s;
     }
+    :host-context(.dark) .otp-input {
+      background: #27272a;
+      color: #4ade80;
+      caret-color: #4ade80;
+    }
+    :host-context(.dark) .otp-wrapper {
+      background: linear-gradient(135deg, #14532d, #166534);
+    }
+    :host-context(.dark) .otp-wrapper:focus-within {
+      background: linear-gradient(135deg, #15803d, #16a34a);
+      box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.3);
+    }
+    :host-context(.dark) .otp-wrapper--filled {
+      background: linear-gradient(135deg, #15803d, #16a34a);
+    }
     .otp-input--error {
       color: #ef4444 !important;
     }
@@ -382,6 +434,7 @@ export class LoginComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
+  readonly themeService = inject(ThemeService);
 
   @ViewChildren('otpInput') otpInputs!: QueryList<ElementRef<HTMLInputElement>>;
 

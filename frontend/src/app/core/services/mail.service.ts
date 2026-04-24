@@ -6,11 +6,20 @@ import { AuthService } from './auth.service';
 
 export type MailFolder = 'informativos' | 'ejecutivos' | 'redgen' | 'tx';
 
+export interface SienaFile {
+  id: string;
+  filename: string;
+  size: number;
+  uploadedAt: string;
+  uploadedByName: string;
+}
+
 export interface MailAttachment {
   id: string;
   filename: string;
   contentType: string;
   size: number;
+  hasDecrypted?: boolean;
 }
 
 export interface MailReadStatus {
@@ -41,6 +50,7 @@ export interface Email {
   attachmentCount?: number;
   readStatuses?: MailReadStatus[];
   outgoingRefs?: MailOutgoingRef[];
+  sienaFiles?: SienaFile[];
 }
 
 export interface EmailListResponse {
@@ -48,6 +58,14 @@ export interface EmailListResponse {
   total: number;
   page: number;
   limit: number;
+}
+
+export interface MailUnreadCounts {
+  total: number;
+  informativos: number;
+  ejecutivos: number;
+  redgen: number;
+  tx: number;
 }
 
 export interface MailTreeNode {
@@ -62,9 +80,17 @@ export interface MailTreeNode {
 export interface SendEmailDto {
   to: string[];
   cc?: string[];
+  bcc?: string[];
   subject: string;
   bodyText: string;
   bodyHtml?: string;
+}
+
+export interface MailRecipient {
+  displayName: string;
+  email: string;
+  department?: string;
+  title?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -76,7 +102,9 @@ export class MailService {
   readonly emails = signal<Email[]>([]);
   readonly totalEmails = signal(0);
   readonly unreadCount = signal(0);
+  readonly unreadCounts = signal<MailUnreadCounts>({ total: 0, informativos: 0, ejecutivos: 0, redgen: 0, tx: 0 });
   readonly loading = signal(false);
+  readonly isSearchActive = signal(false);
 
   constructor() {
     this.authService.onBeforeLogout(() => this.disconnect());
@@ -84,6 +112,10 @@ export class MailService {
 
   get isTicom(): boolean {
     return this.authService.currentUser()?.roles?.includes('TICOM') ?? false;
+  }
+
+  get isEncriptado(): boolean {
+    return this.authService.currentUser()?.roles?.includes('ENCRIPTADO') ?? false;
   }
 
   connect(): void {
@@ -101,9 +133,9 @@ export class MailService {
     });
 
     this.socket.on('new_email', (payload: Pick<Email, 'id' | 'subject' | 'fromAddress' | 'folder' | 'date' | 'mailCode'>) => {
-      // Add to list only if matches current folder (or always add and let component filter)
-      this.unreadCount.update((n) => n + 1);
-      // Prepend a minimal email entry so the list updates immediately
+      this.loadUnreadCounts();
+      // Durante una búsqueda activa no contaminar la lista de resultados
+      if (this.isSearchActive()) return;
       const newEntry: Email = {
         id: payload.id,
         internetMessageId: '',
@@ -131,30 +163,67 @@ export class MailService {
     this.emails.set([]);
     this.totalEmails.set(0);
     this.unreadCount.set(0);
+    this.unreadCounts.set({ total: 0, informativos: 0, ejecutivos: 0, redgen: 0, tx: 0 });
   }
 
   isConnected(): boolean {
     return this.socket?.connected ?? false;
   }
 
-  loadEmails(folder?: MailFolder, page = 1, limit = 30): void {
+  exitSearch(): void {
+    this.isSearchActive.set(false);
+  }
+
+  loadEmails(
+    folder?: MailFolder,
+    page = 1,
+    limit = 30,
+    historical = false,
+    advanced?: { q?: string; dateFrom?: string; dateTo?: string; year?: number },
+  ): void {
+    this.emails.set([]);
     this.loading.set(true);
     let params = new HttpParams().set('page', page).set('limit', limit);
     if (folder) params = params.set('folder', folder);
+    if (historical) params = params.set('historical', 'true');
+    if (advanced?.q?.trim()) params = params.set('q', advanced.q.trim());
+    if (advanced?.dateFrom) params = params.set('dateFrom', advanced.dateFrom);
+    if (advanced?.dateTo) params = params.set('dateTo', advanced.dateTo);
+    if (advanced?.year) params = params.set('year', advanced.year);
 
     this.http.get<EmailListResponse>('/api/mail/emails', { params }).subscribe({
       next: (res) => {
         this.emails.set(res.data);
         this.totalEmails.set(res.total);
-        this.recalcUnread();
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
     });
   }
 
+  loadUnreadCounts(): void {
+    this.http.get<MailUnreadCounts>('/api/mail/unread-counts').subscribe({
+      next: (counts) => {
+        this.unreadCounts.set(counts);
+        this.unreadCount.set(counts.total);
+      },
+      error: () => {},
+    });
+  }
+
+  decrementUnread(folder: MailFolder): void {
+    this.unreadCounts.update((c) => {
+      const prev = c[folder];
+      if (prev <= 0) return c;
+      return { ...c, [folder]: prev - 1, total: Math.max(0, c.total - 1) };
+    });
+    this.unreadCount.update((n) => Math.max(0, n - 1));
+  }
+
   search(q: string): void {
     if (!q.trim()) return;
+    this.isSearchActive.set(true);
+    this.emails.set([]);
     this.loading.set(true);
     this.http
       .get<EmailListResponse>('/api/mail/emails', {
@@ -186,6 +255,7 @@ export class MailService {
     const fd = new FormData();
     dto.to.forEach((t) => fd.append('to', t));
     dto.cc?.forEach((c) => fd.append('cc', c));
+    dto.bcc?.forEach((b) => fd.append('bcc', b));
     fd.append('subject', dto.subject);
     fd.append('bodyText', dto.bodyText);
     if (dto.bodyHtml) fd.append('bodyHtml', dto.bodyHtml);
@@ -193,24 +263,89 @@ export class MailService {
     return this.http.post<Email>('/api/mail/emails/send', fd);
   }
 
+  searchRecipients(q: string): Observable<MailRecipient[]> {
+    return this.http.get<MailRecipient[]>('/api/mail/bridge/recipients', {
+      params: new HttpParams().set('q', q),
+    });
+  }
+
   downloadAttachment(emailId: string, attachmentId: string, filename: string): void {
     this.http
       .get(`/api/mail/emails/${emailId}/attachments/${attachmentId}`, { responseType: 'blob' })
-      .subscribe((blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        },
+        error: () => {
+          console.error(`No se pudo descargar el adjunto: ${filename}`);
+        },
       });
   }
 
-  private recalcUnread(): void {
-    const count = this.emails().filter((e) => {
-      const rs = e.readStatuses;
-      return !rs || rs.length === 0 || !rs[0].isRead;
-    }).length;
-    this.unreadCount.set(count);
+  uploadDecrypted(emailId: string, attachmentId: string, file: File): Observable<{ id: string; filename: string; size: number; uploadedAt: string; uploadedByName: string }> {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    return this.http.post<{ id: string; filename: string; size: number; uploadedAt: string; uploadedByName: string }>(
+      `/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted`,
+      fd,
+    );
   }
+
+  downloadDecrypted(emailId: string, attachmentId: string, filename: string): void {
+    this.http
+      .get(`/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted`, { responseType: 'blob' })
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename.replace(/\.~\d{2}$/i, '');
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        },
+        error: () => console.error('No se pudo descargar el archivo desencriptado'),
+      });
+  }
+
+  deleteDecrypted(emailId: string, attachmentId: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted`);
+  }
+
+  uploadSienaFile(emailId: string, file: File): Observable<SienaFile> {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    return this.http.post<SienaFile>(`/api/mail/emails/${emailId}/siena-files`, fd);
+  }
+
+  downloadSienaFile(emailId: string, fileId: string, filename: string): void {
+    this.http
+      .get(`/api/mail/emails/${emailId}/siena-files/${fileId}`, { responseType: 'blob' })
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        },
+        error: () => console.error('No se pudo descargar el archivo SIENA'),
+      });
+  }
+
+  deleteSienaFile(emailId: string, fileId: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/mail/emails/${emailId}/siena-files/${fileId}`);
+  }
+
 }

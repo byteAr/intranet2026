@@ -10,27 +10,35 @@ import { IncidentsService } from '../../core/services/incidents.service';
 import { ReservationsService } from '../../core/services/reservations.service';
 import { PushNotificationService } from '../../core/services/push.service';
 import { MailService } from '../../core/services/mail.service';
+import { DraftMailService } from '../../core/services/draft-mail.service';
+import { ThemeService } from '../../core/services/theme.service';
+import { PermissionsService } from '../../core/services/permissions.service';
+import { AnnouncementsService } from '../../core/services/announcements.service';
+import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule],
   template: `
-    <div class="flex h-screen bg-gray-100">
+    <div class="flex h-screen bg-gray-100 dark:bg-zinc-950">
+
       <!-- Sidebar -->
-      <aside class="flex flex-col transition-all duration-300"
+      <aside class="flex flex-col transition-all duration-300 bg-white dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800"
              [class.w-64]="!collapsed()"
-             [class.w-16]="collapsed()"
-             style="background: white; border-right: 1px solid #e5e7eb">
+             [class.w-16]="collapsed()">
 
         <!-- Logo -->
-        <div class="relative flex items-center justify-center px-4 py-3 flex-shrink-0"
-             style="background: white; border-bottom: 1px solid #e5e7eb; min-height: 5rem">
+        <div class="relative flex items-center justify-center px-4 py-3 flex-shrink-0 border-b border-gray-200 dark:border-zinc-800"
+             style="min-height: 5rem">
           @if (!collapsed()) {
-            <img src="assets/images/diredtosintranet.png" class="h-24 object-contain" alt="Diredtos" />
+            <div class="flex flex-col items-center">
+              <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'" class="h-24 object-contain" [style.mix-blend-mode]="themeService.isDark() ? 'screen' : 'normal'" alt="Diredtos" />
+              <span class="text-xs text-gray-400 dark:text-zinc-500 mt-1">V 1.0.0.0</span>
+            </div>
           }
           <button (click)="collapsed.set(!collapsed())"
-            class="absolute right-3 p-1.5 rounded-md transition-colors flex-shrink-0 text-gray-500 hover:bg-gray-100"
+            class="absolute right-3 p-1.5 rounded-md transition-colors flex-shrink-0 text-gray-500 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800"
             [attr.aria-label]="collapsed() ? 'Expandir menú' : 'Contraer menú'">
             <svg class="h-5 w-5 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               @if (collapsed()) {
@@ -45,7 +53,6 @@ import { MailService } from '../../core/services/mail.service';
         <!-- Navigation -->
         <nav class="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
 
-          <!-- Cuenta -->
           <a routerLink="/cuenta" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
             [title]="collapsed() ? 'Cuenta' : ''">
@@ -53,12 +60,10 @@ import { MailService } from '../../core/services/mail.service';
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-            @if (!collapsed()) {
-              <span class="ml-3">Cuenta</span>
-            }
+            @if (!collapsed()) { <span class="ml-3">Cuenta</span> }
           </a>
 
-          <!-- Conversaciones -->
+          @if (permissionsService.isAllowed('chat')) {
           <a routerLink="/chat" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Conversaciones' : ''">
@@ -77,8 +82,9 @@ import { MailService } from '../../core/services/mail.service';
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
+          }
 
-          <!-- Ayuda técnica -->
+          @if (permissionsService.isAllowed('incidencias')) {
           <a routerLink="/incidencias" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Ayuda técnica' : ''">
@@ -97,8 +103,9 @@ import { MailService } from '../../core/services/mail.service';
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
+          }
 
-          <!-- Correo -->
+          @if (permissionsService.isAllowed('correo')) {
           <a routerLink="/correo" routerLinkActive="active-nav" [routerLinkActiveOptions]="{exact: true}"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Correo' : ''">
@@ -108,15 +115,16 @@ import { MailService } from '../../core/services/mail.service';
             </svg>
             @if (!collapsed()) {
               <span class="ml-3 flex-1">Correo</span>
-              @if (mailService.unreadCount() > 0) {
+              @if (mailService.unreadCount() > 0 && !isOnMailPage()) {
                 <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
                   {{ mailService.unreadCount() }}
                 </span>
               }
-            } @else if (mailService.unreadCount() > 0) {
+            } @else if (mailService.unreadCount() > 0 && !isOnMailPage()) {
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
+          }
 
           @if (authService.currentUser()?.roles?.includes('TICOM')) {
             <a routerLink="/correo/admin" routerLinkActive="active-nav"
@@ -126,13 +134,77 @@ import { MailService } from '../../core/services/mail.service';
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
+              @if (!collapsed()) { <span class="ml-3">Importar PST</span> }
+            </a>
+          }
+
+          @if (permissionsService.isAllowed('redactar-mto')) {
+          <a routerLink="/correo/redactar-mto" routerLinkActive="active-nav"
+            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
+            [title]="collapsed() ? 'Redactar MTO' : ''">
+            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            @if (!collapsed()) {
+              <span class="ml-3 flex-1">Redactar MTO</span>
+              @if (draftMailService.pendingCount() > 0 && isAuthorizer()) {
+                <span class="bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                  {{ draftMailService.pendingCount() }}
+                </span>
+              }
+            } @else if (draftMailService.pendingCount() > 0 && isAuthorizer()) {
+              <span class="absolute top-1 right-1 h-2 w-2 bg-amber-500 rounded-full"></span>
+            }
+          </a>
+          }
+
+          @if (isTicom()) {
+            <a routerLink="/correo/para-enviar" routerLinkActive="active-nav"
+              class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
+              [title]="collapsed() ? 'Para enviar' : ''">
+              <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
               @if (!collapsed()) {
-                <span class="ml-3">Importar PST</span>
+                <span class="ml-3 flex-1">Para enviar</span>
+                @if (draftMailService.approvedCount() > 0) {
+                  <span class="bg-teal-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                    {{ draftMailService.approvedCount() }}
+                  </span>
+                }
+              } @else if (draftMailService.approvedCount() > 0) {
+                <span class="absolute top-1 right-1 h-2 w-2 bg-teal-600 rounded-full"></span>
               }
             </a>
           }
 
-          <!-- Reservas -->
+          @if (isSuperApprover()) {
+            <a routerLink="/correo/autorizadores" routerLinkActive="active-nav"
+              class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
+              [title]="collapsed() ? 'Autorizadores' : ''">
+              <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              @if (!collapsed()) { <span class="ml-3">Autorizadores</span> }
+            </a>
+          }
+
+          @if (isTicom()) {
+            <a routerLink="/admin" routerLinkActive="active-nav"
+              class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
+              [title]="collapsed() ? 'Administración' : ''">
+              <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              @if (!collapsed()) { <span class="ml-3">Administración</span> }
+            </a>
+          }
+
+          @if (permissionsService.isAllowed('reservas')) {
           <a routerLink="/reservas" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Reservas' : ''">
@@ -150,11 +222,12 @@ import { MailService } from '../../core/services/mail.service';
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             }
           </a>
+          }
 
         </nav>
 
         <!-- User info + logout -->
-        <div class="p-4 flex-shrink-0" style="border-top: 1px solid #e5e7eb">
+        <div class="p-4 flex-shrink-0 border-t border-gray-200 dark:border-zinc-800">
           @if (!collapsed()) {
             <div class="flex items-center space-x-3 mb-3">
               <div class="h-9 w-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-sm font-bold text-white"
@@ -166,23 +239,38 @@ import { MailService } from '../../core/services/mail.service';
                 }
               </div>
               <div class="overflow-hidden">
-                <p class="text-sm font-medium truncate text-gray-800">{{ authService.currentUser()?.displayName }}</p>
-                <p class="text-xs truncate text-gray-400">{{ authService.currentUser()?.username }}</p>
+                <p class="text-sm font-medium truncate text-gray-800 dark:text-zinc-100">{{ authService.currentUser()?.displayName }}</p>
+                <p class="text-xs truncate text-gray-400 dark:text-zinc-500">{{ authService.currentUser()?.username }}</p>
               </div>
             </div>
           }
+          @if (isMlopez()) {
+            <button (click)="showBroadcastDmModal.set(true)"
+              class="flex items-center w-full px-3 py-2 mb-1 text-sm rounded-md transition-colors text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20">
+              <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              @if (!collapsed()) { <span class="ml-2 font-medium">Mensaje a todos</span> }
+            </button>
+          }
+          @if (isMlopez()) {
+            <button (click)="showAnnouncementModal.set(true)"
+              class="flex items-center w-full px-3 py-2 mb-1 text-sm rounded-md transition-colors text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20">
+              <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+              </svg>
+              @if (!collapsed()) { <span class="ml-2 font-medium">Enviar anuncio</span> }
+            </button>
+          }
           <button (click)="authService.logout()"
-            class="flex items-center w-full px-3 py-2 text-sm rounded-md transition-colors"
-            style="color: #6b7280"
-            onmouseover="this.style.background='#f3f4f6';this.style.color='#111827'"
-            onmouseout="this.style.background='';this.style.color='#6b7280'">
+            class="flex items-center w-full px-3 py-2 text-sm rounded-md transition-colors text-gray-500 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-gray-900 dark:hover:text-white">
             <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            @if (!collapsed()) {
-              <span class="ml-2">Cerrar sesión</span>
-            }
+            @if (!collapsed()) { <span class="ml-2">Cerrar sesión</span> }
           </button>
         </div>
       </aside>
@@ -190,8 +278,38 @@ import { MailService } from '../../core/services/mail.service';
       <!-- Main content -->
       <div class="flex flex-col flex-1 overflow-hidden">
 
+        <!-- Topbar with dark mode toggle -->
+        <header class="flex items-center justify-end px-6 h-14 flex-shrink-0 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800">
+          <button
+            (click)="themeService.toggle()"
+            class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800"
+            [attr.aria-label]="themeService.isDark() ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'">
+            @if (themeService.isDark()) {
+              <!-- Moon icon -->
+              <svg class="h-4 w-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+              </svg>
+            } @else {
+              <!-- Sun icon -->
+              <svg class="h-4 w-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+              </svg>
+            }
+            <!-- Toggle pill -->
+            <div class="relative w-10 h-[22px] rounded-full transition-colors duration-300"
+                 [class]="themeService.isDark() ? 'bg-green-800' : 'bg-gray-300'">
+              <div class="absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300"
+                   [class]="themeService.isDark() ? 'left-[22px]' : 'left-[3px]'">
+              </div>
+            </div>
+            <span class="text-xs text-gray-500 dark:text-zinc-400">
+              {{ themeService.isDark() ? 'Oscuro' : 'Claro' }}
+            </span>
+          </button>
+        </header>
+
         <!-- Page content -->
-        <main class="flex-1 overflow-y-auto px-4 pt-20 pb-8">
+        <main class="flex-1 overflow-y-auto px-4 py-6 pb-8">
           <router-outlet />
         </main>
       </div>
@@ -199,31 +317,29 @@ import { MailService } from '../../core/services/mail.service';
 
     <!-- Floating chat button -->
     <div class="fixed bottom-6 right-6 z-50">
-      <!-- Popup -->
       @if (chatPopupOpen()) {
-        <div class="absolute bottom-16 right-0 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden mb-2">
-          <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between"
-               style="background: #0f766e">
+        <div class="absolute bottom-16 right-0 w-72 bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-700 overflow-hidden mb-2">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-zinc-700 flex items-center justify-between bg-teal-700 dark:bg-green-900">
             <span class="text-sm font-semibold text-white">Conversaciones</span>
-            <span class="text-xs text-teal-200">{{ onlineContacts().length }} en línea</span>
+            <span class="text-xs text-teal-200 dark:text-green-300">{{ onlineContacts().length }} en línea</span>
           </div>
           <div class="max-h-60 overflow-y-auto py-1">
             @if (onlineContacts().length === 0) {
-              <p class="text-xs text-gray-400 px-4 py-3 text-center">Nadie más en línea</p>
+              <p class="text-xs text-gray-400 dark:text-zinc-500 px-4 py-3 text-center">Nadie más en línea</p>
             }
             @for (contact of onlineContacts(); track contact.id) {
               <button
                 (click)="openDM(contact.id)"
-                class="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                class="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
                 <span class="relative mr-2.5 flex-shrink-0">
                   @if (contact.avatar) {
                     <img [src]="contact.avatar" class="h-8 w-8 rounded-full object-cover" alt="" />
                   } @else {
-                    <span class="h-8 w-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-bold">
+                    <span class="h-8 w-8 rounded-full bg-teal-600 dark:bg-green-800 flex items-center justify-center text-white text-xs font-bold">
                       {{ contactInitials(contact.displayName) }}
                     </span>
                   }
-                  <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-white"></span>
+                  <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-white dark:border-zinc-900"></span>
                 </span>
                 <span class="flex-1 text-left">{{ contact.displayName }}</span>
                 @if ((chatService.unreadCounts()[contact.id] ?? 0) > 0) {
@@ -234,11 +350,10 @@ import { MailService } from '../../core/services/mail.service';
               </button>
             }
           </div>
-          <!-- Nueva conversación desde popup -->
-          <div class="border-t border-gray-100 px-3 py-2">
+          <div class="border-t border-gray-100 dark:border-zinc-700 px-3 py-2">
             @if (!popupNewConvOpen()) {
               <button (click)="openPopupNewConv($event)"
-                class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors font-medium">
+                class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-teal-700 dark:text-green-400 bg-teal-50 dark:bg-green-900/20 hover:bg-teal-100 dark:hover:bg-green-900/40">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
@@ -253,44 +368,49 @@ import { MailService } from '../../core/services/mail.service';
                     (click)="$event.stopPropagation()"
                     type="text"
                     placeholder="Buscar usuario..."
-                    class="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
-                  <button (click)="closePopupNewConv()" class="p-1.5 text-gray-400 hover:text-gray-600">
+                    class="flex-1 px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:border-transparent
+                           border-gray-300 dark:border-zinc-700
+                           bg-white dark:bg-zinc-800
+                           text-gray-900 dark:text-zinc-100
+                           placeholder-gray-400 dark:placeholder-zinc-500
+                           focus:ring-teal-500 dark:focus:ring-green-700" />
+                  <button (click)="closePopupNewConv()" class="p-1.5 text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
                 @if (popupSearchLoading()) {
-                  <p class="text-xs text-gray-400 px-2 py-1">Buscando...</p>
+                  <p class="text-xs text-gray-400 dark:text-zinc-500 px-2 py-1">Buscando...</p>
                 } @else if (popupSearchResults().length > 0) {
-                  <div class="rounded-md border border-gray-200 overflow-hidden">
+                  <div class="rounded-md border border-gray-200 dark:border-zinc-700 overflow-hidden">
                     @for (user of popupSearchResults(); track user.username) {
                       <button (click)="openDMFromSearch(user)"
-                        class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-teal-50 transition-colors">
+                        class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-zinc-200 hover:bg-teal-50 dark:hover:bg-green-900/30 transition-colors">
                         @if (user.avatar) {
                           <img [src]="user.avatar" class="h-7 w-7 rounded-full object-cover flex-shrink-0" alt="" />
                         } @else {
-                          <span class="h-7 w-7 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          <span class="h-7 w-7 rounded-full bg-teal-600 dark:bg-green-800 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                             {{ contactInitials(user.displayName) }}
                           </span>
                         }
                         <span class="flex-1 truncate text-left">{{ user.displayName }}</span>
                         @if (user.fromLdap) {
-                          <span class="text-xs bg-blue-100 text-blue-600 rounded px-1 leading-none py-0.5 flex-shrink-0">AD</span>
+                          <span class="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded px-1 leading-none py-0.5 flex-shrink-0">AD</span>
                         }
                       </button>
                     }
                   </div>
                 } @else if (popupSearchQuery.length >= 2) {
-                  <p class="text-xs text-gray-400 px-2 py-1">Sin resultados</p>
+                  <p class="text-xs text-gray-400 dark:text-zinc-500 px-2 py-1">Sin resultados</p>
                 }
               </div>
             }
           </div>
-          <div class="border-t border-gray-100">
+          <div class="border-t border-gray-100 dark:border-zinc-700">
             <button
               (click)="openFullChat()"
-              class="w-full px-4 py-2.5 text-sm font-medium text-teal-700 hover:bg-teal-50 transition-colors flex items-center justify-center space-x-1">
+              class="w-full px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-center space-x-1 text-teal-700 dark:text-green-400 hover:bg-teal-50 dark:hover:bg-green-900/20">
               <span>Abrir conversaciones</span>
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -300,25 +420,286 @@ import { MailService } from '../../core/services/mail.service';
         </div>
       }
 
-      <!-- Toggle button -->
+      <!-- Chat toggle button -->
       <button
         (click)="toggleChatPopup()"
-        class="h-14 w-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform hover:scale-105 relative"
-        style="background: #0f766e">
+        class="h-14 w-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform hover:scale-105 relative bg-teal-700 dark:bg-green-800 hover:bg-teal-600 dark:hover:bg-green-700">
         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
         @if (chatService.unreadCount() > 0 && !isOnChatPage()) {
-          <span class="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-white"></span>
+          <span class="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-white dark:border-zinc-950"></span>
         }
       </button>
     </div>
+
+    <!-- ── Toast ────────────────────────────────────── -->
+    @if (toastMsg()) {
+      <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] px-5 py-3 rounded-xl shadow-xl text-sm font-medium text-white flex items-center gap-2 transition-all"
+           [class.bg-green-700]="toastType() === 'success'"
+           [class.bg-red-600]="toastType() === 'error'">
+        @if (toastType() === 'success') {
+          <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+          </svg>
+        } @else {
+          <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        }
+        {{ toastMsg() }}
+      </div>
+    }
+
+    <!-- ── Announcement banner (todos los usuarios) ─── -->
+    @if (announcementsService.current(); as ann) {
+      <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[99998] w-full max-w-xl px-4 transition-opacity duration-500"
+           [class.opacity-0]="announcementsService.fading()" [class.pointer-events-none]="announcementsService.fading()">
+        <div class="bg-amber-500 text-white rounded-2xl shadow-2xl px-5 py-4 flex items-start gap-3">
+          <div class="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-wide opacity-80 mb-0.5">Anuncio de {{ ann.senderName }}</p>
+            <p class="text-sm font-medium leading-snug">{{ ann.message }}</p>
+          </div>
+          <button (click)="announcementsService.dismiss()" class="text-white/70 hover:text-white flex-shrink-0 mt-0.5">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ── Broadcast DM modal (solo mlopez) ────────────── -->
+    @if (showBroadcastDmModal()) {
+      <div class="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+           (click)="showBroadcastDmModal.set(false)">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-zinc-700"
+             (click)="$event.stopPropagation()">
+          <div class="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-zinc-700 flex items-center gap-3">
+            <div class="h-10 w-10 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center flex-shrink-0">
+              <svg class="h-5 w-5 text-teal-600 dark:text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-base font-semibold text-gray-900 dark:text-zinc-100">Mensaje a todos</h2>
+              <p class="text-xs text-gray-400 dark:text-zinc-500">Llega como DM a cada usuario del sistema</p>
+            </div>
+          </div>
+          <div class="px-6 py-4 space-y-3">
+            <textarea
+              [value]="broadcastDmText()"
+              (input)="broadcastDmText.set($any($event.target).value)"
+              placeholder="Escribí el mensaje..."
+              rows="4"
+              class="w-full rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder-gray-400 dark:placeholder-zinc-500">
+            </textarea>
+            <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-500 dark:text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+              <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              <span class="truncate">{{ broadcastDmFile() ? broadcastDmFile()!.name : 'Adjuntar archivo (imagen, PDF, DOC, XLS)' }}</span>
+              <input type="file" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                (change)="onBroadcastDmFileSelected($event)" />
+            </label>
+            @if (broadcastDmFile()) {
+              <button (click)="broadcastDmFile.set(null)" class="text-xs text-red-400 hover:text-red-600">Quitar adjunto</button>
+            }
+          </div>
+          <div class="px-6 pb-6 flex gap-3">
+            <button (click)="showBroadcastDmModal.set(false)"
+              class="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+              Cancelar
+            </button>
+            <button (click)="sendBroadcastDm()"
+              [disabled]="(!broadcastDmText().trim() && !broadcastDmFile()) || sendingBroadcastDm()"
+              class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 transition-colors">
+              {{ sendingBroadcastDm() ? 'Enviando...' : 'Enviar a todos' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Announcement send modal (solo mlopez) ─────── -->
+    @if (showAnnouncementModal()) {
+      <div class="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+           (click)="showAnnouncementModal.set(false)">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-zinc-700"
+             (click)="$event.stopPropagation()">
+          <div class="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-zinc-700 flex items-center gap-3">
+            <div class="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+              <svg class="h-5 w-5 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-base font-semibold text-gray-900 dark:text-zinc-100">Enviar anuncio</h2>
+              <p class="text-xs text-gray-400 dark:text-zinc-500">Visible para todos los usuarios conectados</p>
+            </div>
+          </div>
+          <div class="px-6 py-4">
+            <textarea
+              [value]="announcementText()"
+              (input)="announcementText.set($any($event.target).value)"
+              placeholder="Escribí el mensaje del anuncio..."
+              rows="4"
+              class="w-full rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder-gray-400 dark:placeholder-zinc-500">
+            </textarea>
+          </div>
+          <div class="px-6 pb-6 flex gap-3">
+            <button (click)="showAnnouncementModal.set(false)"
+              class="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+              Cancelar
+            </button>
+            <button (click)="sendAnnouncement()"
+              [disabled]="!announcementText().trim() || sendingAnnouncement()"
+              class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 transition-colors">
+              {{ sendingAnnouncement() ? 'Enviando...' : 'Enviar a todos' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Profile completion modal ─────────────────── -->
+    @if (showProfileModal()) {
+      <div class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-zinc-700">
+
+          <!-- Header -->
+          <div class="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-zinc-700">
+            <div class="flex items-center gap-3 mb-1">
+              <div class="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0"
+                   style="background: linear-gradient(135deg, #0d9488, #166534)">
+                <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-base font-semibold text-gray-900 dark:text-zinc-100">Completar perfil</h2>
+                <p class="text-xs text-gray-400 dark:text-zinc-400">Requerido para continuar</p>
+              </div>
+            </div>
+            <p class="text-sm text-gray-500 dark:text-zinc-400 mt-2">
+              Para usar la aplicación necesitás completar los siguientes datos:
+            </p>
+          </div>
+
+          <!-- Body -->
+          <div class="px-6 py-5 space-y-4">
+
+            @if (modalNeedsEmail()) {
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
+                  Correo de recuperación <span class="text-red-500">*</span>
+                </label>
+                <p class="text-xs text-gray-400 dark:text-zinc-500 mb-1.5">
+                  Esta dirección de correo se utilizará para que puedas recuperar la contraseña de acceso a la PC, que es la misma que usás para ingresar a este sistema.
+                </p>
+                <input
+                  type="email"
+                  [(ngModel)]="modalEmail"
+                  (blur)="modalEmailTouched.set(true)"
+                  placeholder="tu@email.com"
+                  class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100"
+                  [class.border-red-400]="modalEmailTouched() && !isValidEmail(modalEmail)" />
+                @if (modalEmailTouched() && !isValidEmail(modalEmail)) {
+                  <p class="text-xs text-red-500 mt-1">{{ emailError(modalEmail) }}</p>
+                }
+              </div>
+            }
+
+            @if (modalNeedsRank()) {
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
+                  Jerarquía <span class="text-red-500">*</span>
+                </label>
+
+                <!-- Checkbox personal civil -->
+                <label class="flex items-center gap-2 mb-2 cursor-pointer select-none">
+                  <input type="checkbox" [(ngModel)]="modalIsCivil"
+                    (ngModelChange)="modalIsCivil ? (modalRank = 'CIVIL') : (modalRank = '')"
+                    class="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                  <span class="text-sm text-gray-700 dark:text-zinc-300">No soy personal uniformado</span>
+                </label>
+
+                @if (!modalIsCivil) {
+                  <select [(ngModel)]="modalRank"
+                    class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100"
+                    [class.border-red-400]="modalRankTouched() && !modalRank">
+                    <option value="">— Seleccioná tu jerarquía —</option>
+                    <optgroup label="Oficiales">
+                      <option value="SUBALF">SUBALFEREZ</option>
+                      <option value="ALF">ALFEREZ</option>
+                      <option value="1ER ALF">PRIMER ALFEREZ</option>
+                      <option value="2DO CTE">SEGUNDO COMANDANTE</option>
+                      <option value="CTE">COMANDANTE</option>
+                      <option value="CTE PR">COMANDANTE PRINCIPAL</option>
+                      <option value="CTE MY">COMANDANTE MAYOR</option>
+                      <option value="CTE GRL">COMANDANTE GENERAL</option>
+                    </optgroup>
+                    <optgroup label="Suboficiales">
+                      <option value="GEND">GENDARME</option>
+                      <option value="CBO">CABO</option>
+                      <option value="CRO">CABO PRIMERO</option>
+                      <option value="SARG">SARGENTO</option>
+                      <option value="SRO">SARGENTO PRIMERO</option>
+                      <option value="SAY">SARGENTO AYUDANTE</option>
+                      <option value="SPR">SUBOFICIAL PRINCIPAL</option>
+                      <option value="SMY">SUBOFICIAL MAYOR</option>
+                    </optgroup>
+                  </select>
+                } @else {
+                  <p class="text-sm text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 rounded-lg px-3 py-2">
+                    Serás registrado como personal civil.
+                  </p>
+                }
+
+                @if (modalRankTouched() && !modalRank) {
+                  <p class="text-xs text-red-500 mt-1">Seleccioná tu jerarquía o marcá que sos personal civil</p>
+                }
+              </div>
+            }
+
+            @if (modalError()) {
+              <p class="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{{ modalError() }}</p>
+            }
+          </div>
+
+          <!-- Footer -->
+          <div class="px-6 pb-6">
+            <button (click)="saveProfileModal()"
+              [disabled]="modalSaving()"
+              class="w-full py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-opacity"
+              style="background: linear-gradient(to right, #0d9488, #166534)">
+              {{ modalSaving() ? 'Guardando...' : 'Guardar y continuar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
   `,
   styles: [`
     .nav-item { color: #374151; }
     .nav-item:hover { background: #f3f4f6; color: #111827; }
     .active-nav { background: #0f766e !important; color: white !important; font-weight: 600; }
+
+    :host-context(.dark) .nav-item { color: #a1a1aa; }
+    :host-context(.dark) .nav-item:hover { background: #27272a; color: #f4f4f5; }
+    :host-context(.dark) .active-nav { background: #166534 !important; color: white !important; font-weight: 600; }
   `],
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
@@ -327,30 +708,112 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly incidentsService = inject(IncidentsService);
   readonly reservationsService = inject(ReservationsService);
   readonly mailService = inject(MailService);
+  readonly draftMailService = inject(DraftMailService);
+  readonly themeService = inject(ThemeService);
+  readonly permissionsService = inject(PermissionsService);
   private readonly pushService = inject(PushNotificationService);
+  readonly announcementsService = inject(AnnouncementsService);
+  private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
-
   private readonly destroyRef = inject(DestroyRef);
 
   readonly collapsed = signal(false);
-  readonly pageTitle = signal('Mi cuenta');
   readonly chatPopupOpen = signal(false);
   readonly isOnChatPage = signal(false);
+  readonly isOnMailPage = signal(false);
   private routerSub?: Subscription;
 
-  // Nueva conversación desde popup
+  // Toast
+  readonly toastMsg = signal<string | null>(null);
+  readonly toastType = signal<'success' | 'error'>('success');
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  showToast(msg: string, type: 'success' | 'error' = 'success'): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastMsg.set(msg);
+    this.toastType.set(type);
+    this.toastTimer = setTimeout(() => this.toastMsg.set(null), 3500);
+  }
+
+
+  // Profile completion modal
+  readonly showProfileModal = signal(false);
+  readonly modalNeedsEmail = signal(false);
+  readonly modalNeedsRank = signal(false);
+  readonly modalEmailTouched = signal(false);
+  readonly modalRankTouched = signal(false);
+  readonly modalSaving = signal(false);
+  readonly modalError = signal<string | null>(null);
+  modalEmail = '';
+  modalRank = '';
+  modalIsCivil = false;
+
+  readonly isTicom = computed(() => this.authService.currentUser()?.roles?.includes('TICOM') ?? false);
+  readonly isAuthorizer = computed(() => {
+    const u = this.authService.currentUser();
+    if (!u) return false;
+    return u.roles?.includes('MTOSAUTORIZADOS') || u.roles?.includes('TICOM') ||
+      ['mlopez', 'sbatista'].includes(u.username?.toLowerCase() ?? '');
+  });
+  readonly isSuperApprover = computed(() =>
+    ['mlopez', 'sbatista'].includes(this.authService.currentUser()?.username?.toLowerCase() ?? '')
+  );
+  readonly isMlopez = computed(() => this.authService.currentUser()?.username === 'mlopez');
+
+  // Announcements
+  readonly showAnnouncementModal = signal(false);
+  readonly announcementText = signal('');
+  readonly sendingAnnouncement = signal(false);
+
+  // Broadcast DM
+  readonly showBroadcastDmModal = signal(false);
+  readonly broadcastDmText = signal('');
+  readonly broadcastDmFile = signal<File | null>(null);
+  readonly sendingBroadcastDm = signal(false);
+
+  onBroadcastDmFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.broadcastDmFile.set(input.files?.[0] ?? null);
+  }
+
+  sendBroadcastDm(): void {
+    const content = this.broadcastDmText().trim();
+    const file = this.broadcastDmFile();
+    if ((!content && !file) || this.sendingBroadcastDm()) return;
+    this.sendingBroadcastDm.set(true);
+    const fd = new FormData();
+    if (content) fd.append('content', content);
+    if (file) fd.append('file', file, file.name);
+    this.http.post<{ ok: boolean; sent: number }>('/api/chat/broadcast-dm', fd).subscribe({
+      next: () => {
+        this.broadcastDmText.set('');
+        this.broadcastDmFile.set(null);
+        this.showBroadcastDmModal.set(false);
+        this.sendingBroadcastDm.set(false);
+      },
+      error: () => this.sendingBroadcastDm.set(false),
+    });
+  }
+
+  sendAnnouncement(): void {
+    const msg = this.announcementText().trim();
+    if (!msg || this.sendingAnnouncement()) return;
+    this.sendingAnnouncement.set(true);
+    this.announcementsService.send(msg).subscribe({
+      next: () => {
+        this.announcementText.set('');
+        this.showAnnouncementModal.set(false);
+        this.sendingAnnouncement.set(false);
+      },
+      error: () => this.sendingAnnouncement.set(false),
+    });
+  }
+
   readonly popupNewConvOpen = signal(false);
   readonly popupSearchResults = signal<UserSearchResult[]>([]);
   readonly popupSearchLoading = signal(false);
   popupSearchQuery = '';
   private readonly popupSearchSubject = new Subject<string>();
-
-  readonly fullName = computed(() => {
-    const user = this.authService.currentUser();
-    if (!user) return '';
-    if (user.firstName || user.lastName) return [user.firstName, user.lastName].filter(Boolean).join(' ');
-    return user.displayName;
-  });
 
   readonly onlineContacts = computed(() => {
     const currentId = this.authService.currentUser()?.id;
@@ -358,19 +821,40 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    const u = this.authService.currentUser();
+
+    const needsEmail = !u?.recoveryEmail?.trim();
+    const needsRank = !u?.rank?.trim();
+    if (needsEmail || needsRank) {
+      this.modalNeedsEmail.set(needsEmail);
+      this.modalNeedsRank.set(needsRank);
+      this.showProfileModal.set(true);
+    }
+
+    this.permissionsService.load();
     this.chatService.connect();
     void this.pushService.subscribe();
     this.mailService.connect();
     this.mailService.loadEmails(undefined, 1, 50);
+    this.mailService.loadUnreadCounts();
+    this.draftMailService.connect();
+    this.draftMailService.loadIsAuthorizer();
+    this.draftMailService.loadIsSuperApprover();
+    this.draftMailService.loadPendingCount();
+    this.draftMailService.loadApprovedCount();
     this.incidentsService.connect();
     this.incidentsService.loadIncidents(this.incidentsService.isTicom ? false : true);
     this.reservationsService.connect();
     this.reservationsService.loadReservations(this.reservationsService.hasPrivilegedView ? false : true);
+    this.announcementsService.connect();
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
+    this.isOnMailPage.set(this.router.url === '/correo');
     this.routerSub = this.router.events
       .pipe(filter((e) => e instanceof NavigationEnd))
       .subscribe((e) => {
-        this.isOnChatPage.set((e as NavigationEnd).urlAfterRedirects.startsWith('/chat'));
+        const url = (e as NavigationEnd).urlAfterRedirects;
+        this.isOnChatPage.set(url.startsWith('/chat'));
+        this.isOnMailPage.set(url === '/correo');
       });
 
     this.popupSearchSubject.pipe(
@@ -392,9 +876,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.routerSub?.unsubscribe();
   }
 
-  toggleChatPopup(): void {
-    this.chatPopupOpen.update((v) => !v);
-  }
+  toggleChatPopup(): void { this.chatPopupOpen.update((v) => !v); }
 
   openDM(userId: string): void {
     this.chatPopupOpen.set(false);
@@ -468,5 +950,47 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     if (!user) return '?';
     return (user.displayName ?? user.username)
       .split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
+  }
+
+  isValidEmail(email: string): boolean {
+    const v = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return false;
+    if (v.endsWith('@iugna.edu.ar')) return false;
+    return true;
+  }
+
+  emailError(email: string): string {
+    const v = email.trim().toLowerCase();
+    if (!v) return 'Ingresá un email válido';
+    if (v.endsWith('@iugna.edu.ar')) return 'No podés usar un correo institucional (@iugna.edu.ar) como correo de recuperación';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Ingresá un email válido';
+    return '';
+  }
+
+  saveProfileModal(): void {
+    this.modalEmailTouched.set(true);
+    this.modalRankTouched.set(true);
+    if (this.modalNeedsEmail() && !this.isValidEmail(this.modalEmail)) return;
+    if (this.modalNeedsRank() && !this.modalIsCivil && !this.modalRank) return;
+    if (this.modalNeedsRank() && this.modalIsCivil) this.modalRank = 'CIVIL';
+
+    const payload: { recoveryEmail?: string; rank?: string } = {};
+    if (this.modalNeedsEmail()) payload.recoveryEmail = this.modalEmail.trim();
+    if (this.modalNeedsRank()) payload.rank = this.modalRank;
+
+    this.modalSaving.set(true);
+    this.modalError.set(null);
+    this.authService.updateProfile(payload).subscribe({
+      next: () => {
+        this.modalSaving.set(false);
+        this.showProfileModal.set(false);
+        this.showToast('Datos guardados correctamente');
+      },
+      error: () => {
+        this.modalSaving.set(false);
+        this.modalError.set('Ocurrió un error al guardar. Intentá de nuevo.');
+        this.showToast('Error al guardar los datos', 'error');
+      },
+    });
   }
 }

@@ -17,10 +17,18 @@ import { IncidentsModule } from './incidents/incidents.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { PushModule } from './push/push.module';
 import { MailModule } from './mail/mail.module';
+import { DraftMailModule } from './draft-mail/draft-mail.module';
+import { AdminModule } from './admin/admin.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { User } from './users/entities/user.entity';
+import { Department } from './admin/entities/department.entity';
+import { AdminAuditLog } from './admin/entities/admin-audit-log.entity';
+import { GroupPermission } from './admin/entities/group-permission.entity';
 import { Message } from './chat/entities/message.entity';
+import { BroadcastMessage } from './chat/entities/broadcast-message.entity';
+import { BroadcastDelivery } from './chat/entities/broadcast-delivery.entity';
 import { Incident } from './incidents/entities/incident.entity';
 import { Reservation } from './reservations/entities/reservation.entity';
 import { BlockedPeriod } from './reservations/entities/blocked-period.entity';
@@ -30,6 +38,13 @@ import { Attachment } from './mail/entities/attachment.entity';
 import { EmailReadStatus } from './mail/entities/email-read-status.entity';
 import { EmailReference } from './mail/entities/email-reference.entity';
 import { PstImportLog } from './mail/entities/pst-import-log.entity';
+import { MailPendingSend } from './mail/entities/mail-pending-send.entity';
+import { DecryptedAttachment } from './mail/entities/decrypted-attachment.entity';
+import { SienaFile } from './mail/entities/siena-file.entity';
+import { DraftEmail } from './draft-mail/entities/draft-email.entity';
+import { DraftEmailAttachment } from './draft-mail/entities/draft-email-attachment.entity';
+import { DraftMailAuthorizer } from './draft-mail/entities/draft-mail-authorizer.entity';
+import { DraftMailDirector } from './draft-mail/entities/draft-mail-director.entity';
 
 @Module({
   imports: [
@@ -48,7 +63,7 @@ import { PstImportLog } from './mail/entities/pst-import-log.entity';
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog],
+        entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, DraftMailDirector, Department, AdminAuditLog, GroupPermission],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),
@@ -67,6 +82,9 @@ import { PstImportLog } from './mail/entities/pst-import-log.entity';
     ReservationsModule,
     PushModule,
     MailModule,
+    DraftMailModule,
+    AdminModule,
+    AnnouncementsModule,
   ],
   providers: [
     // Apply JwtAuthGuard globally; routes marked @Public() bypass it

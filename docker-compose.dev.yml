@@ -1,50 +1,40 @@
 services:
+
+  # ── Servicios solo de dev ────────────────────────────────────────────────────
+
   postgres:
-    image: postgres:16
-    container_name: pac_postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - '5432:5432'
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - '5432:5432'        # expuesto al host para conectar con cliente SQL local
 
   openldap:
-    image: osixia/openldap:latest
-    container_name: pac_openldap
     environment:
-      LDAP_ORGANISATION: 'Example Corp'
-      LDAP_DOMAIN: example.com
-      LDAP_ADMIN_PASSWORD: admin_password
-      LDAP_CONFIG_PASSWORD: config_password
+      LDAP_ORGANISATION: 'IUGNA Dev'
+      LDAP_DOMAIN: 'iugnad.lan'
+      LDAP_ADMIN_PASSWORD: 'admin_password'
+      LDAP_CONFIG_PASSWORD: 'config_password'
       LDAP_READONLY_USER: 'false'
       LDAP_TLS: 'false'
-    ports:
-      - '389:389'
-      - '636:636'
-    volumes:
-      - openldap_data:/var/lib/ldap
-      - openldap_config:/etc/ldap/slapd.d
+
+  phpldapadmin:
+    profiles: []            # habilitar en dev (estaba deshabilitado en prod)
+
+  # ── Deshabilitar servicios que requieren infraestructura real ────────────────
+
+  ad-bridge:
+    profiles: ['disabled']  # no arranca en dev — no hay AD/Kerberos local
+
+  # ── Backend ─────────────────────────────────────────────────────────────────
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
-    container_name: pac_backend
-    env_file: .env
     environment:
       NODE_ENV: development
       CHOKIDAR_USEPOLLING: 'true'
     ports:
-      - '${APP_PORT:-3000}:${APP_PORT:-3000}'
-    depends_on:
+      - '${APP_PORT:-3000}:3000'
+    depends_on: !reset      # reemplaza el depends_on del base (quita ad-bridge)
       postgres:
         condition: service_healthy
       openldap:
@@ -53,17 +43,17 @@ services:
       - ./backend/src:/app/src
       - ./storage/attachments:/app/storage/attachments
       - ./storage/pst:/app/storage/pst
+      - ./storage/draft-attachments:/app/storage/draft-attachments
+
+  # ── Frontend con hot reload ──────────────────────────────────────────────────
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       target: development
-    container_name: pac_frontend
     ports:
       - '4200:4200'
-    depends_on:
-      - backend
     command: >
       npm start --
       --host 0.0.0.0
@@ -71,8 +61,4 @@ services:
       --proxy-config proxy.conf.docker.js
     volumes:
       - ./frontend/src:/app/src
-
-volumes:
-  postgres_data:
-  openldap_data:
-  openldap_config:
+      - ./frontend/public:/app/public

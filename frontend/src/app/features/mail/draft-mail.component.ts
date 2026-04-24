@@ -454,7 +454,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                   <button (click)="selfApproveDraft()" [disabled]="saving()"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
                     style="background:#0f766e">
-                    Aprobar directamente
+                    Enviar a transmitir
                   </button>
                 }
                 @if (isCreator(activeDraft()!) && !isSuperApprover() && activeDraft()!.status === 'needs_correction' && canSubmitAfterCorrection()) {

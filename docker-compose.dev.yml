@@ -32,6 +32,16 @@ services:
     environment:
       NODE_ENV: development
       CHOKIDAR_USEPOLLING: 'true'
+      # Apuntar al OpenLDAP local en vez del AD de producción
+      LDAP_URL: ldap://openldap:389
+      LDAP_BIND_DN: cn=admin,dc=iugnad,dc=lan
+      LDAP_BIND_CREDENTIALS: admin_password
+      LDAP_SEARCH_BASE: dc=iugnad,dc=lan
+      LDAP_SEARCH_FILTER: (uid={{username}})
+      # Deshabilitar bridges externos (no disponibles en local)
+      AD_BRIDGE_URL: ''
+      MAIL_BRIDGE_URL: ''
+      FRONTEND_URL: 'http://localhost:4200'
     ports:
       - '${APP_PORT:-3000}:3000'
     depends_on: !reset      # reemplaza el depends_on del base (quita ad-bridge)

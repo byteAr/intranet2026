@@ -476,7 +476,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                     class="px-4 py-2 rounded-lg text-sm font-medium text-amber-700 border border-amber-300 hover:bg-amber-50">
                     Devolver para corrección
                   </button>
-                  <button (click)="promptTicomCancel()"
+                  <button (click)="promptCancel()"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Cancelar</button>
                 }
               </div>
@@ -507,7 +507,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                     class="w-full rounded-md border border-rose-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
                     placeholder="Indicá el motivo..."></textarea>
                   <div class="flex gap-2">
-                    <button (click)="confirmCancel()" [disabled]="saving() || !cancelNotes.trim()"
+                    <button (click)="confirmCancel()" [disabled]="saving()"
                       class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50">
                       Confirmar cancelación
                     </button>
@@ -1055,7 +1055,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 
   confirmCancel(): void {
     const id = this.activeDraft()?.id;
-    if (!id || !this.cancelNotes.trim()) return;
+    if (!id) return;
     this.saving.set(true);
     const obs = this.cancelIsTicom
       ? this.draftMailService.ticomCancel(id, this.cancelNotes)

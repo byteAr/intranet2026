@@ -18,7 +18,10 @@ if [ -z "$BRIDGE_SECRET" ]; then
   exit 1
 fi
 
+START_YEAR="${START_YEAR:-2018}"
+
 for year in 2018 2019 2020 2021 2022 2023 2024 2025; do
+  [ "$year" -lt "$START_YEAR" ] && continue
   DIR="$BASE_DIR/AÑO $year"
   if [ ! -d "$DIR" ]; then
     echo "=== AÑO $year — directorio no encontrado, saltando ==="

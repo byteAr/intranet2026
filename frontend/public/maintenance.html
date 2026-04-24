@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mantenimiento — DIREDTOS Intranet</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #f0fdfa 0%, #e6f7f5 50%, #f0fdf4 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1f2937;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(13, 148, 136, 0.12), 0 4px 16px rgba(0,0,0,0.06);
+      padding: 52px 48px 44px;
+      max-width: 480px;
+      width: calc(100% - 32px);
+      text-align: center;
+      border: 1px solid rgba(13, 148, 136, 0.1);
+    }
+
+    .logo-wrap {
+      margin-bottom: 32px;
+    }
+    .logo-wrap img {
+      height: 56px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .icon-wrap {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 28px;
+      background: linear-gradient(135deg, #ccfbf1, #d1fae5);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gear {
+      animation: spin 6s linear infinite;
+      transform-origin: center;
+    }
+    .gear-inner {
+      animation: spin-reverse 4s linear infinite;
+      transform-origin: center;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes spin-reverse {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(-360deg); }
+    }
+
+    .pulse-bar {
+      width: 48px;
+      height: 4px;
+      background: linear-gradient(90deg, #0d9488, #10b981);
+      border-radius: 2px;
+      margin: 0 auto 24px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scaleX(1); }
+      50%       { opacity: 0.5; transform: scaleX(0.6); }
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #0f766e;
+      margin-bottom: 12px;
+      letter-spacing: -0.01em;
+    }
+
+    p.message {
+      font-size: 0.95rem;
+      color: #4b5563;
+      line-height: 1.65;
+      margin-bottom: 32px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #f0fdfa;
+      border: 1px solid #99f6e4;
+      color: #0f766e;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 99px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.25; }
+    }
+
+    footer {
+      margin-top: 36px;
+      font-size: 0.72rem;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+
+    <div class="logo-wrap">
+      <img src="/assets/images/diredtosintranetlogo.png" alt="DIREDTOS Intranet" onerror="this.style.display='none'">
+    </div>
+
+    <div class="icon-wrap">
+      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Gear exterior -->
+        <g class="gear">
+          <path fill="#0d9488" d="
+            M22 6
+            l2.5 4.3
+            l4.8-0.7
+            l1.5 4.6
+            l4.5 1.5
+            l-0.7 4.8
+            l4.3 2.5
+            l-2.0 4.5
+            l2.8 3.9
+            l-3.5 3.5
+            l1.3 4.7
+            l-4.5 1.8
+            l-0.2 4.8
+            l-4.8 0.5
+            l-2.0 4.5
+            l-4.5-1.5
+            l-3.5 3.2
+            l-3.8-2.8
+            l-4.5 1.8
+            l-2.0-4.3
+            l-4.8-0.2
+            l-0.5-4.8
+            l-4.3-2.0
+            l1.2-4.7
+            l-3.2-3.5
+            l2.8-3.8
+            l-1.8-4.5
+            l4.3-2.0
+            l0.2-4.8
+            l4.8-0.5
+            l2.0-4.3
+            l4.5 1.5
+            l3.5-3.2
+            l3.8 2.8
+            Z
+          " opacity="0.15"/>
+          <path stroke="#0d9488" stroke-width="2.2" stroke-linejoin="round" fill="none" d="
+            M18.5 5.5 L20.2 9.8 L15.5 11.5 L13 8
+            M13 8 L9 10.5 L10.5 15.2 L6.2 16.2
+            M6.2 16.2 L5 20.5 L9.2 22.5 L8.5 27.2
+            M8.5 27.2 L11 31 L15.5 29.5 L17.8 33.5
+            M17.8 33.5 L22 35 L24.2 31 L29 31.5
+            M29 31.5 L32.5 29 L31 24.5 L35.2 22.5
+            M35.2 22.5 L36 18.2 L32 16.2 L32.5 11.5
+            M32.5 11.5 L30 8 L25.5 9.5 L23.5 5.5
+            Z
+          "/>
+        </g>
+        <!-- Center circle -->
+        <circle cx="22" cy="22" r="7" fill="#0d9488" opacity="0.15"/>
+        <circle cx="22" cy="22" r="7" stroke="#0d9488" stroke-width="2.2" fill="none"/>
+        <!-- Small inner dot spinning -->
+        <g class="gear-inner">
+          <circle cx="22" cy="16" r="1.5" fill="#10b981"/>
+          <circle cx="26.2" cy="24" r="1.5" fill="#10b981"/>
+          <circle cx="17.8" cy="24" r="1.5" fill="#10b981"/>
+        </g>
+      </svg>
+    </div>
+
+    <div class="pulse-bar"></div>
+
+    <h1>Servicio interrumpido por mantenimiento</h1>
+
+    <p class="message">
+      En breve podrá utilizarlo nuevamente.<br>
+      Disculpe las molestias ocasionadas.
+    </p>
+
+    <div class="badge">
+      <span class="dot"></span>
+      Trabajando en ello
+    </div>
+
+    <footer>DIREDTOS &mdash; Dirección de Educación e Institutos</footer>
+  </div>
+</body>
+</html>

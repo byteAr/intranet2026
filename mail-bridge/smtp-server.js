@@ -1,11 +1,22 @@
 'use strict';
 
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const nodemailer = require('nodemailer');
 const MailComposer = require('nodemailer/lib/mail-composer');
 const { ImapFlow } = require('imapflow');
 const { searchRecipients } = require('./ldap-search');
 const { URL } = require('url');
+
+function updateEnvPassword(newPassword) {
+  const envPath = path.join(__dirname, '.env');
+  let content = fs.readFileSync(envPath, 'utf8');
+  for (const key of ['BRIDGE_IMAP_PASSWORD', 'BRIDGE_SMTP_PASSWORD', 'BRIDGE_LDAP_BIND_PASSWORD']) {
+    content = content.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${newPassword}`);
+  }
+  fs.writeFileSync(envPath, content, 'utf8');
+}
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -130,6 +141,28 @@ class SmtpServer {
           res.end(JSON.stringify(results));
         } catch (err) {
           this.log(`LDAP search error: ${err.message}`);
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      // POST /update-credentials — actualiza la contraseña de DIREDTOS y reinicia
+      if (req.method === 'POST' && req.url === '/update-credentials') {
+        try {
+          const body = await readBody(req);
+          if (!body.password) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'password requerido' }));
+            return;
+          }
+          updateEnvPassword(body.password);
+          this.log('Credenciales actualizadas — reiniciando en 1s');
+          res.writeHead(200);
+          res.end(JSON.stringify({ ok: true }));
+          setTimeout(() => process.exit(0), 1000);
+        } catch (err) {
+          this.log(`update-credentials error: ${err.message}`);
           res.writeHead(500);
           res.end(JSON.stringify({ error: err.message }));
         }

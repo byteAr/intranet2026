@@ -519,4 +519,22 @@ export class AdminService implements OnApplicationBootstrap {
       this.logger.error('Error en cron cleanup-inactive: %s', (err as Error).message);
     }
   }
+
+  async updateMailPassword(password: string, actor: { id: string; username: string }): Promise<void> {
+    const bridgeUrl = this.configService.get<string>('MAIL_BRIDGE_URL');
+    const bridgeSecret = this.configService.get<string>('MAIL_BRIDGE_SECRET');
+    if (!bridgeUrl || !bridgeSecret) {
+      throw new BadRequestException('Bridge de correo no configurado en este entorno');
+    }
+    const res = await fetch(`${bridgeUrl}/update-credentials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bridgeSecret}` },
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new BadRequestException(`Error del bridge: ${res.status} ${text}`);
+    }
+    await this.audit(actor, 'Actualizó la contraseña de la cuenta de correo DIREDTOS');
+  }
 }

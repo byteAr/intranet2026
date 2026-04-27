@@ -121,6 +121,15 @@ const RANK_GROUPS = [
           [class.text-gray-500]="activeTab() !== 'audit'">
           Actividad
         </button>
+        <button (click)="activeTab.set('config')"
+          class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
+          [class.border-teal-600]="activeTab() === 'config'"
+          [class.text-teal-600]="activeTab() === 'config'"
+          [class.dark:text-teal-400]="activeTab() === 'config'"
+          [class.border-transparent]="activeTab() !== 'config'"
+          [class.text-gray-500]="activeTab() !== 'config'">
+          Configuración
+        </button>
       </div>
 
       <!-- ── USUARIOS ── -->
@@ -808,6 +817,44 @@ const RANK_GROUPS = [
       </div>
     }
 
+    <!-- ── CONFIGURACIÓN ── -->
+    @if (activeTab() === 'config') {
+      <div class="max-w-lg">
+        <section class="bg-white dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-zinc-700 p-6">
+          <h2 class="text-sm font-semibold text-gray-700 dark:text-zinc-200 mb-1">Contraseña cuenta de correo DIREDTOS</h2>
+          <p class="text-xs text-gray-400 dark:text-zinc-400 mb-4">
+            Actualiza la contraseña en el bridge de correo. El bridge se reinicia automáticamente en ~20 segundos.
+          </p>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 dark:text-zinc-300 mb-1">Nueva contraseña</label>
+              <input type="password" [(ngModel)]="mailPassword"
+                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                placeholder="Nueva contraseña de DIREDTOS" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 dark:text-zinc-300 mb-1">Confirmar contraseña</label>
+              <input type="password" [(ngModel)]="mailPasswordConfirm"
+                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                placeholder="Repetir contraseña" />
+            </div>
+            @if (mailCredError()) {
+              <p class="text-xs text-red-500">{{ mailCredError() }}</p>
+            }
+            @if (mailCredSuccess()) {
+              <p class="text-xs text-teal-600">Contraseña actualizada. El bridge se reinicia en ~20 segundos.</p>
+            }
+            <button (click)="updateMailCredentials()"
+              [disabled]="savingMailCred()"
+              class="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
+              style="background:#0f766e">
+              @if (savingMailCred()) { Guardando... } @else { Actualizar contraseña }
+            </button>
+          </div>
+        </section>
+      </div>
+    }
+
     <!-- Toast -->
     @if (toastMsg()) {
       <div class="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-sm font-medium text-white transition-all"
@@ -821,7 +868,7 @@ const RANK_GROUPS = [
 export class AdminComponent implements OnInit {
   private readonly http = inject(HttpClient);
 
-  readonly activeTab = signal<'users' | 'groups' | 'departments' | 'permissions' | 'audit'>('users');
+  readonly activeTab = signal<'users' | 'groups' | 'departments' | 'permissions' | 'audit' | 'config'>('users');
   readonly departments = signal<Department[]>([]);
   readonly users = signal<AdminUser[]>([]);
   readonly loadingUsers = signal(true);
@@ -1319,6 +1366,34 @@ export class AdminComponent implements OnInit {
     this.http.delete(`/api/admin/departments/${id}`).subscribe({
       next: () => { this.loadDepartments(); this.showToast('Área eliminada', 'success'); },
       error: (err) => this.showToast(err.error?.message ?? 'Error al eliminar', 'error'),
+    });
+  }
+
+  // ── Mail credentials ─────────────────────────────────────────────────────────
+
+  mailPassword = '';
+  mailPasswordConfirm = '';
+  readonly savingMailCred = signal(false);
+  readonly mailCredError = signal('');
+  readonly mailCredSuccess = signal(false);
+
+  updateMailCredentials(): void {
+    this.mailCredError.set('');
+    this.mailCredSuccess.set(false);
+    if (!this.mailPassword) { this.mailCredError.set('Ingresá la nueva contraseña'); return; }
+    if (this.mailPassword !== this.mailPasswordConfirm) { this.mailCredError.set('Las contraseñas no coinciden'); return; }
+    this.savingMailCred.set(true);
+    this.http.patch('/api/admin/mail-credentials', { password: this.mailPassword }).subscribe({
+      next: () => {
+        this.savingMailCred.set(false);
+        this.mailCredSuccess.set(true);
+        this.mailPassword = '';
+        this.mailPasswordConfirm = '';
+      },
+      error: (err) => {
+        this.savingMailCred.set(false);
+        this.mailCredError.set(err.error?.message ?? 'Error al actualizar la contraseña');
+      },
     });
   }
 

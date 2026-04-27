@@ -132,6 +132,13 @@ export class AdminController {
     return this.adminService.setGroupPermissions(groupName, body.allowedModules, req.user);
   }
 
+  // ─── Configuración del sistema ───────────────────────────────────────────────
+
+  @Patch('mail-credentials')
+  updateMailCredentials(@Body() body: { password: string }, @Request() req: any) {
+    return this.adminService.updateMailPassword(body.password, req.user);
+  }
+
   // ─── Audit log ───────────────────────────────────────────────────────────────
 
   @Get('audit-log')

@@ -430,7 +430,7 @@ const RANK_GROUPS = [
       @if (activeTab() === 'permissions') {
         <div>
           <p class="text-sm text-gray-500 dark:text-zinc-400 mb-4">
-            Controlá qué módulos adicionales puede ver cada grupo especial. Los usuarios solo de una oficina tienen acceso a Conversaciones, Ayuda técnica y Reservas por defecto. Los items de TICOM (Para enviar, Importar PST, Autorizadores, Administración) son exclusivos de ese grupo.
+            Controlá qué módulos puede ver cada grupo. Los usuarios siempre tienen acceso a Conversaciones, Ayuda técnica y Reservas. Los módulos adicionales (Correo, Redactar MTO) se habilitan por grupo. Nota: los miembros de CIVILES no pueden ver Correo ni Redactar MTO a menos que también estén en CIVILES_CON_MTO.
           </p>
 
           @if (loadingPerms()) {
@@ -457,7 +457,14 @@ const RANK_GROUPS = [
                   @for (row of permRows(); track row.groupName) {
                     <tr class="hover:bg-gray-50 dark:hover:bg-zinc-800/40">
                       <td class="px-4 py-2.5 font-medium text-gray-900 dark:text-white">
-                        {{ row.groupName }}
+                        <span class="flex items-center gap-2">
+                          {{ row.groupName }}
+                          @if (row.category === 'especial') {
+                            <span class="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">Especial</span>
+                          } @else if (row.category === 'oficina') {
+                            <span class="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">Oficina</span>
+                          }
+                        </span>
                       </td>
                       @for (mod of moduleKeys; track mod) {
                         <td class="px-4 py-2.5 text-center">

@@ -422,7 +422,12 @@ export class AdminService implements OnApplicationBootstrap {
   async getModulePermissions(): Promise<{ groupName: string; allowedModules: string[]; category: string }[]> {
     const dbPerms = await this.groupPermRepo.find();
     return dbPerms
-      .filter(p => p.category === 'especial')
+      .filter(p => p.category !== 'oculto')
+      .sort((a, b) => {
+        // oficina primero, luego especial
+        if (a.category === b.category) return a.groupName.localeCompare(b.groupName);
+        return a.category === 'oficina' ? -1 : 1;
+      })
       .map(p => ({
         groupName: p.groupName,
         allowedModules: p.allowedModules ?? [],
@@ -445,32 +450,34 @@ export class AdminService implements OnApplicationBootstrap {
   async getEffectiveModules(userRoles: string[]): Promise<{ allowedModules: string[] }> {
     const ALL = [...AdminService.ALL_MODULES];
     const MINIMAL = [...MINIMAL_MODULES];
+    const MTO_RESTRICTED = ['correo', 'redactar-mto'];
 
     if (!userRoles?.length) return { allowedModules: MINIMAL };
 
+    const upperRoles = userRoles.map(r => r.toUpperCase());
+
     // TICOM siempre tiene acceso completo
-    if (userRoles.some(r => r.toUpperCase() === 'TICOM')) {
+    if (upperRoles.includes('TICOM')) {
       return { allowedModules: ALL };
     }
 
+    // Unión de módulos mínimos + módulos configurados de todos los grupos del usuario
     const perms = await this.groupPermRepo.find();
-    const permMap = new Map(perms.map((p) => [p.groupName.toUpperCase(), p]));
+    const permMap = new Map(perms.map(p => [p.groupName.toUpperCase(), p]));
 
-    // Verificar si el usuario tiene algún grupo especial
-    const especialPerms = userRoles
-      .map(r => permMap.get(r.toUpperCase()))
-      .filter((p): p is GroupPermission => !!p && p.category === 'especial');
-
-    if (!especialPerms.length) {
-      // Solo grupos de oficina (o sin grupos) → acceso mínimo
-      return { allowedModules: MINIMAL };
-    }
-
-    // Unión de módulos mínimos + módulos configurados de grupos especiales
     const allowed = new Set<string>(MINIMAL);
-    for (const perm of especialPerms) {
-      (perm.allowedModules ?? []).forEach(m => allowed.add(m));
+    for (const role of upperRoles) {
+      const perm = permMap.get(role);
+      if (perm) {
+        (perm.allowedModules ?? []).forEach(m => allowed.add(m));
+      }
     }
+
+    // Restricción CIVILES: sin correo ni MTO a menos que esté en CIVILES_CON_MTO
+    if (upperRoles.includes('CIVILES') && !upperRoles.includes('CIVILES_CON_MTO')) {
+      MTO_RESTRICTED.forEach(m => allowed.delete(m));
+    }
+
     return { allowedModules: ALL.filter(m => allowed.has(m)) };
   }
 

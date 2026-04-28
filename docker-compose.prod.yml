@@ -33,8 +33,6 @@ services:
     depends_on:
       - ad-bridge
       - redis
-    volumes:
-      - ./secrets:/run/secrets:ro
 
   frontend:
     ports:

@@ -104,7 +104,6 @@ services:
       - mail_attachments:/app/storage/attachments
       - mail_pst:/app/storage/pst
       - draft_attachments:/app/storage/draft-attachments
-      - ./secrets:/run/secrets:ro
     secrets:
       - jwt_secret
       - bridge_secret

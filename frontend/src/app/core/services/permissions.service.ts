@@ -1,7 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
-export const ALL_MODULES = ['chat', 'incidencias', 'reservas', 'correo', 'redactar-mto'] as const;
+export const ALL_MODULES = ['chat', 'incidencias', 'reservas', 'correo', 'redactar-mto', 'parte-diario'] as const;
 export type AppModule = typeof ALL_MODULES[number];
 
 @Injectable({ providedIn: 'root' })

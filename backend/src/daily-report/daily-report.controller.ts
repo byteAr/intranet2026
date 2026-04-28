@@ -60,6 +60,13 @@ export class DailyReportController {
     return this.service.removeNonWorkingDay(date);
   }
 
+  // ─── Office members ───────────────────────────────────────────────────────
+
+  @Get('office-members')
+  getOfficeMembers(@Query('officeGroup') officeGroup: string) {
+    return this.service.getOfficeMembersFromDb(officeGroup);
+  }
+
   // ─── Active situations ────────────────────────────────────────────────────
 
   @Get('active-situations')

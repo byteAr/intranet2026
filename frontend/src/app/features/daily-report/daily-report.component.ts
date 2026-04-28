@@ -15,7 +15,7 @@ import {
 } from '../../core/services/daily-report.service';
 import { AuthService } from '../../core/services/auth.service';
 
-// ─── Rank ordering ───────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const RANK_ORDER: Record<string, number> = {
   'CTE GRL': 1, 'CTE MY': 2,
@@ -25,42 +25,31 @@ const RANK_ORDER: Record<string, number> = {
   'SARG': 40, 'CRO': 41, 'CBO': 42,
   'GEND': 50, 'GEND II': 51,
 };
-const RANK_CATEGORY_MAP: Record<string, string> = {
-  'CTE GRL': 'of_sup', 'CTE MY': 'of_sup',
-  'CTE PR': 'of_jef', 'CTE': 'of_jef',
-  '2DO CTE': 'of_sub', '1ER ALF': 'of_sub', 'ALF': 'of_sub', 'SUBALF': 'of_sub',
-  'SMY': 'subof_sup', 'SPR': 'subof_sup', 'SAY': 'subof_sup', 'SRO': 'subof_sup',
-  'SARG': 'subof_sub', 'CRO': 'subof_sub', 'CBO': 'subof_sub',
-  'GEND': 'tropa', 'GEND II': 'tropa',
-};
 const RANK_CATEGORY_LABELS: Record<string, string> = {
   'of_sup': 'Oficiales Superiores', 'of_jef': 'Jefes', 'of_sub': 'Oficiales Subalternos',
   'subof_sup': 'Suboficiales Superiores', 'subof_sub': 'Suboficiales Subalternos',
   'tropa': 'Tropa', 'civil': 'Personal Civil',
 };
-
-function getRankCategory(rank: string): string {
-  return RANK_CATEGORY_MAP[rank.toUpperCase()] ?? 'civil';
-}
-function getRankSortOrder(rank: string): number {
-  return RANK_ORDER[rank.toUpperCase()] ?? 999;
-}
-
-const ALL_RANKS = [
-  'CTE GRL', 'CTE MY', 'CTE PR', 'CTE', '2DO CTE', '1ER ALF', 'ALF', 'SUBALF',
-  'SMY', 'SPR', 'SAY', 'SRO', 'SARG', 'CRO', 'CBO', 'GEND', 'GEND II',
-];
-
 const OFFICE_GROUPS = [
   'TICOM', 'CENEDIS', 'LEGAL Y TÉCNICA', 'AYUDANTIADIREDTOS',
   'AYUDANTIARECTORADO', 'DOCENTES', 'CURSOS', 'PERSONAL',
   'SAF', 'LOGISTICA', 'CAMAREROS', 'DESARROLLO',
 ];
 
-type View = 'list' | 'form' | 'dashboard';
+function getRankSortOrder(rank: string): number {
+  return RANK_ORDER[rank?.toUpperCase()] ?? 999;
+}
+
+interface OfficeMember {
+  username: string;
+  fullName: string;
+  rank: string;
+  rankCategory: string;
+  sortOrder: number;
+}
 
 interface FormEntry extends DailyReportEntry {
-  _open?: boolean;
+  daysInSituation?: number | null;
 }
 
 @Component({
@@ -116,7 +105,6 @@ interface FormEntry extends DailyReportEntry {
 
   <!-- ─── LIST VIEW ───────────────────────────────────────────────────────── -->
   @if (activeView() === 'list') {
-
     @if (loading()) {
       <div class="flex justify-center py-16">
         <svg class="animate-spin h-8 w-8 text-teal-600" fill="none" viewBox="0 0 24 24">
@@ -126,7 +114,7 @@ interface FormEntry extends DailyReportEntry {
       </div>
     } @else {
 
-      <!-- Today's report status -->
+      <!-- Status cards -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 p-4 flex items-center gap-3">
           <div class="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0"
@@ -150,7 +138,8 @@ interface FormEntry extends DailyReportEntry {
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 p-4 flex items-center gap-3">
           <div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
             <svg class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           </div>
           <div>
@@ -162,12 +151,22 @@ interface FormEntry extends DailyReportEntry {
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 p-4">
           @if (!todayReport() && !countdown()?.isAfterDeadline && !countdown()?.isNonWorkingDay) {
             <button (click)="startNewReport()"
-              class="w-full py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-lg transition-colors">
-              + Confeccionar Parte de Hoy
+              [disabled]="loadingMembers()"
+              class="w-full py-2 px-4 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+              @if (loadingMembers()) {
+                <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                Cargando personal...
+              } @else {
+                + Confeccionar Parte de Hoy
+              }
             </button>
           } @else if (todayReport() && !todayReport()!.isLocked) {
             <button (click)="editReport(todayReport()!)"
-              class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">
+              [disabled]="loadingMembers()"
+              class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors">
               Editar Parte de Hoy
             </button>
           } @else {
@@ -178,7 +177,7 @@ interface FormEntry extends DailyReportEntry {
         </div>
       </div>
 
-      <!-- Reports table -->
+      <!-- Reports history -->
       <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-100 dark:border-zinc-700">
           <h2 class="text-sm font-semibold text-gray-900 dark:text-zinc-100">Historial de Partes</h2>
@@ -202,9 +201,7 @@ interface FormEntry extends DailyReportEntry {
               <tbody class="divide-y divide-gray-100 dark:divide-zinc-700/50">
                 @for (r of reports(); track r.id) {
                   <tr class="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
-                    <td class="px-4 py-3 font-medium text-gray-900 dark:text-zinc-100">
-                      {{ formatDate(r.reportDate) }}
-                    </td>
+                    <td class="px-4 py-3 font-medium text-gray-900 dark:text-zinc-100">{{ formatDate(r.reportDate) }}</td>
                     <td class="px-4 py-3 text-gray-600 dark:text-zinc-300">{{ r.createdBy }}</td>
                     <td class="px-4 py-3 text-center text-gray-600 dark:text-zinc-300">{{ r.entries?.length ?? '–' }}</td>
                     <td class="px-4 py-3 text-center">
@@ -215,7 +212,7 @@ interface FormEntry extends DailyReportEntry {
                     </td>
                     <td class="px-4 py-3 text-center">
                       <button (click)="viewReport(r)"
-                        class="text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 text-xs font-medium mr-3">
+                        class="text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 text-xs font-medium">
                         Ver
                       </button>
                     </td>
@@ -247,71 +244,33 @@ interface FormEntry extends DailyReportEntry {
           </h2>
           <p class="text-sm text-gray-500 dark:text-zinc-400">
             {{ userOfficeGroup() }} · {{ formatDate(formDate()) }}
+            <span class="ml-2 text-xs">({{ formEntries().length }} integrantes)</span>
           </p>
         </div>
       </div>
 
-      <!-- Add member row -->
-      <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 p-4">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-zinc-100 mb-3">Agregar integrante</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <div>
-            <label class="block text-xs text-gray-500 dark:text-zinc-400 mb-1">Jerarquía</label>
-            <select [(ngModel)]="newMemberRank" (ngModelChange)="onNewMemberRankChange($event)"
-              class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100">
-              <option value="">— Seleccionar —</option>
-              @for (r of allRanks; track r) {
-                <option [value]="r">{{ r }}</option>
-              }
-              <option value="CIVIL">Personal Civil</option>
-            </select>
-          </div>
-          <div class="sm:col-span-2">
-            <label class="block text-xs text-gray-500 dark:text-zinc-400 mb-1">Nombre y Apellido</label>
-            <input [(ngModel)]="newMemberName" type="text" placeholder="APELLIDO Nombre"
-              class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100" />
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500 dark:text-zinc-400 mb-1">Usuario AD (opcional)</label>
-            <input [(ngModel)]="newMemberUsername" type="text" placeholder="usuario"
-              class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100" />
-          </div>
+      <!-- Entries -->
+      @if (formEntries().length === 0) {
+        <div class="py-12 text-center text-sm text-gray-400 dark:text-zinc-500 bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700">
+          No hay integrantes registrados en esta oficina. Contactá a TICOM.
         </div>
-        <div class="mt-3 flex justify-end">
-          <button (click)="addMember()"
-            [disabled]="!newMemberRank || !newMemberName.trim()"
-            class="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors">
-            Agregar
-          </button>
-        </div>
-      </div>
-
-      <!-- Entries table -->
-      @if (formEntries().length > 0) {
+      } @else {
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden">
-          <div class="px-5 py-3 border-b border-gray-100 dark:border-zinc-700 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-zinc-100">Personal ({{ formEntries().length }})</h3>
+          <div class="px-5 py-3 border-b border-gray-100 dark:border-zinc-700">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-zinc-100">Personal de la oficina</h3>
           </div>
           <div class="divide-y divide-gray-100 dark:divide-zinc-700/50">
-            @for (entry of formEntries(); track entry.username + entry.fullName; let i = $index) {
+            @for (entry of formEntries(); track entry.username; let i = $index) {
               <div class="p-4 space-y-3">
-                <!-- Row header -->
-                <div class="flex items-center gap-3">
-                  <div class="flex-1 flex items-center gap-2 flex-wrap">
-                    <span class="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase w-20 flex-shrink-0">{{ entry.rank }}</span>
-                    <span class="text-sm font-medium text-gray-900 dark:text-zinc-100">{{ entry.fullName }}</span>
-                    @if (entry.daysInSituation) {
-                      <span class="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
-                        {{ entry.daysInSituation }} día{{ entry.daysInSituation !== 1 ? 's' : '' }}
-                      </span>
-                    }
-                  </div>
-                  <button (click)="removeMember(i)"
-                    class="text-red-400 hover:text-red-600 transition-colors p-1 flex-shrink-0">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                <!-- Person header -->
+                <div class="flex items-center gap-3 flex-wrap">
+                  <span class="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase w-20 flex-shrink-0">{{ entry.rank }}</span>
+                  <span class="text-sm font-medium text-gray-900 dark:text-zinc-100 flex-1">{{ entry.fullName }}</span>
+                  @if (entry.daysInSituation && entry.daysInSituation > 0 && entry.situationTypeCode !== 'PRESENTE') {
+                    <span class="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full flex-shrink-0">
+                      {{ entry.daysInSituation }} día{{ entry.daysInSituation !== 1 ? 's' : '' }} en situación
+                    </span>
+                  }
                 </div>
 
                 <!-- Situation selector -->
@@ -327,7 +286,6 @@ interface FormEntry extends DailyReportEntry {
                     </select>
                   </div>
 
-                  <!-- Turno shift -->
                   @if (entry.situationTypeCode === 'TURNO') {
                     <div>
                       <label class="block text-xs text-gray-500 dark:text-zinc-400 mb-1">Turno (opcional)</label>
@@ -341,7 +299,7 @@ interface FormEntry extends DailyReportEntry {
                   }
                 </div>
 
-                <!-- Date fields based on situation -->
+                <!-- Date fields -->
                 @if (getSituationType(entry.situationTypeCode); as st) {
                   @if (st.requiresDateRange) {
                     <div class="grid grid-cols-2 gap-3">
@@ -408,42 +366,35 @@ interface FormEntry extends DailyReportEntry {
             {{ saving() ? 'Guardando...' : (editingReportId() ? 'Actualizar Parte' : 'Enviar Parte') }}
           </button>
         </div>
-      } @else {
-        <div class="py-12 text-center text-sm text-gray-400 dark:text-zinc-500 bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700">
-          Agregá integrantes para confeccionar el parte.
-        </div>
       }
-
     </div>
   }
 
-  <!-- ─── REPORT VIEW (read-only) ────────────────────────────────────────── -->
+  <!-- ─── REPORT VIEW ────────────────────────────────────────────────────── -->
   @if (activeView() === 'view') {
     @if (viewingReport()) {
       <div class="space-y-4">
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
           <button (click)="closeView()"
             class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-500 dark:text-zinc-400 transition-colors">
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <div>
+          <div class="flex-1">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-zinc-100">
               Parte Diario — {{ formatDate(viewingReport()!.reportDate) }}
             </h2>
             <p class="text-sm text-gray-500 dark:text-zinc-400">{{ viewingReport()!.officeGroup }}</p>
           </div>
-          <div class="ml-auto flex gap-2">
-            <button (click)="printReport(viewingReport()!)"
-              class="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-sm font-medium rounded-lg transition-colors">
-              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              Imprimir
-            </button>
-          </div>
+          <button (click)="printReport(viewingReport()!)"
+            class="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-sm font-medium rounded-lg transition-colors">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Imprimir
+          </button>
         </div>
 
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden">
@@ -468,9 +419,7 @@ interface FormEntry extends DailyReportEntry {
                         {{ getSituationLabel(e.situationTypeCode) }}
                       </span>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-500 dark:text-zinc-400">
-                      {{ formatEntryDetail(e) }}
-                    </td>
+                    <td class="px-4 py-3 text-xs text-gray-500 dark:text-zinc-400">{{ formatEntryDetail(e) }}</td>
                   </tr>
                 }
               </tbody>
@@ -491,8 +440,7 @@ interface FormEntry extends DailyReportEntry {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
             <label class="block text-xs text-gray-500 dark:text-zinc-400 mb-1">Fecha</label>
-            <input type="date" [(ngModel)]="dashboardDate"
-              (ngModelChange)="loadDashboard()"
+            <input type="date" [(ngModel)]="dashboardDate" (ngModelChange)="loadDashboard()"
               class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100" />
           </div>
           <div>
@@ -500,9 +448,7 @@ interface FormEntry extends DailyReportEntry {
             <select [(ngModel)]="dashboardOffice" (ngModelChange)="loadDashboard()"
               class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100">
               <option value="">Todas las oficinas</option>
-              @for (g of officeGroups; track g) {
-                <option [value]="g">{{ g }}</option>
-              }
+              @for (g of officeGroups; track g) { <option [value]="g">{{ g }}</option> }
             </select>
           </div>
           <div>
@@ -510,9 +456,7 @@ interface FormEntry extends DailyReportEntry {
             <select [(ngModel)]="dashboardSituation" (ngModelChange)="loadDashboard()"
               class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-zinc-100">
               <option value="">Todas</option>
-              @for (st of situationTypes(); track st.code) {
-                <option [value]="st.code">{{ st.label }}</option>
-              }
+              @for (st of situationTypes(); track st.code) { <option [value]="st.code">{{ st.label }}</option> }
             </select>
           </div>
           <div>
@@ -535,8 +479,16 @@ interface FormEntry extends DailyReportEntry {
         </div>
       </div>
 
-      <!-- Stats cards -->
-      @if (dashboard()) {
+      @if (dashboardLoading()) {
+        <div class="flex justify-center py-16">
+          <svg class="animate-spin h-8 w-8 text-teal-600" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+        </div>
+      } @else if (dashboard()) {
+
+        <!-- Stats -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 p-4 text-center">
             <p class="text-2xl font-bold text-gray-900 dark:text-zinc-100">{{ dashboard()!.grandTotal.total }}</p>
@@ -556,7 +508,7 @@ interface FormEntry extends DailyReportEntry {
           </div>
         </div>
 
-        <!-- By office summary -->
+        <!-- By office -->
         @if (!dashboardOffice) {
           <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden">
             <div class="px-5 py-3 border-b border-gray-100 dark:border-zinc-700">
@@ -597,12 +549,10 @@ interface FormEntry extends DailyReportEntry {
           </div>
         }
 
-        <!-- Entries table -->
+        <!-- Full entries table -->
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden">
           <div class="px-5 py-3 border-b border-gray-100 dark:border-zinc-700 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-zinc-100">
-              Personal ({{ dashboard()!.entries.length }})
-            </h3>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-zinc-100">Personal ({{ dashboard()!.entries.length }})</h3>
             <button (click)="printDashboard()"
               class="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-xs font-medium rounded-lg transition-colors">
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -613,9 +563,7 @@ interface FormEntry extends DailyReportEntry {
             </button>
           </div>
           @if (dashboard()!.entries.length === 0) {
-            <div class="py-12 text-center text-sm text-gray-400 dark:text-zinc-500">
-              No hay datos para los filtros seleccionados.
-            </div>
+            <div class="py-12 text-center text-sm text-gray-400 dark:text-zinc-500">No hay datos para los filtros seleccionados.</div>
           } @else {
             <div class="overflow-x-auto">
               <table class="w-full text-sm">
@@ -630,7 +578,7 @@ interface FormEntry extends DailyReportEntry {
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-zinc-700/50">
-                  @for (e of dashboard()!.entries; track e.username + e.officeGroup) {
+                  @for (e of dashboard()!.entries; track e.username + (e.officeGroup ?? '')) {
                     <tr class="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
                       <td class="px-4 py-2 font-mono text-xs font-bold text-gray-500 dark:text-zinc-400">{{ e.rank }}</td>
                       <td class="px-4 py-2 font-medium text-gray-900 dark:text-zinc-100">{{ e.fullName }}</td>
@@ -656,18 +604,11 @@ interface FormEntry extends DailyReportEntry {
             </div>
           }
         </div>
-      } @else if (dashboardLoading()) {
-        <div class="flex justify-center py-16">
-          <svg class="animate-spin h-8 w-8 text-teal-600" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-          </svg>
-        </div>
       }
     </div>
   }
 
-  <!-- Error -->
+  <!-- Toasts -->
   @if (error()) {
     <div class="fixed bottom-6 right-6 z-50 bg-red-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium flex items-center gap-2">
       <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -696,15 +637,13 @@ export class DailyReportComponent implements OnInit {
   // ─── State ────────────────────────────────────────────────────────────────
   readonly activeView = signal<'list' | 'form' | 'view' | 'dashboard'>('list');
   readonly loading = signal(true);
+  readonly loadingMembers = signal(false);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   readonly success = signal<string | null>(null);
 
-  // Situation types
   readonly situationTypes = signal<SituationType[]>([]);
   readonly activeSituationTypes = computed(() => this.situationTypes().filter(s => s.isActive));
-
-  // Countdown
   readonly countdown = signal<CountdownInfo | null>(null);
   readonly countdownClass = computed(() => {
     const c = this.countdown();
@@ -715,27 +654,18 @@ export class DailyReportComponent implements OnInit {
     return 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400';
   });
 
-  // Reports list
   readonly reports = signal<DailyReport[]>([]);
   readonly todayReport = computed(() => {
     const today = new Date().toLocaleDateString('en-CA');
     return this.reports().find(r => r.reportDate === today) ?? null;
   });
-
-  // Active situations map (username → ActiveSituation)
   readonly activeSituations = signal<Map<string, ActiveSituation>>(new Map());
+  readonly officeMembers = signal<OfficeMember[]>([]);
 
-  // Form state
   readonly formEntries = signal<FormEntry[]>([]);
   readonly formDate = signal(new Date().toLocaleDateString('en-CA'));
   readonly editingReportId = signal<number | null>(null);
 
-  // New member form
-  newMemberRank = '';
-  newMemberName = '';
-  newMemberUsername = '';
-
-  // View report
   readonly viewingReport = signal<DailyReport | null>(null);
 
   // Dashboard
@@ -747,7 +677,6 @@ export class DailyReportComponent implements OnInit {
   dashboardSearch = '';
   dashboardRankCategory = '';
 
-  // Computed user info
   readonly isPersonal = computed(() => this.authService.currentUser()?.roles?.includes('PERSONAL') ?? false);
   readonly userOfficeGroup = computed(() => {
     const roles = this.authService.currentUser()?.roles ?? [];
@@ -760,7 +689,6 @@ export class DailyReportComponent implements OnInit {
   ];
   readonly rankCategories = Object.entries(RANK_CATEGORY_LABELS).map(([key, label]) => ({ key, label }));
   readonly officeGroups = OFFICE_GROUPS;
-  readonly allRanks = ALL_RANKS;
 
   private situationMap = new Map<string, SituationType>();
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -785,18 +713,17 @@ export class DailyReportComponent implements OnInit {
         error: () => this.loading.set(false),
       });
       this.svc.getActiveSituations(office).subscribe({
-        next: (sits) => {
-          const map = new Map(sits.map(s => [s.username, s]));
-          this.activeSituations.set(map);
-        },
+        next: (sits) => this.activeSituations.set(new Map(sits.map(s => [s.username, s]))),
+      });
+      // Pre-load office members in background for faster form open
+      this.svc.getOfficeMembers(office).subscribe({
+        next: (members) => this.officeMembers.set(members),
       });
     } else {
       this.loading.set(false);
     }
 
-    if (this.isPersonal()) {
-      this.loadDashboard();
-    }
+    if (this.isPersonal()) this.loadDashboard();
   }
 
   loadDashboard(): void {
@@ -821,62 +748,63 @@ export class DailyReportComponent implements OnInit {
   // ─── Form ─────────────────────────────────────────────────────────────────
 
   startNewReport(): void {
+    const office = this.userOfficeGroup();
+    if (!office) return;
+
     this.editingReportId.set(null);
     this.formDate.set(new Date().toLocaleDateString('en-CA'));
-    this.formEntries.set([]);
-    this.activeView.set('form');
+
+    const buildEntries = (members: OfficeMember[]) => {
+      const entries: FormEntry[] = members.map(m => {
+        const activeSit = this.activeSituations().get(m.username);
+        return {
+          username: m.username,
+          fullName: m.fullName,
+          rank: m.rank,
+          rankCategory: m.rankCategory,
+          situationTypeCode: activeSit?.situationTypeCode ?? 'PRESENTE',
+          situationFromDate: activeSit?.fromDate ?? null,
+          situationToDate: activeSit?.toDate ?? null,
+          authorizedBy: activeSit?.authorizedBy ?? null,
+          authorizedDays: activeSit?.authorizedDays ?? null,
+          authorizedChargedToLao: activeSit?.authorizedChargedToLao ?? false,
+          shiftType: activeSit?.shiftType ?? null,
+          notes: activeSit?.notes ?? null,
+          daysInSituation: activeSit ? this.calcDaysInSituation(activeSit.fromDate) : null,
+        };
+      });
+      this.formEntries.set(entries);
+      this.activeView.set('form');
+      this.loadingMembers.set(false);
+    };
+
+    // Use cached members if available, otherwise fetch
+    if (this.officeMembers().length > 0) {
+      buildEntries(this.officeMembers());
+    } else {
+      this.loadingMembers.set(true);
+      this.svc.getOfficeMembers(office).subscribe({
+        next: (members) => { this.officeMembers.set(members); buildEntries(members); },
+        error: () => { this.loadingMembers.set(false); this.showError('Error al cargar el personal de la oficina'); },
+      });
+    }
   }
 
   editReport(report: DailyReport): void {
-    this.editingReportId.set(report.id);
-    this.formDate.set(report.reportDate);
-    const entries: FormEntry[] = (report.entries ?? []).map(e => ({
-      ...e,
-      daysInSituation: this.calcDaysInSituation(e.username),
-    }));
-    this.formEntries.set(entries);
-    this.activeView.set('form');
-  }
-
-  onNewMemberRankChange(rank: string): void {
-    // no-op, just update the binding
-  }
-
-  addMember(): void {
-    if (!this.newMemberRank || !this.newMemberName.trim()) return;
-
-    const username = this.newMemberUsername.trim() || this.newMemberName.toLowerCase().replace(/\s+/g, '');
-    const activeSit = this.activeSituations().get(username);
-    const defaultSituation = activeSit?.situationTypeCode ?? 'PRESENTE';
-
-    const entry: FormEntry = {
-      username,
-      fullName: this.newMemberName.trim().toUpperCase(),
-      rank: this.newMemberRank,
-      rankCategory: this.newMemberRank === 'CIVIL' ? 'civil' : getRankCategory(this.newMemberRank),
-      situationTypeCode: defaultSituation,
-      situationFromDate: activeSit?.fromDate ?? null,
-      situationToDate: activeSit?.toDate ?? null,
-      authorizedBy: activeSit?.authorizedBy ?? null,
-      authorizedDays: activeSit?.authorizedDays ?? null,
-      authorizedChargedToLao: activeSit?.authorizedChargedToLao ?? false,
-      shiftType: activeSit?.shiftType ?? null,
-      notes: activeSit?.notes ?? null,
-      daysInSituation: activeSit ? this.calcDaysInSituation(username) : null,
-    };
-
-    const sorted = [...this.formEntries(), entry].sort(
-      (a, b) => (getRankSortOrder(a.rank) - getRankSortOrder(b.rank))
-    );
-    this.formEntries.set(sorted);
-
-    this.newMemberRank = '';
-    this.newMemberName = '';
-    this.newMemberUsername = '';
-  }
-
-  removeMember(index: number): void {
-    this.formEntries.update(entries => entries.filter((_, i) => i !== index));
+    this.svc.getReport(report.id).subscribe({
+      next: (r) => {
+        this.editingReportId.set(r.id);
+        this.formDate.set(r.reportDate);
+        // Use saved entries from the report (already has all people and their situations)
+        const entries: FormEntry[] = (r.entries ?? []).map(e => ({
+          ...e,
+          daysInSituation: this.calcDaysInSituationByUsername(e.username),
+        }));
+        this.formEntries.set(entries);
+        this.activeView.set('form');
+      },
+      error: () => this.showError('Error al cargar el parte'),
+    });
   }
 
   onSituationChange(entry: FormEntry, code: string): void {
@@ -897,11 +825,11 @@ export class DailyReportComponent implements OnInit {
   submitReport(): void {
     if (this.formEntries().length === 0) return;
     const office = this.userOfficeGroup();
-    if (!office && !this.isPersonal()) return;
+    if (!office) return;
 
     this.saving.set(true);
     const dto = {
-      officeGroup: office ?? '',
+      officeGroup: office,
       reportDate: this.formDate(),
       entries: this.formEntries(),
     };
@@ -914,12 +842,10 @@ export class DailyReportComponent implements OnInit {
       next: () => {
         this.saving.set(false);
         this.showSuccess('Parte guardado correctamente');
-        if (office) {
-          this.svc.listReports(office).subscribe({ next: (r) => this.reports.set(r) });
-          this.svc.getActiveSituations(office).subscribe({
-            next: (sits) => this.activeSituations.set(new Map(sits.map(s => [s.username, s]))),
-          });
-        }
+        this.svc.listReports(office).subscribe({ next: (r) => this.reports.set(r) });
+        this.svc.getActiveSituations(office).subscribe({
+          next: (sits) => this.activeSituations.set(new Map(sits.map(s => [s.username, s]))),
+        });
         this.activeView.set('list');
       },
       error: (err) => {
@@ -935,14 +861,11 @@ export class DailyReportComponent implements OnInit {
     this.editingReportId.set(null);
   }
 
-  // ─── View report ──────────────────────────────────────────────────────────
+  // ─── View ─────────────────────────────────────────────────────────────────
 
   viewReport(report: DailyReport): void {
     this.svc.getReport(report.id).subscribe({
-      next: (r) => {
-        this.viewingReport.set(r);
-        this.activeView.set('view' as any);
-      },
+      next: (r) => { this.viewingReport.set(r); this.activeView.set('view' as any); },
     });
   }
 
@@ -959,25 +882,13 @@ export class DailyReportComponent implements OnInit {
     const rows = (report.entries ?? [])
       .map(e => `<tr><td>${e.rank}</td><td>${e.fullName}</td><td>${this.getSituationLabel(e.situationTypeCode)}</td><td>${this.formatEntryDetail(e)}</td></tr>`)
       .join('');
-    win.document.write(`
-      <!DOCTYPE html><html><head><meta charset="utf-8">
-      <title>Parte Diario ${report.reportDate}</title>
-      <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
-        h1 { font-size: 16px; text-align: center; }
-        h2 { font-size: 13px; text-align: center; color: #555; }
-        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-        th { background: #f0f0f0; border: 1px solid #ccc; padding: 6px 8px; text-align: left; font-size: 11px; }
-        td { border: 1px solid #ddd; padding: 5px 8px; }
-        @media print { button { display: none; } }
-      </style>
-      </head><body>
-      <h1>PARTE DIARIO</h1>
-      <h2>Oficina: ${report.officeGroup} — Fecha: ${this.formatDate(report.reportDate)}</h2>
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Parte Diario ${report.reportDate}</title>
+      <style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}h1{font-size:16px;text-align:center}h2{font-size:13px;text-align:center;color:#555}
+      table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f0f0f0;border:1px solid #ccc;padding:6px 8px;text-align:left;font-size:11px}
+      td{border:1px solid #ddd;padding:5px 8px}@media print{button{display:none}}</style></head><body>
+      <h1>PARTE DIARIO</h1><h2>Oficina: ${report.officeGroup} — Fecha: ${this.formatDate(report.reportDate)}</h2>
       <table><thead><tr><th>Jerarquía</th><th>Nombre y Apellido</th><th>Situación</th><th>Detalle</th></tr></thead>
-      <tbody>${rows}</tbody></table>
-      <script>window.print();<\/script></body></html>
-    `);
+      <tbody>${rows}</tbody></table><script>window.print();<\/script></body></html>`);
     win.document.close();
   }
 
@@ -989,27 +900,14 @@ export class DailyReportComponent implements OnInit {
     const rows = d.entries
       .map(e => `<tr><td>${e.rank}</td><td>${e.fullName}</td><td>${e.officeGroup ?? ''}</td><td>${this.getSituationLabel(e.situationTypeCode)}</td><td>${e.daysInSituation ?? ''}</td><td>${this.formatEntryDetail(e)}</td></tr>`)
       .join('');
-    win.document.write(`
-      <!DOCTYPE html><html><head><meta charset="utf-8">
-      <title>Reporte Parte Diario ${d.date}</title>
-      <style>
-        body { font-family: Arial, sans-serif; font-size: 11px; margin: 16px; }
-        h1 { font-size: 15px; text-align: center; }
-        .summary { margin: 10px 0; font-size: 12px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        th { background: #f0f0f0; border: 1px solid #ccc; padding: 5px 7px; text-align: left; font-size: 10px; }
-        td { border: 1px solid #ddd; padding: 4px 7px; }
-        @media print { button { display: none; } }
-      </style>
-      </head><body>
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Reporte ${d.date}</title>
+      <style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px}h1{font-size:15px;text-align:center}.summary{margin:10px 0;font-size:12px}
+      table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#f0f0f0;border:1px solid #ccc;padding:5px 7px;text-align:left;font-size:10px}
+      td{border:1px solid #ddd;padding:4px 7px}@media print{button{display:none}}</style></head><body>
       <h1>REPORTE PARTE DIARIO — ${d.date}</h1>
-      <div class="summary">
-        Total: ${d.grandTotal.total} | F. Efectiva: ${d.grandTotal.effective} | Presentes: ${d.grandTotal.present} | Ausentes: ${d.grandTotal.absent}
-      </div>
+      <div class="summary">Total: ${d.grandTotal.total} | F. Efectiva: ${d.grandTotal.effective} | Presentes: ${d.grandTotal.present} | Ausentes: ${d.grandTotal.absent}</div>
       <table><thead><tr><th>Jerarquía</th><th>Nombre y Apellido</th><th>Oficina</th><th>Situación</th><th>Días</th><th>Detalle</th></tr></thead>
-      <tbody>${rows}</tbody></table>
-      <script>window.print();<\/script></body></html>
-    `);
+      <tbody>${rows}</tbody></table><script>window.print();<\/script></body></html>`);
     win.document.close();
   }
 
@@ -1052,17 +950,19 @@ export class DailyReportComponent implements OnInit {
   formatCountdown(minutes: number): string {
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
-    if (h > 0) return `${h}h ${m}min`;
-    return `${m}min`;
+    return h > 0 ? `${h}h ${m}min` : `${m}min`;
   }
 
-  private calcDaysInSituation(username: string): number | null {
-    const sit = this.activeSituations().get(username);
-    if (!sit) return null;
-    const from = new Date(sit.fromDate);
+  private calcDaysInSituation(fromDate: string): number | null {
+    if (!fromDate) return null;
+    const from = new Date(fromDate);
     const today = new Date();
-    const ms = today.getTime() - from.getTime();
-    return Math.max(1, Math.floor(ms / 86400000) + 1);
+    return Math.max(1, Math.floor((today.getTime() - from.getTime()) / 86400000) + 1);
+  }
+
+  private calcDaysInSituationByUsername(username: string): number | null {
+    const sit = this.activeSituations().get(username);
+    return sit ? this.calcDaysInSituation(sit.fromDate) : null;
   }
 
   private showError(msg: string): void {

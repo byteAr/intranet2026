@@ -7,6 +7,7 @@ import { DailyReportEntry } from './entities/daily-report-entry.entity';
 import { SituationType } from './entities/situation-type.entity';
 import { ActiveSituation } from './entities/active-situation.entity';
 import { NonWorkingDay } from './entities/non-working-day.entity';
+import { User } from '../users/entities/user.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NonWorkingDay } from './entities/non-working-day.entity';
       SituationType,
       ActiveSituation,
       NonWorkingDay,
+      User,
     ]),
   ],
   controllers: [DailyReportController],

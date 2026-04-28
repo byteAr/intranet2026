@@ -15,6 +15,7 @@ import { ActiveSituation } from './entities/active-situation.entity';
 import { NonWorkingDay } from './entities/non-working-day.entity';
 import { CreateReportDto, EntryDto } from './dto/create-report.dto';
 import { CreateSituationTypeDto } from './dto/create-situation-type.dto';
+import { User } from '../users/entities/user.entity';
 
 // ─── Rank hierarchy ──────────────────────────────────────────────────────────
 
@@ -107,6 +108,8 @@ export class DailyReportService implements OnApplicationBootstrap {
     private readonly activeSituationRepo: Repository<ActiveSituation>,
     @InjectRepository(NonWorkingDay)
     private readonly nonWorkingDayRepo: Repository<NonWorkingDay>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
   ) {}
 
   async onApplicationBootstrap() {
@@ -207,6 +210,46 @@ export class DailyReportService implements OnApplicationBootstrap {
   }
 
   // ─── Active situations ────────────────────────────────────────────────────
+
+  // ─── Office members from DB ───────────────────────────────────────────────
+
+  async getOfficeMembersFromDb(officeGroup: string): Promise<{
+    username: string;
+    fullName: string;
+    rank: string;
+    rankCategory: string;
+    sortOrder: number;
+  }[]> {
+    const upper = officeGroup.toUpperCase();
+    // simple-array stores as comma-separated; match the group name as a whole word
+    const users = await this.userRepo
+      .createQueryBuilder('u')
+      .where('u.isActive = true')
+      .andWhere(
+        "(u.roles = :exact OR u.roles LIKE :start OR u.roles LIKE :end OR u.roles LIKE :mid)",
+        {
+          exact: upper,
+          start: `${upper},%`,
+          end: `%,${upper}`,
+          mid: `%,${upper},%`,
+        },
+      )
+      .select(['u.username', 'u.displayName', 'u.rank'])
+      .getMany();
+
+    return users
+      .map(u => {
+        const rank = u.rank?.toUpperCase() ?? 'CIVIL';
+        return {
+          username: u.username,
+          fullName: u.displayName.toUpperCase(),
+          rank,
+          rankCategory: getRankCategory(rank),
+          sortOrder: getRankSortOrder(rank),
+        };
+      })
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  }
 
   async getActiveSituationsForOffice(officeGroup: string) {
     return this.activeSituationRepo.find({ where: { officeGroup } });

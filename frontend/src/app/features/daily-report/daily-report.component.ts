@@ -831,7 +831,20 @@ export class DailyReportComponent implements OnInit {
     const dto = {
       officeGroup: office,
       reportDate: this.formDate(),
-      entries: this.formEntries(),
+      entries: this.formEntries().map(e => ({
+        username: e.username,
+        fullName: e.fullName,
+        rank: e.rank,
+        rankCategory: e.rankCategory,
+        situationTypeCode: e.situationTypeCode,
+        situationFromDate: e.situationFromDate ?? undefined,
+        situationToDate: e.situationToDate ?? undefined,
+        authorizedBy: e.authorizedBy ?? undefined,
+        authorizedDays: e.authorizedDays ?? undefined,
+        authorizedChargedToLao: e.authorizedChargedToLao ?? false,
+        shiftType: e.shiftType ?? undefined,
+        notes: e.notes ?? undefined,
+      })),
     };
 
     const obs = this.editingReportId()

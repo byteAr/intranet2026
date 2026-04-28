@@ -33,6 +33,7 @@ const MODULE_LABELS: Record<string, string> = {
   'reservas':      'Reservas',
   'correo':        'Correo',
   'redactar-mto':  'Redactar MTO',
+  'parte-diario':  'Parte Diario',
 };
 const ALL_MODULES = Object.keys(MODULE_LABELS);
 

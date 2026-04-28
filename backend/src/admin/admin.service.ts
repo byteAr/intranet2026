@@ -95,17 +95,12 @@ export class AdminService implements OnApplicationBootstrap {
     for (const { groupName, category } of allSeed) {
       const existing = await this.groupPermRepo.findOne({ where: { groupName } });
       if (existing) {
-        let changed = false;
-        if (existing.category !== category) { existing.category = category; changed = true; }
-        // Ensure parte-diario is in oficina groups (new module addition)
-        if (category === 'oficina' && !(existing.allowedModules ?? []).includes('parte-diario')) {
-          existing.allowedModules = [...(existing.allowedModules ?? []), 'parte-diario'];
-          changed = true;
+        if (existing.category !== category) {
+          existing.category = category;
+          await this.groupPermRepo.save(existing);
         }
-        if (changed) await this.groupPermRepo.save(existing);
       } else {
-        const allowedModules = category === 'oficina' ? ['parte-diario'] : [];
-        await this.groupPermRepo.save(this.groupPermRepo.create({ groupName, allowedModules, category }));
+        await this.groupPermRepo.save(this.groupPermRepo.create({ groupName, allowedModules: [], category }));
       }
     }
     this.logger.log('Categorías de grupos inicializadas');

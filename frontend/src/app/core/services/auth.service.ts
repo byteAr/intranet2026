@@ -3,9 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { tap } from 'rxjs/operators';
 import { Observable } from 'rxjs';
-import { User, LoginResponse } from '../models/user.model';
+import { User } from '../models/user.model';
 
-const TOKEN_KEY = 'pac_access_token';
 const USER_KEY = 'pac_user';
 
 @Injectable({ providedIn: 'root' })
@@ -13,24 +12,17 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
 
-  private readonly _token = signal<string | null>(
-    localStorage.getItem(TOKEN_KEY),
-  );
-  private readonly _user = signal<User | null>(
-    this.loadUser(),
-  );
+  private readonly _user = signal<User | null>(this.loadUser());
 
-  readonly isAuthenticated = computed(() => !!this._token());
+  readonly isAuthenticated = computed(() => !!this._user());
   readonly currentUser = computed(() => this._user());
 
-  login(username: string, password: string): Observable<LoginResponse> {
+  login(username: string, password: string): Observable<{ user: User }> {
     return this.http
-      .post<LoginResponse>('/api/auth/login', { username, password })
+      .post<{ user: User }>('/api/auth/login', { username, password }, { withCredentials: true })
       .pipe(
         tap((res) => {
-          localStorage.setItem(TOKEN_KEY, res.access_token);
           localStorage.setItem(USER_KEY, JSON.stringify(res.user));
-          this._token.set(res.access_token);
           this._user.set(res.user);
         }),
       );
@@ -45,15 +37,21 @@ export class AuthService {
 
   logout(): void {
     this._logoutCallbacks.forEach((cb) => cb());
-    localStorage.removeItem(TOKEN_KEY);
+    // Tell backend to clear cookie and blacklist token
+    this.http.post('/api/auth/logout', {}, { withCredentials: true }).subscribe({ error: () => {} });
+    this.clearSession();
+  }
+
+  /** Clear local session state (called on logout or 401) */
+  clearSession(): void {
     localStorage.removeItem(USER_KEY);
-    this._token.set(null);
     this._user.set(null);
     void this.router.navigate(['/auth/login']);
   }
 
-  getToken(): string | null {
-    return this._token();
+  // Token is in httpOnly cookie — not accessible from JS
+  getToken(): null {
+    return null;
   }
 
   hasRole(role: string): boolean {

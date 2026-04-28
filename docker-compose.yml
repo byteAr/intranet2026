@@ -17,6 +17,17 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: intranet_redis
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   openldap:
     image: osixia/openldap:latest
     container_name: intranet_openldap
@@ -52,7 +63,6 @@ services:
       dockerfile: Dockerfile
     container_name: intranet_ad_bridge
     environment:
-      BRIDGE_SECRET: ${BRIDGE_SECRET}
       AD_HOST: ${AD_HOST:-10.98.40.22}
       AD_USER: ${AD_USER:-svc-pac}
       AD_PASS: ${LDAP_BIND_CREDENTIALS}
@@ -61,6 +71,8 @@ services:
       AD_USERS_OU: ${AD_USERS_OU:-CN=Users,DC=iugnad,DC=lan}
       AD_DOMAIN_FQDN: ${AD_DOMAIN_FQDN:-iugnad.lan}
       AD_BIND_DN: ${LDAP_BIND_DN}
+    secrets:
+      - bridge_secret
     restart: unless-stopped
 
   backend:
@@ -72,10 +84,13 @@ services:
     env_file: .env
     environment:
       NODE_ENV: ${NODE_ENV}
+      REDIS_URL: redis://redis:6379
     ports:
       - '${APP_PORT}:${APP_PORT}'
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       openldap:
         condition: service_started
@@ -88,6 +103,10 @@ services:
       - mail_pst:/app/storage/pst
       - draft_attachments:/app/storage/draft-attachments
       - ./secrets:/run/secrets:ro
+    secrets:
+      - jwt_secret
+      - bridge_secret
+      - mail_bridge_secret
 
   frontend:
     build:
@@ -108,3 +127,11 @@ volumes:
   mail_attachments:
   mail_pst:
   draft_attachments:
+
+secrets:
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  bridge_secret:
+    file: ./secrets/bridge_secret.txt
+  mail_bridge_secret:
+    file: ./secrets/mail_bridge_secret.txt

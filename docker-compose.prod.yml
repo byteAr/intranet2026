@@ -6,6 +6,9 @@ services:
       - ./postgres.conf:/etc/postgresql/postgresql.conf:ro
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
 
+  redis:
+    ports: !reset []
+
   openldap:
     ports: !reset []
 
@@ -16,7 +19,6 @@ services:
     build: ./linux-ad-bridge
     container_name: intranet_ad_bridge
     environment:
-      BRIDGE_SECRET: ${BRIDGE_SECRET:-pac-bridge-secret-change-me}
       AD_PASS: ${LDAP_BIND_CREDENTIALS}
       KRB5_REALM: ${KRB5_REALM:-IUGNAD.LAN}
       AD_BASE_DN: ${AD_BASE_DN:-DC=iugnad,DC=lan}
@@ -30,6 +32,7 @@ services:
       - '127.0.0.1:3001:3000'
     depends_on:
       - ad-bridge
+      - redis
     volumes:
       - ./secrets:/run/secrets:ro
 

@@ -32,6 +32,7 @@ services:
     environment:
       NODE_ENV: development
       CHOKIDAR_USEPOLLING: 'true'
+      REDIS_URL: redis://redis:6379
       # Usar AD real (10.98.40.22) — valores del .env
       # Usar mail bridge real — valores del .env
       AD_BRIDGE_URL: ''
@@ -40,6 +41,8 @@ services:
       - '${APP_PORT:-3000}:3000'
     depends_on: !reset      # reemplaza el depends_on del base (quita ad-bridge)
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       openldap:
         condition: service_started

@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import { PasswordResetService } from './password-reset.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LdapStrategy } from './strategies/ldap.strategy';
+import { TokenBlacklistService } from './token-blacklist.service';
 
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { LdapStrategy } from './strategies/ldap.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PasswordResetService, LdapStrategy, JwtStrategy],
-  exports: [AuthService],
+  providers: [AuthService, PasswordResetService, LdapStrategy, JwtStrategy, TokenBlacklistService],
+  exports: [AuthService, TokenBlacklistService],
 })
 export class AuthModule {}

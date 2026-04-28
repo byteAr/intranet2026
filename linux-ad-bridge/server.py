@@ -7,7 +7,13 @@ logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(me
 logger = logging.getLogger(__name__)
 
 PORT           = int(os.environ.get('BRIDGE_PORT', '3002'))
-SECRET         = os.environ.get('BRIDGE_SECRET', 'pac-bridge-secret-change-me')
+def _read_secret(path, env_var, default=''):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return os.environ.get(env_var, default)
+SECRET         = _read_secret('/run/secrets/bridge_secret', 'BRIDGE_SECRET', 'pac-bridge-secret-change-me')
 AD_HOST        = os.environ.get('AD_HOST', '10.98.40.22')
 AD_USER        = os.environ.get('AD_USER', 'svc-pac')
 AD_PASS        = os.environ.get('AD_PASS', '')

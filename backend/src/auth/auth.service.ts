@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { randomUUID } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { TokenBlacklistService } from './token-blacklist.service';
 
 /** Shape of the LDAP/AD entry returned by passport-ldapauth */
 interface LdapEntry {
@@ -31,6 +33,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly tokenBlacklist: TokenBlacklistService,
   ) {}
 
   async login(ldapEntry: LdapEntry): Promise<{ access_token: string; user: User }> {
@@ -75,10 +78,25 @@ export class AuthService {
       username: user.username,
       displayName: fullName,
       roles: user.roles,
+      jti: randomUUID(),
     };
     const access_token = this.jwtService.sign(payload);
 
     return { access_token, user };
+  }
+
+  async logout(token: string): Promise<void> {
+    try {
+      const decoded = this.jwtService.decode(token) as { jti?: string; exp?: number } | null;
+      if (decoded?.jti && decoded?.exp) {
+        const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+        if (ttl > 0) {
+          await this.tokenBlacklist.blacklist(decoded.jti, ttl);
+        }
+      }
+    } catch {
+      // ignore decode errors on logout
+    }
   }
 
   /** Extract CN from a DN string (e.g. manager field) */

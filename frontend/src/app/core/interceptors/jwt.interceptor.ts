@@ -1,16 +1,8 @@
 import { HttpInterceptorFn } from '@angular/common/http';
-import { inject } from '@angular/core';
-import { AuthService } from '../services/auth.service';
 
 export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
-  const authService = inject(AuthService);
-  const token = authService.getToken();
-
-  if (token) {
-    req = req.clone({
-      setHeaders: { Authorization: `Bearer ${token}` },
-    });
-  }
-
+  // Token is stored in httpOnly cookie — browser sends it automatically.
+  // We only need to ensure credentials (cookies) are included in every request.
+  req = req.clone({ withCredentials: true });
   return next(req);
 };

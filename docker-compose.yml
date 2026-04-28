@@ -6,11 +6,13 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     ports:
       - '127.0.0.1:5442:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    secrets:
+      - postgres_password
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 10s
@@ -65,7 +67,6 @@ services:
     environment:
       AD_HOST: ${AD_HOST:-10.98.40.22}
       AD_USER: ${AD_USER:-svc-pac}
-      AD_PASS: ${LDAP_BIND_CREDENTIALS}
       AD_DOMAIN: ${AD_DOMAIN:-IUGNAD}
       AD_BASE_DN: ${AD_BASE_DN:-DC=iugnad,DC=lan}
       AD_USERS_OU: ${AD_USERS_OU:-CN=Users,DC=iugnad,DC=lan}
@@ -73,6 +74,7 @@ services:
       AD_BIND_DN: ${LDAP_BIND_DN}
     secrets:
       - bridge_secret
+      - ldap_bind_credentials
     restart: unless-stopped
 
   backend:
@@ -107,6 +109,9 @@ services:
       - jwt_secret
       - bridge_secret
       - mail_bridge_secret
+      - postgres_password
+      - ldap_bind_credentials
+      - smtp_pass
 
   frontend:
     build:
@@ -135,3 +140,9 @@ secrets:
     file: ./secrets/bridge_secret.txt
   mail_bridge_secret:
     file: ./secrets/mail_bridge_secret.txt
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  ldap_bind_credentials:
+    file: ./secrets/ldap_bind_credentials.txt
+  smtp_pass:
+    file: ./secrets/smtp_pass.txt

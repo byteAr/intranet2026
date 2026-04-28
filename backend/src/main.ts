@@ -4,6 +4,19 @@ import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { readSecret } from './config/read-secret.util';
+
+// Inject secret-file values into process.env BEFORE NestJS loads any module.
+// Services that call configService.get('SMTP_PASS') etc. will see these values.
+const SECRET_ENV_MAP: Record<string, string> = {
+  SMTP_PASS:          'smtp_pass',
+  IMAP_PASSWORD:      'imap_password',
+  MAIL_SMTP_PASSWORD: 'mail_smtp_password',
+};
+for (const [envKey, secretFile] of Object.entries(SECRET_ENV_MAP)) {
+  const value = readSecret(secretFile, envKey);
+  if (value) process.env[envKey] = value;
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });

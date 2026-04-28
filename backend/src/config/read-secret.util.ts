@@ -6,8 +6,10 @@ import { readFileSync } from 'fs';
  */
 export function readSecret(filename: string, envFallback: string, defaultValue = ''): string {
   try {
-    return readFileSync(`/run/secrets/${filename}`, 'utf-8').trim();
+    const value = readFileSync(`/run/secrets/${filename}`, 'utf-8').trim();
+    if (value) return value;
   } catch {
-    return process.env[envFallback] ?? defaultValue;
+    // file not found — fall through to env var
   }
+  return process.env[envFallback] ?? defaultValue;
 }

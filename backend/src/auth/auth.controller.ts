@@ -11,9 +11,11 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { Throttle } from '@nestjs/throttler';
 
 const COOKIE_NAME = 'pac_token';
+// COOKIE_SECURE=true solo si hay HTTPS terminando antes del backend (reverse proxy con SSL).
+// En intranet HTTP la cookie sigue siendo segura contra XSS gracias a httpOnly.
 const COOKIE_OPTS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  secure: process.env.COOKIE_SECURE === 'true',
   sameSite: 'strict' as const,
   path: '/',
   maxAge: 8 * 60 * 60 * 1000, // 8h in ms

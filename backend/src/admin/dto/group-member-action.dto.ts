@@ -16,4 +16,8 @@ export class GroupMemberActionDto {
   @IsOptional()
   @IsString()
   userName?: string;
+
+  @IsOptional()
+  @IsString()
+  removeFromGroupDn?: string;
 }

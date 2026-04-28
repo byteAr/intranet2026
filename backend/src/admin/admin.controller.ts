@@ -99,23 +99,6 @@ export class AdminController {
     return this.adminService.runCleanup();
   }
 
-  // ─── Departments ─────────────────────────────────────────────────────────────
-
-  @Get('departments')
-  getDepartments() {
-    return this.adminService.getDepartments();
-  }
-
-  @Post('departments')
-  createDepartment(@Body() body: { name: string }, @Request() req: any) {
-    return this.adminService.createDepartment(body.name, req.user);
-  }
-
-  @Delete('departments/:id')
-  deleteDepartment(@Param('id') id: string, @Request() req: any) {
-    return this.adminService.deleteDepartment(id, req.user);
-  }
-
   // ─── Module permissions ───────────────────────────────────────────────────────
 
   @Get('module-permissions')

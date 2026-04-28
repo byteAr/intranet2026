@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 
-interface Department { id: string; name: string; createdAt: string; }
 interface AdminUser {
   id: string | null;
   username: string;
@@ -23,10 +22,10 @@ interface AdminUser {
   dn?: string;
 }
 interface UsernameSuggestion { username: string; available: boolean; }
-interface AdGroup { cn: string; dn: string; description: string; memberCount: number; }
+interface AdGroup { cn: string; dn: string; description: string; memberCount: number; category?: string; }
 interface GroupMember { username: string; displayName: string; dn: string; office: string; title: string; enabled: boolean; }
 interface AuditEntry { id: string; actorUsername: string; actorDisplayName: string; description: string; createdAt: string; }
-interface GroupPermRow { groupName: string; allowedModules: string[] | null; saving?: boolean; }
+interface GroupPermRow { groupName: string; allowedModules: string[]; saving?: boolean; category?: string; }
 
 const MODULE_LABELS: Record<string, string> = {
   'chat':          'Conversaciones',
@@ -93,15 +92,6 @@ const RANK_GROUPS = [
           [class.border-transparent]="activeTab() !== 'groups'"
           [class.text-gray-500]="activeTab() !== 'groups'">
           Grupos
-        </button>
-        <button (click)="activeTab.set('departments')"
-          class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
-          [class.border-teal-600]="activeTab() === 'departments'"
-          [class.text-teal-600]="activeTab() === 'departments'"
-          [class.dark:text-teal-400]="activeTab() === 'departments'"
-          [class.border-transparent]="activeTab() !== 'departments'"
-          [class.text-gray-500]="activeTab() !== 'departments'">
-          Áreas de trabajo
         </button>
         <button (click)="openPermissionsTab()"
           class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
@@ -306,6 +296,11 @@ const RANK_GROUPS = [
                     <div class="flex items-center justify-between gap-1">
                       <span class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ group.cn }}</span>
                       <div class="flex items-center gap-1 flex-shrink-0">
+                        @if (group.category === 'especial') {
+                          <span class="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">Especial</span>
+                        } @else if (group.category === 'oficina') {
+                          <span class="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">Oficina</span>
+                        }
                         <span class="text-xs bg-gray-100 dark:bg-zinc-700 text-gray-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">{{ group.memberCount }}</span>
                         <button (click)="$event.stopPropagation(); deleteGroup(group)"
                           class="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 dark:hover:text-red-300 p-0.5 rounded transition-opacity"
@@ -431,43 +426,11 @@ const RANK_GROUPS = [
         </div>
       }
 
-      <!-- ── ÁREAS ── -->
-      @if (activeTab() === 'departments') {
-        <div>
-          <div class="flex items-center gap-3 mb-4">
-            <input [(ngModel)]="newDeptName" type="text" placeholder="Nombre del área nueva..."
-              class="w-64 px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
-            <button (click)="createDepartment()" [disabled]="!newDeptName.trim() || savingDept()"
-              class="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
-              Agregar área
-            </button>
-          </div>
-
-          @if (deptError()) {
-            <p class="text-red-500 text-sm mb-3">{{ deptError() }}</p>
-          }
-
-          <div class="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 divide-y divide-gray-200 dark:divide-zinc-700">
-            @for (dept of departments(); track dept.id) {
-              <div class="flex items-center justify-between px-4 py-3">
-                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ dept.name }}</span>
-                <button (click)="deleteDepartment(dept.id)"
-                  class="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs font-medium">
-                  Eliminar
-                </button>
-              </div>
-            } @empty {
-              <div class="px-4 py-8 text-center text-gray-400 dark:text-zinc-500 text-sm">No hay áreas registradas</div>
-            }
-          </div>
-        </div>
-      }
-
       <!-- ── PERMISOS ── -->
       @if (activeTab() === 'permissions') {
         <div>
           <p class="text-sm text-gray-500 dark:text-zinc-400 mb-4">
-            Controlá qué módulos puede ver cada grupo del Active Directory. Los items exclusivos de TICOM (Para enviar, Importar PST, Autorizadores, Administración) no se configuran aquí.
+            Controlá qué módulos adicionales puede ver cada grupo especial. Los usuarios solo de una oficina tienen acceso a Conversaciones, Ayuda técnica y Reservas por defecto. Los items de TICOM (Para enviar, Importar PST, Autorizadores, Administración) son exclusivos de ese grupo.
           </p>
 
           @if (loadingPerms()) {
@@ -482,7 +445,7 @@ const RANK_GROUPS = [
               <table class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-zinc-800">
                   <tr>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Grupo</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Grupo especial</th>
                     @for (mod of moduleKeys; track mod) {
                       <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider whitespace-nowrap">
                         {{ moduleLabels[mod] }}
@@ -495,9 +458,6 @@ const RANK_GROUPS = [
                     <tr class="hover:bg-gray-50 dark:hover:bg-zinc-800/40">
                       <td class="px-4 py-2.5 font-medium text-gray-900 dark:text-white">
                         {{ row.groupName }}
-                        @if (row.allowedModules === null) {
-                          <span class="ml-2 text-xs text-gray-400 dark:text-zinc-500">(sin restricciones)</span>
-                        }
                       </td>
                       @for (mod of moduleKeys; track mod) {
                         <td class="px-4 py-2.5 text-center">
@@ -510,7 +470,7 @@ const RANK_GROUPS = [
                       }
                     </tr>
                   } @empty {
-                    <tr><td [attr.colspan]="moduleKeys.length + 1" class="px-4 py-8 text-center text-gray-400">No hay grupos en el AD</td></tr>
+                    <tr><td [attr.colspan]="moduleKeys.length + 1" class="px-4 py-8 text-center text-gray-400">No hay grupos especiales configurados</td></tr>
                   }
                 </tbody>
               </table>
@@ -636,14 +596,18 @@ const RANK_GROUPS = [
             }
 
             <div>
-              <label class="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">Área de trabajo *</label>
-              <select [(ngModel)]="form.office"
-                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
-                <option value="">Seleccionar área...</option>
-                @for (dept of departments(); track dept.id) {
-                  <option [value]="dept.name">{{ dept.name }}</option>
+              <label class="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">Oficina *</label>
+              <select (change)="onOfficeGroupChange($event)"
+                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                [class.border-red-400]="!form.officeGroupDn && showCreateModal()">
+                <option value="">Seleccionar oficina...</option>
+                @for (g of officeGroups(); track g.dn) {
+                  <option [value]="g.dn">{{ g.cn }}</option>
                 }
               </select>
+              @if (officeGroups().length === 0 && !loadingGroups()) {
+                <p class="text-xs text-amber-500 mt-1">Cargando grupos de oficina...</p>
+              }
             </div>
 
             <div>
@@ -746,13 +710,8 @@ const RANK_GROUPS = [
 
             <div>
               <label class="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">Área de trabajo</label>
-              <select [(ngModel)]="editForm.office"
-                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
-                <option value="">Sin área</option>
-                @for (dept of departments(); track dept.id) {
-                  <option [value]="dept.name">{{ dept.name }}</option>
-                }
-              </select>
+              <input [(ngModel)]="editForm.office" type="text" placeholder="Ej: TICOM"
+                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
             </div>
 
             <div>
@@ -868,8 +827,7 @@ const RANK_GROUPS = [
 export class AdminComponent implements OnInit {
   private readonly http = inject(HttpClient);
 
-  readonly activeTab = signal<'users' | 'groups' | 'departments' | 'permissions' | 'audit' | 'config'>('users');
-  readonly departments = signal<Department[]>([]);
+  readonly activeTab = signal<'users' | 'groups' | 'permissions' | 'audit' | 'config'>('users');
   readonly users = signal<AdminUser[]>([]);
   readonly loadingUsers = signal(true);
   readonly loadError = signal<string | null>(null);
@@ -877,10 +835,8 @@ export class AdminComponent implements OnInit {
   readonly showEditModal = signal(false);
   readonly editingUser = signal<AdminUser | null>(null);
   readonly saving = signal(false);
-  readonly savingDept = signal(false);
   readonly createError = signal<string | null>(null);
   readonly editError = signal<string | null>(null);
-  readonly deptError = signal<string | null>(null);
   readonly toastMsg = signal<string | null>(null);
   readonly toastType = signal<'success' | 'error'>('success');
   readonly suggestedUsername = signal<string | null>(null);
@@ -891,10 +847,9 @@ export class AdminComponent implements OnInit {
   readonly searchQuery = signal('');
   readonly currentPage = signal(1);
   readonly pageSize = 20;
-  newDeptName = '';
   private suggestionTimer: ReturnType<typeof setTimeout> | null = null;
 
-  form = { firstName: '', secondName: '', lastName: '', office: '', title: '', email: '', recoveryEmail: '', recoveryPhone: '' };
+  form = { firstName: '', secondName: '', lastName: '', office: '', officeGroupDn: '', title: '', email: '', recoveryEmail: '', recoveryPhone: '' };
   editForm = { office: '', title: '' };
 
   readonly filteredUsers = computed(() => {
@@ -939,6 +894,8 @@ export class AdminComponent implements OnInit {
   readonly moduleLabels = MODULE_LABELS;
   private dragSource: 'members' | 'available' | null = null;
   private draggedUser: GroupMember | null = null;
+
+  readonly officeGroups = computed(() => this.groups().filter(g => g.category === 'oficina'));
 
   readonly filteredGroups = computed(() => {
     const q = this.groupSearch().toLowerCase().trim();
@@ -1001,12 +958,12 @@ export class AdminComponent implements OnInit {
   }
 
   isModuleAllowed(row: GroupPermRow, mod: string): boolean {
-    if (row.allowedModules === null) return true; // sin config = todo permitido
+    if (!row.allowedModules?.length) return false;
     return row.allowedModules.includes(mod);
   }
 
   toggleModulePerm(row: GroupPermRow, mod: string): void {
-    const current: string[] = row.allowedModules ?? [...ALL_MODULES];
+    const current: string[] = row.allowedModules ?? [];
     const updated = current.includes(mod)
       ? current.filter(m => m !== mod)
       : [...current, mod];
@@ -1119,10 +1076,27 @@ export class AdminComponent implements OnInit {
     const groupName = group.cn;
 
     if (target === 'members') {
-      this.http.post('/api/admin/groups/members', { groupDn: group.dn, userDn: user.dn, groupName, userName }).subscribe({
+      // Single-office enforcement: if target is an oficina group, find user's current office to remove them from it
+      let removeFromGroupDn: string | undefined;
+      if (group.category === 'oficina' && user.office) {
+        const currentOfficeGroup = this.groups().find(
+          g => g.category === 'oficina' && g.cn.toUpperCase() === user.office.toUpperCase()
+        );
+        if (currentOfficeGroup && currentOfficeGroup.dn !== group.dn) {
+          removeFromGroupDn = currentOfficeGroup.dn;
+        }
+      }
+
+      this.http.post('/api/admin/groups/members', {
+        groupDn: group.dn, userDn: user.dn, groupName, userName,
+        ...(removeFromGroupDn ? { removeFromGroupDn } : {}),
+      }).subscribe({
         next: () => {
           this.groupMembers.update(ms => [...ms, user]);
           this.groups.update(gs => gs.map(g => g.dn === group.dn ? { ...g, memberCount: g.memberCount + 1 } : g));
+          if (removeFromGroupDn) {
+            this.groups.update(gs => gs.map(g => g.dn === removeFromGroupDn ? { ...g, memberCount: Math.max(0, g.memberCount - 1) } : g));
+          }
           this.showToast(`${userName} agregado al grupo`, 'success');
         },
         error: (err) => this.showToast(err.error?.message ?? 'Error al agregar al grupo', 'error'),
@@ -1143,11 +1117,18 @@ export class AdminComponent implements OnInit {
     return new Date().getFullYear().toString().slice(-2);
   }
 
+  onOfficeGroupChange(event: Event): void {
+    const dn = (event.target as HTMLSelectElement).value;
+    const group = this.officeGroups().find(g => g.dn === dn);
+    this.form.officeGroupDn = dn;
+    this.form.office = group?.cn ?? '';
+  }
+
   canSubmit(): boolean {
     return !!(
       this.form.firstName.trim() &&
       this.form.lastName.trim() &&
-      this.form.office &&
+      this.form.officeGroupDn &&
       this.form.email &&
       this.isValidEmail(this.form.email) &&
       this.form.recoveryEmail &&
@@ -1166,14 +1147,8 @@ export class AdminComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.loadDepartments();
     this.loadUsers();
-  }
-
-  loadDepartments(): void {
-    this.http.get<Department[]>('/api/admin/departments').subscribe({
-      next: (depts) => this.departments.set(depts),
-    });
+    this.loadGroups(); // needed for office group selector in create modal
   }
 
   loadUsers(): void {
@@ -1189,7 +1164,7 @@ export class AdminComponent implements OnInit {
   }
 
   openCreateModal(): void {
-    this.form = { firstName: '', secondName: '', lastName: '', office: '', title: '', email: '', recoveryEmail: '', recoveryPhone: '' };
+    this.form = { firstName: '', secondName: '', lastName: '', office: '', officeGroupDn: '', title: '', email: '', recoveryEmail: '', recoveryPhone: '' };
     this.suggestedUsername.set(null);
     this.usernameAvailable.set(false);
     this.createError.set(null);
@@ -1339,33 +1314,6 @@ export class AdminComponent implements OnInit {
         this.saving.set(false);
         this.editError.set(err.error?.message ?? 'Error al actualizar el usuario');
       },
-    });
-  }
-
-  createDepartment(): void {
-    const name = this.newDeptName.trim();
-    if (!name) return;
-    this.savingDept.set(true);
-    this.deptError.set(null);
-    this.http.post<Department>('/api/admin/departments', { name }).subscribe({
-      next: () => {
-        this.newDeptName = '';
-        this.savingDept.set(false);
-        this.loadDepartments();
-        this.showToast('Área creada', 'success');
-      },
-      error: (err) => {
-        this.savingDept.set(false);
-        this.deptError.set(err.error?.message ?? 'Error al crear el área');
-      },
-    });
-  }
-
-  deleteDepartment(id: string): void {
-    if (!confirm('¿Eliminar esta área?')) return;
-    this.http.delete(`/api/admin/departments/${id}`).subscribe({
-      next: () => { this.loadDepartments(); this.showToast('Área eliminada', 'success'); },
-      error: (err) => this.showToast(err.error?.message ?? 'Error al eliminar', 'error'),
     });
   }
 

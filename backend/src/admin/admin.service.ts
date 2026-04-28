@@ -3,14 +3,12 @@ import {
   ConflictException,
   Injectable,
   Logger,
-  NotFoundException,
   OnApplicationBootstrap,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { Repository } from 'typeorm';
-import { Department } from './entities/department.entity';
 import { AdminAuditLog } from './entities/admin-audit-log.entity';
 import { GroupPermission } from './entities/group-permission.entity';
 import { User } from '../users/entities/user.entity';
@@ -25,6 +23,7 @@ export interface AdGroupEntry {
   dn: string;
   description: string;
   memberCount: number;
+  category?: string;
 }
 
 export interface AdGroupMember {
@@ -48,21 +47,17 @@ interface AdUserEntry {
   dn: string;
 }
 
-const DEFAULT_DEPARTMENTS = [
-  'TICOM',
-  'CENEDIS',
-  'LEGAL Y TÉCNICA',
-  'AYUDANTIADIREDTOS',
-  'AYUDANTIARECTORADO',
-  'DOCENTES',
-  'CURSOS',
-  'PERSONAL',
-  'SAF',
-  'LOGISTICA',
-  'CAMAREROS',
-  'DESARROLLO',
-  'CIVILES',
+const OFFICE_GROUPS: readonly string[] = [
+  'TICOM', 'CENEDIS', 'LEGAL Y TÉCNICA', 'AYUDANTIADIREDTOS',
+  'AYUDANTIARECTORADO', 'DOCENTES', 'CURSOS', 'PERSONAL',
+  'SAF', 'LOGISTICA', 'CAMAREROS', 'DESARROLLO',
 ];
+
+const SPECIAL_GROUPS: readonly string[] = [
+  'CIVILES', 'ENCRIPTADO', 'RECTOR', 'DIRECTORES', 'CIVILES_CON_MTO',
+];
+
+const MINIMAL_MODULES: readonly string[] = ['chat', 'incidencias', 'reservas'];
 
 @Injectable()
 export class AdminService implements OnApplicationBootstrap {
@@ -72,8 +67,6 @@ export class AdminService implements OnApplicationBootstrap {
     private readonly configService: ConfigService,
     private readonly googleWorkspace: GoogleWorkspaceService,
     private readonly welcomeEmail: WelcomeEmailService,
-    @InjectRepository(Department)
-    private readonly departmentRepo: Repository<Department>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     @InjectRepository(AdminAuditLog)
@@ -94,13 +87,23 @@ export class AdminService implements OnApplicationBootstrap {
   }
 
   async onApplicationBootstrap(): Promise<void> {
-    // Seed default departments if table is empty
-    const count = await this.departmentRepo.count();
-    if (count === 0) {
-      const depts = DEFAULT_DEPARTMENTS.map((name) => this.departmentRepo.create({ name }));
-      await this.departmentRepo.save(depts);
-      this.logger.log('Áreas por defecto creadas');
+    // Seed categories for known groups (upsert: only update category, don't overwrite allowedModules)
+    const allSeed = [
+      ...OFFICE_GROUPS.map(name => ({ groupName: name, category: 'oficina' })),
+      ...SPECIAL_GROUPS.map(name => ({ groupName: name, category: 'especial' })),
+    ];
+    for (const { groupName, category } of allSeed) {
+      const existing = await this.groupPermRepo.findOne({ where: { groupName } });
+      if (existing) {
+        if (existing.category !== category) {
+          existing.category = category;
+          await this.groupPermRepo.save(existing);
+        }
+      } else {
+        await this.groupPermRepo.save(this.groupPermRepo.create({ groupName, allowedModules: [], category }));
+      }
     }
+    this.logger.log('Categorías de grupos inicializadas');
   }
 
   // ─── AD Bridge helpers ──────────────────────────────────────────────────────
@@ -241,8 +244,9 @@ export class AdminService implements OnApplicationBootstrap {
     }
 
     // Create in AD via bridge
+    let createResult: Record<string, unknown>;
     try {
-      await this.callBridgePost('/create-user', {
+      createResult = (await this.callBridgePost('/create-user', {
         username,
         firstName: dto.firstName,
         lastName:  dto.lastName,
@@ -250,12 +254,24 @@ export class AdminService implements OnApplicationBootstrap {
         office:    dto.office,
         title:     dto.title ?? '',
         password:  defaultPassword,
-      });
+      })) as Record<string, unknown>;
     } catch (adError) {
       // Si AD falla después de crear en Google, intentar limpiar
       this.logger.warn('AD falló tras crear cuenta Google para %s — limpiando Google Workspace', username);
       await this.googleWorkspace.deleteUser(username);
       throw adError;
+    }
+
+    // Agregar al grupo de oficina (no bloqueante si falla)
+    if (dto.officeGroupDn) {
+      const newUserDn = createResult.dn as string | undefined;
+      if (newUserDn) {
+        try {
+          await this.callBridgePost('/add-to-group', { groupDn: dto.officeGroupDn, userDn: newUserDn });
+        } catch (groupErr) {
+          this.logger.warn('No se pudo agregar %s al grupo de oficina: %s', username, (groupErr as Error).message);
+        }
+      }
     }
 
     // Stub en DB para que el sistema lo reconozca cuando haga login
@@ -349,8 +365,22 @@ export class AdminService implements OnApplicationBootstrap {
   // ─── Group management ───────────────────────────────────────────────────────
 
   async listGroups(): Promise<AdGroupEntry[]> {
-    const data = (await this.callBridgeGet('/list-groups')) as { groups: AdGroupEntry[] };
-    return data.groups ?? [];
+    const [rawData, dbPerms] = await Promise.all([
+      this.callBridgeGet('/list-groups'),
+      this.groupPermRepo.find(),
+    ]);
+    const groups = (rawData as { groups: AdGroupEntry[] }).groups ?? [];
+    const categoryMap = new Map(dbPerms.map(p => [p.groupName.toUpperCase(), p.category]));
+
+    return groups
+      .filter(g => {
+        const cat = categoryMap.get(g.cn.toUpperCase()) ?? 'oculto';
+        return cat !== 'oculto';
+      })
+      .map(g => ({
+        ...g,
+        category: categoryMap.get(g.cn.toUpperCase()) ?? 'oculto',
+      }));
   }
 
   async getGroupMembers(groupDn: string): Promise<AdGroupMember[]> {
@@ -359,6 +389,10 @@ export class AdminService implements OnApplicationBootstrap {
   }
 
   async addToGroup(dto: GroupMemberActionDto, actor: { id: string; username: string }): Promise<void> {
+    // Single-office enforcement: remove from old office group first if needed
+    if (dto.removeFromGroupDn) {
+      await this.callBridgePost('/remove-from-group', { groupDn: dto.removeFromGroupDn, userDn: dto.userDn });
+    }
     await this.callBridgePost('/add-to-group', { groupDn: dto.groupDn, userDn: dto.userDn });
     const who   = dto.userName  ?? dto.userDn;
     const where = dto.groupName ?? dto.groupDn;
@@ -381,48 +415,19 @@ export class AdminService implements OnApplicationBootstrap {
     return result;
   }
 
-  // ─── Department management ──────────────────────────────────────────────────
-
-  async getDepartments(): Promise<Department[]> {
-    return this.departmentRepo.find({ order: { name: 'ASC' } });
-  }
-
-  async createDepartment(name: string, actor: { id: string; username: string }): Promise<Department> {
-    const trimmed = name.trim().toUpperCase();
-    if (!trimmed) throw new BadRequestException('El nombre del área no puede estar vacío');
-    const existing = await this.departmentRepo.findOne({ where: { name: trimmed } });
-    if (existing) throw new ConflictException('Ya existe un área con ese nombre');
-
-    // Crear grupo en AD (idempotente: si ya existe devuelve su DN sin error)
-    await this.callBridgePost('/create-group', { name: trimmed });
-
-    const dept = this.departmentRepo.create({ name: trimmed });
-    const saved = await this.departmentRepo.save(dept);
-    await this.audit(actor, `Creó el área ${trimmed}`);
-    return saved;
-  }
-
-  async deleteDepartment(id: string, actor: { id: string; username: string }): Promise<void> {
-    const dept = await this.departmentRepo.findOne({ where: { id } });
-    if (!dept) throw new NotFoundException('Área no encontrada');
-    await this.departmentRepo.remove(dept);
-    await this.audit(actor, `Eliminó el área ${dept.name}`);
-  }
-
   // ─── Module permissions ──────────────────────────────────────────────────────
 
   static readonly ALL_MODULES = ['chat', 'incidencias', 'reservas', 'correo', 'redactar-mto'] as const;
 
-  async getModulePermissions(): Promise<{ groupName: string; allowedModules: string[] | null }[]> {
-    const [adGroups, dbPerms] = await Promise.all([
-      this.listGroups(),
-      this.groupPermRepo.find(),
-    ]);
-    const permMap = new Map(dbPerms.map((p) => [p.groupName.toUpperCase(), p.allowedModules]));
-    return adGroups.map((g) => ({
-      groupName: g.cn,
-      allowedModules: permMap.get(g.cn.toUpperCase()) ?? null,
-    }));
+  async getModulePermissions(): Promise<{ groupName: string; allowedModules: string[]; category: string }[]> {
+    const dbPerms = await this.groupPermRepo.find();
+    return dbPerms
+      .filter(p => p.category === 'especial')
+      .map(p => ({
+        groupName: p.groupName,
+        allowedModules: p.allowedModules ?? [],
+        category: p.category,
+      }));
   }
 
   async setGroupPermissions(groupName: string, allowedModules: string[], actor: { id: string; username: string }): Promise<void> {
@@ -439,21 +444,34 @@ export class AdminService implements OnApplicationBootstrap {
 
   async getEffectiveModules(userRoles: string[]): Promise<{ allowedModules: string[] }> {
     const ALL = [...AdminService.ALL_MODULES];
-    if (!userRoles?.length) return { allowedModules: ALL };
+    const MINIMAL = [...MINIMAL_MODULES];
+
+    if (!userRoles?.length) return { allowedModules: MINIMAL };
+
+    // TICOM siempre tiene acceso completo
+    if (userRoles.some(r => r.toUpperCase() === 'TICOM')) {
+      return { allowedModules: ALL };
+    }
 
     const perms = await this.groupPermRepo.find();
-    const permMap = new Map(perms.map((p) => [p.groupName.toUpperCase(), p.allowedModules]));
+    const permMap = new Map(perms.map((p) => [p.groupName.toUpperCase(), p]));
 
-    const allowed = new Set<string>();
-    for (const role of userRoles) {
-      const groupPerms = permMap.get(role.toUpperCase());
-      if (groupPerms === undefined) {
-        // Grupo sin configuración explícita → acceso total
-        return { allowedModules: ALL };
-      }
-      groupPerms.forEach((m) => allowed.add(m));
+    // Verificar si el usuario tiene algún grupo especial
+    const especialPerms = userRoles
+      .map(r => permMap.get(r.toUpperCase()))
+      .filter((p): p is GroupPermission => !!p && p.category === 'especial');
+
+    if (!especialPerms.length) {
+      // Solo grupos de oficina (o sin grupos) → acceso mínimo
+      return { allowedModules: MINIMAL };
     }
-    return { allowedModules: ALL.filter((m) => allowed.has(m)) };
+
+    // Unión de módulos mínimos + módulos configurados de grupos especiales
+    const allowed = new Set<string>(MINIMAL);
+    for (const perm of especialPerms) {
+      (perm.allowedModules ?? []).forEach(m => allowed.add(m));
+    }
+    return { allowedModules: ALL.filter(m => allowed.has(m)) };
   }
 
   // ─── User enable / disable / delete ─────────────────────────────────────────

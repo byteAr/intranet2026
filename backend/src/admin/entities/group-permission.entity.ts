@@ -11,6 +11,9 @@ export class GroupPermission {
   @Column('simple-json')
   allowedModules: string[];
 
+  @Column({ default: 'oculto' })
+  category: string;
+
   @UpdateDateColumn()
   updatedAt: Date;
 }

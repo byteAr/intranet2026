@@ -17,6 +17,10 @@ export class CreateAdUserDto {
   @MinLength(1)
   office: string;
 
+  @IsString()
+  @MinLength(1)
+  officeGroupDn: string;
+
   @IsOptional()
   @IsString()
   title?: string;

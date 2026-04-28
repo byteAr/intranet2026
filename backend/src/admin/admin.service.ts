@@ -95,12 +95,17 @@ export class AdminService implements OnApplicationBootstrap {
     for (const { groupName, category } of allSeed) {
       const existing = await this.groupPermRepo.findOne({ where: { groupName } });
       if (existing) {
-        if (existing.category !== category) {
-          existing.category = category;
-          await this.groupPermRepo.save(existing);
+        let changed = false;
+        if (existing.category !== category) { existing.category = category; changed = true; }
+        // Ensure parte-diario is in oficina groups (new module addition)
+        if (category === 'oficina' && !(existing.allowedModules ?? []).includes('parte-diario')) {
+          existing.allowedModules = [...(existing.allowedModules ?? []), 'parte-diario'];
+          changed = true;
         }
+        if (changed) await this.groupPermRepo.save(existing);
       } else {
-        await this.groupPermRepo.save(this.groupPermRepo.create({ groupName, allowedModules: [], category }));
+        const allowedModules = category === 'oficina' ? ['parte-diario'] : [];
+        await this.groupPermRepo.save(this.groupPermRepo.create({ groupName, allowedModules, category }));
       }
     }
     this.logger.log('Categorías de grupos inicializadas');
@@ -437,7 +442,7 @@ export class AdminService implements OnApplicationBootstrap {
 
   // ─── Module permissions ──────────────────────────────────────────────────────
 
-  static readonly ALL_MODULES = ['chat', 'incidencias', 'reservas', 'correo', 'redactar-mto'] as const;
+  static readonly ALL_MODULES = ['chat', 'incidencias', 'reservas', 'correo', 'redactar-mto', 'parte-diario'] as const;
 
   async getModulePermissions(): Promise<{ groupName: string; allowedModules: string[]; category: string }[]> {
     const dbPerms = await this.groupPermRepo.find();

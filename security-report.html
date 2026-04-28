@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informe de Seguridad — Intranet 2026</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #1a1a2e; background: #fff; padding: 40px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 20pt; color: #0f3460; border-bottom: 3px solid #e94560; padding-bottom: 10px; margin-bottom: 6px; }
+  .meta { color: #555; font-size: 9.5pt; margin-bottom: 30px; }
+  h2 { font-size: 13pt; color: #0f3460; margin: 28px 0 10px; border-left: 4px solid #e94560; padding-left: 10px; }
+  h3 { font-size: 11pt; color: #16213e; margin: 16px 0 6px; }
+  p, li { line-height: 1.6; margin-bottom: 6px; }
+  ul { margin-left: 20px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; }
+  th { background: #0f3460; color: #fff; padding: 8px 10px; text-align: left; }
+  td { padding: 7px 10px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f7f9fc; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 9pt; font-weight: bold; }
+  .badge-high { background: #fde8e8; color: #c0392b; }
+  .badge-medium { background: #fef3cd; color: #b7770d; }
+  .badge-low { background: #e6f4ea; color: #276221; }
+  .badge-done { background: #e6f4ea; color: #276221; }
+  .badge-info { background: #e8f0fe; color: #1a56db; }
+  .secret-box { background: #1a1a2e; color: #4ade80; font-family: 'Courier New', monospace; font-size: 10pt; padding: 14px 18px; border-radius: 6px; margin: 10px 0; word-break: break-all; line-height: 1.8; }
+  .secret-box .label { color: #94a3b8; font-size: 9pt; }
+  .warning { background: #fff8e1; border-left: 4px solid #f59e0b; padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+  .step { display: flex; gap: 12px; margin: 8px 0; }
+  .step-num { background: #0f3460; color: #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 9pt; font-weight: bold; flex-shrink: 0; margin-top: 2px; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 9.5pt; }
+  .footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #e0e0e0; font-size: 9pt; color: #888; }
+  @media print {
+    body { padding: 20px; }
+    .secret-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Informe de Seguridad — Intranet 2026</h1>
+<div class="meta">
+  Fecha de emisión: 28 de abril de 2026 &nbsp;|&nbsp;
+  Clasificación: <strong>CONFIDENCIAL — USO INTERNO</strong> &nbsp;|&nbsp;
+  Versión: 1.0
+</div>
+
+<h2>1. Resumen ejecutivo</h2>
+<p>Se implementaron 7 mejoras de seguridad sobre la plataforma intranet institucional. Las medidas cubren autenticación, gestión de tokens, secretos de infraestructura, control de acceso a endpoints y trazabilidad de eventos de autenticación.</p>
+<p>Se generaron nuevas claves criptográficas para reemplazar los valores placeholder que existían en producción.</p>
+
+<h2>2. Mejoras implementadas</h2>
+
+<table>
+  <tr>
+    <th>#</th><th>Medida</th><th>Riesgo mitigado</th><th>Estado</th>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td>JWT en cookie httpOnly (Secure + SameSite=Strict)</td>
+    <td>Robo de token por XSS</td>
+    <td><span class="badge badge-done">Implementado</span></td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>Blacklist de tokens en Redis</td>
+    <td>Reutilización de token tras logout</td>
+    <td><span class="badge badge-done">Implementado</span></td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>Secretos en Docker Secrets (archivos)</td>
+    <td>Exposición de secretos en variables de entorno</td>
+    <td><span class="badge badge-done">Implementado</span></td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>Whitelist de IP en BridgeSecretGuard</td>
+    <td>Acceso no autorizado al endpoint de ingest</td>
+    <td><span class="badge badge-done">Implementado</span></td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td>Rate limit login: 5→3 intentos/min</td>
+    <td>Fuerza bruta de credenciales</td>
+    <td><span class="badge badge-done">Implementado</span></td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td>Audit log de autenticación (éxito y fallo)</td>
+    <td>Falta de visibilidad ante intentos de intrusión</td>
+    <td><span class="badge badge-done">Implementado</span></td>
+  </tr>
+  <tr>
+    <td>7</td>
+    <td>Nuevas claves criptográficas generadas</td>
+    <td>Uso de valores placeholder en producción</td>
+    <td><span class="badge badge-done">Implementado</span></td>
+  </tr>
+</table>
+
+<h2>3. Nuevas claves criptográficas</h2>
+
+<div class="warning">
+  <strong>⚠ ACCIÓN REQUERIDA:</strong> Estas claves deben copiarse a los archivos indicados en el servidor de producción (<code>10.98.40.24</code>) y en la PC del mail bridge (<code>172.21.36.104</code>). No deben almacenarse en repositorios ni enviarse por correo electrónico no cifrado.
+</div>
+
+<div class="secret-box">
+  <div class="label">JWT_SECRET — Archivo: /usr/local/proyectos/intranet2026/secrets/jwt_secret.txt</div>
+  2b1952cdc414bd8386ec907ae73ef2b829823c2e44b40935a260ab3234525137
+</div>
+
+<div class="secret-box">
+  <div class="label">BRIDGE_SECRET (AD Bridge) — Archivo: /usr/local/proyectos/intranet2026/secrets/bridge_secret.txt</div>
+  c9ac401f0d0ebdd908c682c5803319a8b6af6dbd79aa1b37
+</div>
+
+<div class="secret-box">
+  <div class="label">MAIL_BRIDGE_SECRET — Archivo: /usr/local/proyectos/intranet2026/secrets/mail_bridge_secret.txt</div>
+  9d275ed9a7fbd7ed2fb30d6e0b4e7b0edec45db5eb8f8b21
+</div>
+
+<h3>3.1 Entropía de las claves</h3>
+<table>
+  <tr><th>Clave</th><th>Longitud</th><th>Entropía estimada</th><th>Generación</th></tr>
+  <tr><td>JWT_SECRET</td><td>64 caracteres hex (32 bytes)</td><td>256 bits</td><td><code>crypto.randomBytes(32)</code></td></tr>
+  <tr><td>BRIDGE_SECRET</td><td>48 caracteres hex (24 bytes)</td><td>192 bits</td><td><code>crypto.randomBytes(24)</code></td></tr>
+  <tr><td>MAIL_BRIDGE_SECRET</td><td>48 caracteres hex (24 bytes)</td><td>192 bits</td><td><code>crypto.randomBytes(24)</code></td></tr>
+</table>
+
+<h2>4. Instrucciones de despliegue</h2>
+
+<h3>4.1 Servidor de producción (10.98.40.24)</h3>
+
+<div class="step"><div class="step-num">1</div><div>
+  Conectarse por SSH:<br>
+  <code>ssh usuario@10.98.40.24</code><br>
+  <code>cd /usr/local/proyectos/intranet2026</code>
+</div></div>
+
+<div class="step"><div class="step-num">2</div><div>
+  Crear los archivos de secretos:<br>
+  <code>echo -n "2b1952cdc414bd8386ec907ae73ef2b829823c2e44b40935a260ab3234525137" > secrets/jwt_secret.txt</code><br>
+  <code>echo -n "c9ac401f0d0ebdd908c682c5803319a8b6af6dbd79aa1b37" > secrets/bridge_secret.txt</code><br>
+  <code>echo -n "9d275ed9a7fbd7ed2fb30d6e0b4e7b0edec45db5eb8f8b21" > secrets/mail_bridge_secret.txt</code><br>
+  <code>chmod 600 secrets/*.txt</code>
+</div></div>
+
+<div class="step"><div class="step-num">3</div><div>
+  Actualizar el código:<br>
+  <code>git pull origin develop</code>
+</div></div>
+
+<div class="step"><div class="step-num">4</div><div>
+  Reconstruir y desplegar (el rebuild es necesario por el nuevo package ioredis y cookie-parser):<br>
+  <code>docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend</code>
+</div></div>
+
+<div class="step"><div class="step-num">5</div><div>
+  Desplegar frontend (cambió la forma de autenticación):<br>
+  <code>docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build frontend</code>
+</div></div>
+
+<div class="step"><div class="step-num">6</div><div>
+  Verificar que Redis y el backend levanten correctamente:<br>
+  <code>docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail 30 redis backend</code>
+</div></div>
+
+<h3>4.2 PC Mail Bridge (172.21.36.104)</h3>
+
+<p>El <code>MAIL_BRIDGE_SECRET</code> debe actualizarse en el archivo <code>.env</code> del mail bridge en la PC <code>172.21.36.104</code>:</p>
+<div class="step"><div class="step-num">1</div><div>
+  Editar <code>C:\intranet2026\mail-bridge\.env</code>:<br>
+  <code>BRIDGE_SECRET=9d275ed9a7fbd7ed2fb30d6e0b4e7b0edec45db5eb8f8b21</code>
+</div></div>
+<div class="step"><div class="step-num">2</div><div>
+  Reiniciar el servicio Node del mail bridge (a través del Scheduled Task de Windows o manualmente).
+</div></div>
+
+<h2>5. Descripción técnica de cada mejora</h2>
+
+<h3>5.1 JWT en cookie httpOnly</h3>
+<p>El token JWT ya no se almacena en <code>localStorage</code> del navegador. En el login, el backend emite una cookie con los flags:</p>
+<ul>
+  <li><code>httpOnly</code>: JavaScript del cliente no puede leer la cookie (protección XSS)</li>
+  <li><code>Secure</code>: Solo se envía por HTTPS en producción</li>
+  <li><code>SameSite=Strict</code>: Solo se envía en solicitudes del mismo origen (protección CSRF)</li>
+  <li>Expiración: 8 horas (igual que antes)</li>
+</ul>
+<p>El frontend ya no guarda el token; envía <code>withCredentials: true</code> y el navegador adjunta la cookie automáticamente.</p>
+
+<h3>5.2 Blacklist de tokens en Redis</h3>
+<p>El payload del JWT ahora incluye un campo <code>jti</code> (JWT ID) único por token. Al hacer logout:</p>
+<ul>
+  <li>El backend extrae el <code>jti</code> y el tiempo de expiración (<code>exp</code>) del token</li>
+  <li>Almacena la clave <code>bl:{jti}</code> en Redis con TTL igual al tiempo restante del token</li>
+  <li>En cada petición autenticada, el guard verifica que el <code>jti</code> no esté en la blacklist</li>
+</ul>
+<p>Redis 7 se agrega como servicio Docker. El servicio backend depende de Redis (healthcheck). Si Redis no está disponible, la blacklist falla abierta (logs el error, no bloquea el sistema).</p>
+
+<h3>5.3 Docker Secrets</h3>
+<p>Las claves <code>JWT_SECRET</code>, <code>BRIDGE_SECRET</code> y <code>MAIL_BRIDGE_SECRET</code> se leen desde archivos montados en <code>/run/secrets/</code> en lugar de variables de entorno. Ventajas:</p>
+<ul>
+  <li>No aparecen en <code>docker inspect</code> ni en logs del proceso</li>
+  <li>No se replican a todos los workers (en Docker Swarm)</li>
+  <li>Los archivos <code>*.txt</code> están en <code>.gitignore</code> — nunca se comiten al repo</li>
+</ul>
+
+<h3>5.4 IP Whitelist en BridgeSecretGuard</h3>
+<p>El endpoint <code>POST /api/mail/bridge/ingest</code> (público con secret) ahora rechaza peticiones que no provengan de <code>172.21.36.104</code> (PC del mail bridge). La verificación ocurre antes de la comparación del secreto.</p>
+
+<h3>5.5 Rate limiting</h3>
+<p>El endpoint <code>POST /api/auth/login</code> se redujo de 5 a 3 intentos por minuto. Los demás endpoints de autenticación mantienen sus límites.</p>
+
+<h3>5.6 Audit log de autenticación</h3>
+<p>El guard <code>LdapAuthGuard</code> ahora registra en el logger de NestJS:</p>
+<ul>
+  <li><code>[AUTH_OK] user={username} ip={ip}</code> — login exitoso</li>
+  <li><code>[AUTH_FAIL] user={username} ip={ip} reason=invalid_credentials</code> — credenciales incorrectas</li>
+  <li><code>[AUTH_FAIL] user={username} ip={ip} reason=password_change_required</code> — error AD 773</li>
+</ul>
+<p>Los logs son visibles con: <code>docker compose logs backend | grep AUTH_</code></p>
+
+<h2>6. Pendientes recomendados (próximos pasos)</h2>
+
+<table>
+  <tr><th>Medida</th><th>Prioridad</th><th>Descripción</th></tr>
+  <tr>
+    <td>TLS en mail bridge</td>
+    <td><span class="badge badge-medium">Media</span></td>
+    <td>Agregar HTTPS al bridge con certificado autofirmado para cifrar el tráfico interno en la VLAN 172.21.x.x</td>
+  </tr>
+  <tr>
+    <td>Rotación de secretos</td>
+    <td><span class="badge badge-low">Baja</span></td>
+    <td>Establecer política de rotación semestral de JWT_SECRET y secrets del bridge</td>
+  </tr>
+  <tr>
+    <td>Logs centralizados</td>
+    <td><span class="badge badge-low">Baja</span></td>
+    <td>Enviar logs de autenticación a un SIEM o sistema centralizado (Loki/Grafana)</td>
+  </tr>
+</table>
+
+<div class="footer">
+  Informe generado el 28/04/2026 &nbsp;|&nbsp; Sistema: Intranet 2026 (byteAr/intranet2026) &nbsp;|&nbsp; Clasificación: CONFIDENCIAL — USO INTERNO
+</div>
+
+</body>
+</html>

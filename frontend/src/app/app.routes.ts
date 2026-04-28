@@ -99,6 +99,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'parte-diario',
+        loadComponent: () =>
+          import('./features/daily-report/daily-report.component').then(
+            (m) => m.DailyReportComponent,
+          ),
+      },
+      {
         path: 'admin',
         loadComponent: () =>
           import('./features/admin/admin.component').then(

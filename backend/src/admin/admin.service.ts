@@ -383,6 +383,26 @@ export class AdminService implements OnApplicationBootstrap {
       }));
   }
 
+  async createGroup(name: string, category: string, actor: { id: string; username: string }): Promise<{ cn: string }> {
+    const trimmed = name.trim().toUpperCase();
+    if (!trimmed) throw new BadRequestException('El nombre del grupo no puede estar vacío');
+    const validCategory = ['oficina', 'especial'].includes(category) ? category : 'oficina';
+
+    await this.callBridgePost('/create-group', { name: trimmed });
+
+    // Registrar en group_permissions con la categoría indicada
+    const existing = await this.groupPermRepo.findOne({ where: { groupName: trimmed } });
+    if (!existing) {
+      await this.groupPermRepo.save(this.groupPermRepo.create({ groupName: trimmed, allowedModules: [], category: validCategory }));
+    } else if (existing.category !== validCategory) {
+      existing.category = validCategory;
+      await this.groupPermRepo.save(existing);
+    }
+
+    await this.audit(actor, `Creó el grupo ${trimmed} (${validCategory})`);
+    return { cn: trimmed };
+  }
+
   async getGroupMembers(groupDn: string): Promise<AdGroupMember[]> {
     const data = (await this.callBridgeGet(`/group-members?dn=${encodeURIComponent(groupDn)}`)) as { members: AdGroupMember[] };
     return data.members ?? [];

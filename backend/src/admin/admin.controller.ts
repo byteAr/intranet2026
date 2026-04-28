@@ -69,6 +69,11 @@ export class AdminController {
     return this.adminService.listGroups();
   }
 
+  @Post('groups')
+  createGroup(@Body() body: { name: string; category: string }, @Request() req: any) {
+    return this.adminService.createGroup(body.name, body.category, req.user);
+  }
+
   @Get('groups/members')
   getGroupMembers(@Query('dn') dn: string) {
     return this.adminService.getGroupMembers(dn);

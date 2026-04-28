@@ -277,6 +277,37 @@ const RANK_GROUPS = [
                   Normalizar nombres a mayúsculas
                 }
               </button>
+              <!-- Crear grupo -->
+              @if (showCreateGroup()) {
+                <div class="space-y-1.5 pt-1 border-t border-gray-100 dark:border-zinc-700">
+                  <input [(ngModel)]="newGroupName" type="text" placeholder="Nombre del grupo"
+                    class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 uppercase"
+                    (keydown.enter)="submitCreateGroup()" />
+                  <select [(ngModel)]="newGroupCategory"
+                    class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    <option value="oficina">Oficina</option>
+                    <option value="especial">Especial</option>
+                  </select>
+                  <div class="flex gap-1.5">
+                    <button (click)="submitCreateGroup()" [disabled]="!newGroupName.trim() || creatingGroup()"
+                      class="flex-1 px-2 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-lg transition-colors">
+                      @if (creatingGroup()) { Creando... } @else { Crear }
+                    </button>
+                    <button (click)="showCreateGroup.set(false); newGroupName = ''"
+                      class="px-2 py-1.5 text-xs text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200 rounded-lg border border-gray-200 dark:border-zinc-600 transition-colors">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              } @else {
+                <button (click)="showCreateGroup.set(true)"
+                  class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors">
+                  <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                  </svg>
+                  Nuevo grupo
+                </button>
+              }
             </div>
             <div class="flex-1 overflow-y-auto">
               @if (loadingGroups()) {
@@ -893,6 +924,10 @@ export class AdminComponent implements OnInit {
   readonly availableSearch = signal('');
   readonly dropTarget = signal<'members' | 'available' | null>(null);
   readonly normalizingGroups = signal(false);
+  readonly showCreateGroup = signal(false);
+  readonly creatingGroup = signal(false);
+  newGroupName = '';
+  newGroupCategory = 'oficina';
   readonly auditLogs = signal<AuditEntry[]>([]);
   readonly loadingAudit = signal(false);
   readonly permRows = signal<GroupPermRow[]>([]);
@@ -1036,6 +1071,26 @@ export class AdminComponent implements OnInit {
       error: (err) => {
         this.normalizingGroups.set(false);
         this.showToast(err.error?.message ?? 'Error al normalizar grupos', 'error');
+      },
+    });
+  }
+
+  submitCreateGroup(): void {
+    const name = this.newGroupName.trim().toUpperCase();
+    if (!name) return;
+    this.creatingGroup.set(true);
+    this.http.post<{ cn: string }>('/api/admin/groups', { name, category: this.newGroupCategory }).subscribe({
+      next: (res) => {
+        this.creatingGroup.set(false);
+        this.showCreateGroup.set(false);
+        this.newGroupName = '';
+        this.newGroupCategory = 'oficina';
+        this.loadGroups();
+        this.showToast(`Grupo "${res.cn}" creado`, 'success');
+      },
+      error: (err) => {
+        this.creatingGroup.set(false);
+        this.showToast(err.error?.message ?? 'Error al crear el grupo', 'error');
       },
     });
   }

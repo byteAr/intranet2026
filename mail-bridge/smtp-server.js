@@ -1,8 +1,24 @@
 'use strict';
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
+
+const CERT_DIR = path.join(__dirname, 'certs');
+const CERT_FILE = path.join(CERT_DIR, 'bridge.crt');
+const KEY_FILE  = path.join(CERT_DIR, 'bridge.key');
+
+function loadTlsCredentials() {
+  try {
+    return {
+      cert: fs.readFileSync(CERT_FILE),
+      key:  fs.readFileSync(KEY_FILE),
+    };
+  } catch {
+    return null;
+  }
+}
 const nodemailer = require('nodemailer');
 const MailComposer = require('nodemailer/lib/mail-composer');
 const { ImapFlow } = require('imapflow');
@@ -77,7 +93,8 @@ class SmtpServer {
   }
 
   start() {
-    const server = http.createServer(async (req, res) => {
+    const tls = loadTlsCredentials();
+    const handler = async (req, res) => {
       res.setHeader('Content-Type', 'application/json');
 
       if (!validateSecret(req, this.config.secret)) {
@@ -171,10 +188,16 @@ class SmtpServer {
 
       res.writeHead(404);
       res.end(JSON.stringify({ error: 'Not found' }));
-    });
+    };
 
+    const server = tls
+      ? https.createServer({ cert: tls.cert, key: tls.key }, handler)
+      : http.createServer(handler);
+
+    const proto = tls ? 'https' : 'http';
     server.listen(this.config.http.port, this.config.http.host, () => {
-      this.log(`HTTP server listening on http://${this.config.http.host}:${this.config.http.port}`);
+      this.log(`${proto.toUpperCase()} server listening on ${proto}://${this.config.http.host}:${this.config.http.port}`);
+      if (!tls) this.log('WARNING: TLS certs not found — running without HTTPS. Run generate-cert.bat to create certs.');
     });
 
     server.on('error', (err) => this.log(`HTTP server error: ${err.message}`));

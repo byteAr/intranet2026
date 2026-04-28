@@ -17,6 +17,8 @@ import { UpdateAdUserDto } from './dto/update-ad-user.dto';
 import { GroupMemberActionDto } from './dto/group-member-action.dto';
 import { GoogleWorkspaceService } from './google-workspace.service';
 import { WelcomeEmailService } from './welcome-email.service';
+import * as https from 'https';
+import * as http from 'http';
 
 export interface AdGroupEntry {
   cn: string;
@@ -565,20 +567,54 @@ export class AdminService implements OnApplicationBootstrap {
     }
   }
 
+  private bridgeRequest(
+    baseUrl: string,
+    secret: string,
+    path: string,
+    payload: unknown,
+  ): Promise<{ ok: boolean; status: number; body: string }> {
+    return new Promise((resolve, reject) => {
+      const body = JSON.stringify(payload);
+      const url = new URL(baseUrl + path);
+      const lib = url.protocol === 'https:' ? https : http;
+      const req = lib.request(
+        {
+          hostname: url.hostname,
+          port: url.port || (url.protocol === 'https:' ? '443' : '80'),
+          path: url.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+            Authorization: `Bearer ${secret}`,
+          },
+          timeout: 15000,
+          rejectUnauthorized: false,
+        } as https.RequestOptions,
+        (res) => {
+          let data = '';
+          res.on('data', (chunk: string) => (data += chunk));
+          res.on('end', () =>
+            resolve({ ok: res.statusCode! >= 200 && res.statusCode! < 300, status: res.statusCode!, body: data }),
+          );
+        },
+      );
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Bridge request timeout')); });
+      req.write(body);
+      req.end();
+    });
+  }
+
   async updateMailPassword(password: string, actor: { id: string; username: string }): Promise<void> {
     const bridgeUrl = this.configService.get<string>('MAIL_BRIDGE_URL');
     const bridgeSecret = this.configService.get<string>('MAIL_BRIDGE_SECRET');
     if (!bridgeUrl || !bridgeSecret) {
       throw new BadRequestException('Bridge de correo no configurado en este entorno');
     }
-    const res = await fetch(`${bridgeUrl}/update-credentials`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bridgeSecret}` },
-      body: JSON.stringify({ password }),
-    });
+    const res = await this.bridgeRequest(bridgeUrl, bridgeSecret, '/update-credentials', { password });
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new BadRequestException(`Error del bridge: ${res.status} ${text}`);
+      throw new BadRequestException(`Error del bridge: ${res.status} ${res.body}`);
     }
     await this.audit(actor, 'Actualizó la contraseña de la cuenta de correo DIREDTOS');
   }

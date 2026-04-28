@@ -53,6 +53,7 @@ function requestBackend(backendUrl, secret, method, path, payload) {
         method,
         headers,
         timeout: 30000,
+        rejectUnauthorized: false,
       },
       (res) => {
         let data = '';
@@ -88,6 +89,7 @@ function postToBackend(backendUrl, secret, payload) {
           Authorization: `Bearer ${secret}`,
         },
         timeout: 30000,
+        rejectUnauthorized: false,
       },
       (res) => {
         let data = '';

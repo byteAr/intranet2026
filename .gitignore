@@ -38,3 +38,6 @@ storage/
 
 # Angular cache
 frontend/.angular/
+
+# Mail bridge TLS certificates (generated locally, not committed)
+mail-bridge/certs/

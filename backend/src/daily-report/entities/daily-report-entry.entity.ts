@@ -52,20 +52,20 @@ export class DailyReportEntry {
   situationToDate: string | null; // YYYY-MM-DD
 
   // For AUTORIZADO
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   authorizedBy: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   authorizedDays: number | null;
 
   @Column({ default: false })
   authorizedChargedToLao: boolean;
 
   // For TURNO
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   shiftType: string | null; // 'mañana' | 'tarde' | null
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   notes: string | null;
 
   @Column({ default: 0 })

@@ -28,20 +28,20 @@ export class ActiveSituation {
   toDate: string | null; // null = open-ended (illness, etc.)
 
   // For AUTORIZADO
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   authorizedBy: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   authorizedDays: number | null;
 
   @Column({ default: false })
   authorizedChargedToLao: boolean;
 
   // For TURNO
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   shiftType: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   notes: string | null;
 
   @UpdateDateColumn()

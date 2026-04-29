@@ -13,6 +13,8 @@ const SECRET_ENV_MAP: Record<string, string> = {
   SMTP_PASS:          'smtp_pass',
   IMAP_PASSWORD:      'imap_password',
   MAIL_SMTP_PASSWORD: 'mail_smtp_password',
+  BRIDGE_SECRET:      'bridge_secret',
+  MAIL_BRIDGE_SECRET: 'mail_bridge_secret',
 };
 for (const [envKey, secretFile] of Object.entries(SECRET_ENV_MAP)) {
   const value = readSecret(secretFile, envKey);

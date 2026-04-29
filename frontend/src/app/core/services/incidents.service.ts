@@ -67,11 +67,8 @@ export class IncidentsService {
       this.socket = null;
     }
     if (this.socket) return;
-    const token = this.authService.getToken();
-    if (!token) return;
-
     this.socket = io('/incidents', {
-      auth: { token },
+      withCredentials: true,
       transports: ['websocket', 'polling'],
     });
 

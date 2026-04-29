@@ -8,6 +8,7 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { extractSocketToken } from '../common/utils/socket-token.util';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ChatService } from './chat.service';
@@ -48,9 +49,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   afterInit(server: Server) {
     server.use((socket: AuthenticatedSocket, next) => {
-      const token: string =
-        (socket.handshake.auth as Record<string, string>)?.token ??
-        (socket.handshake.headers?.authorization as string | undefined)?.replace('Bearer ', '');
+      const token = extractSocketToken(socket);
       if (!token) {
         console.warn('[Chat] socket rejected: no token', socket.id);
         return next(new Error('No token'));

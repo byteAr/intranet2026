@@ -105,9 +105,7 @@ export class DraftMailService {
 
   connect(): void {
     if (this.socket) return;
-    const token = this.authService.getToken();
-    if (!token) return;
-    this.socket = io('/draft-mail', { auth: { token }, transports: ['websocket', 'polling'] });
+    this.socket = io('/draft-mail', { withCredentials: true, transports: ['websocket', 'polling'] });
 
     this.socket.on('draft_submitted', (p: { id: string }) => {
       this.loadPendingCount();

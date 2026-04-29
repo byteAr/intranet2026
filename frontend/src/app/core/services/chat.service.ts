@@ -80,11 +80,8 @@ export class ChatService {
       this.socket = null;
     }
     if (this.socket) return;
-    const token = this.authService.getToken();
-    if (!token) return;
-
     this.socket = io('/chat', {
-      auth: { token },
+      withCredentials: true,
       transports: ['websocket', 'polling'],
     });
 

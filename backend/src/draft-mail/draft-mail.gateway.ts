@@ -1,6 +1,7 @@
 import { WebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
+import { extractSocketToken } from '../common/utils/socket-token.util';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -20,9 +21,7 @@ export class DraftMailGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   afterInit(server: Server) {
     server.use((socket: AuthSocket, next) => {
-      const token: string =
-        (socket.handshake.auth as Record<string, string>)?.token ??
-        (socket.handshake.headers?.authorization as string | undefined)?.replace('Bearer ', '');
+      const token = extractSocketToken(socket);
       if (!token) return next(new Error('No token'));
       try {
         const payload = this.jwtService.verify(token, { secret: this.configService.get<string>('jwt.secret') });

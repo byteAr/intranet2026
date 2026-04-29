@@ -27,10 +27,8 @@ export class AnnouncementsService {
 
   connect(): void {
     if (this.socket?.connected) return;
-    const token = this.authService.getToken();
-    if (!token) return;
     this.socket = io('/announcements', {
-      auth: { token },
+      withCredentials: true,
       transports: ['websocket', 'polling'],
     });
     this.socket.on('announcement', (data: Announcement) => {

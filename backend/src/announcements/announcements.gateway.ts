@@ -1,6 +1,7 @@
 import { WebSocketGateway, WebSocketServer, OnGatewayInit } from '@nestjs/websockets';
 import { Injectable } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
+import { extractSocketToken } from '../common/utils/socket-token.util';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -21,9 +22,7 @@ export class AnnouncementsGateway implements OnGatewayInit {
 
   afterInit(server: Server) {
     server.use((socket: AuthSocket, next) => {
-      const token: string =
-        (socket.handshake.auth as Record<string, string>)?.token ??
-        (socket.handshake.headers?.authorization as string | undefined)?.replace('Bearer ', '');
+      const token = extractSocketToken(socket);
       if (!token) return next(new Error('No token'));
       try {
         socket.data.user = this.jwtService.verify(token, {

@@ -65,13 +65,18 @@ def list_ad_users() -> list:
             attributes=[
                 'sAMAccountName', 'displayName', 'givenName', 'sn',
                 'mail', 'physicalDeliveryOfficeName', 'title',
-                'userAccountControl', 'distinguishedName',
+                'userAccountControl', 'distinguishedName', 'memberOf',
             ],
         )
         users = []
         for entry in conn.entries:
             uac = int(entry['userAccountControl'].value or 0)
             enabled = not bool(uac & 2)  # bit 1 = ACCOUNTDISABLE
+            raw_groups = entry['memberOf'].values if entry['memberOf'] else []
+            groups = sorted([
+                m.group(1) for dn in raw_groups
+                if (m := re.match(r'CN=([^,]+)', str(dn), re.IGNORECASE))
+            ])
             users.append({
                 'username':    str(entry['sAMAccountName'].value or ''),
                 'displayName': str(entry['displayName'].value or ''),
@@ -82,6 +87,7 @@ def list_ad_users() -> list:
                 'title':       str(entry['title'].value or ''),
                 'enabled':     enabled,
                 'dn':          entry.entry_dn,
+                'groups':      groups,
             })
         return sorted(users, key=lambda u: u['displayName'].lower())
     finally:

@@ -47,6 +47,7 @@ interface AdUserEntry {
   title: string;
   enabled: boolean;
   dn: string;
+  groups?: string[];
 }
 
 const OFFICE_GROUPS: readonly string[] = [
@@ -353,6 +354,7 @@ export class AdminService implements OnApplicationBootstrap {
         title:              adUser.title,
         enabledInAd:        adUser.enabled,
         dn:                 adUser.dn,
+        adGroups:           adUser.groups ?? [],
         hasLoggedIn:        !!dbUser?.lastLoginAt,
         mustChangePassword: dbUser?.mustChangePassword ?? false,
         lastLoginAt:        dbUser?.lastLoginAt ?? null,

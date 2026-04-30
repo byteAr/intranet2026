@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 
@@ -15,6 +15,7 @@ interface AdminUser {
   office?: string;
   title?: string;
   roles: string[];
+  adGroups?: string[];
   mustChangePassword: boolean;
   hasLoggedIn: boolean;
   enabledInAd: boolean;
@@ -69,7 +70,7 @@ const RANK_GROUPS = [
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DatePipe],
   template: `
     <div class="p-6 max-w-6xl mx-auto">
       <h1 class="text-2xl font-bold text-gray-800 dark:text-white mb-6">Panel de Administración</h1>
@@ -166,12 +167,26 @@ const RANK_GROUPS = [
               <table class="w-full text-sm whitespace-nowrap">
                 <thead class="bg-gray-50 dark:bg-zinc-800">
                   <tr>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Nombre</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Usuario</th>
+                    <th (click)="sortBy('displayName')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700 group">
+                      <span class="flex items-center gap-1">Nombre <span class="text-gray-400">{{ sortField() === 'displayName' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
+                    </th>
+                    <th (click)="sortBy('username')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700">
+                      <span class="flex items-center gap-1">Usuario <span class="text-gray-400">{{ sortField() === 'username' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
+                    </th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Correos</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Área</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Jerarquía</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Estado</th>
+                    <th (click)="sortBy('office')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700">
+                      <span class="flex items-center gap-1">Área <span class="text-gray-400">{{ sortField() === 'office' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
+                    </th>
+                    <th (click)="sortBy('title')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700">
+                      <span class="flex items-center gap-1">Jerarquía <span class="text-gray-400">{{ sortField() === 'title' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
+                    </th>
+                    <th (click)="sortBy('status')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700">
+                      <span class="flex items-center gap-1">Estado <span class="text-gray-400">{{ sortField() === 'status' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
+                    </th>
+                    <th (click)="sortBy('lastLoginAt')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700">
+                      <span class="flex items-center gap-1">Último ingreso <span class="text-gray-400">{{ sortField() === 'lastLoginAt' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Grupos AD</th>
                     <th class="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -212,6 +227,24 @@ const RANK_GROUPS = [
                           </span>
                         }
                       </td>
+                      <td class="px-4 py-3 text-xs text-gray-500 dark:text-zinc-400">
+                        @if (user.lastLoginAt) {
+                          {{ user.lastLoginAt | date:'dd/MM/yyyy HH:mm' }}
+                        } @else {
+                          <span class="text-gray-300 dark:text-zinc-600">—</span>
+                        }
+                      </td>
+                      <td class="px-4 py-3 max-w-[220px]">
+                        @if (user.adGroups?.length) {
+                          <div class="flex flex-wrap gap-1">
+                            @for (g of user.adGroups; track g) {
+                              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-mono">{{ g }}</span>
+                            }
+                          </div>
+                        } @else {
+                          <span class="text-gray-300 dark:text-zinc-600 text-xs">—</span>
+                        }
+                      </td>
                       <td class="px-4 py-3 text-right">
                         <button (click)="openEditModal(user)"
                           class="text-teal-600 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-200 text-xs font-medium">
@@ -220,7 +253,7 @@ const RANK_GROUPS = [
                       </td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400 dark:text-zinc-500">
+                    <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400 dark:text-zinc-500">
                       No se encontraron usuarios
                     </td></tr>
                   }
@@ -886,6 +919,8 @@ export class AdminComponent implements OnInit {
   readonly searchQuery = signal('');
   readonly currentPage = signal(1);
   readonly pageSize = 20;
+  readonly sortField = signal('displayName');
+  readonly sortDir = signal<'asc' | 'desc'>('asc');
   private suggestionTimer: ReturnType<typeof setTimeout> | null = null;
 
   form = { firstName: '', secondName: '', lastName: '', office: '', officeGroupDn: '', title: '', email: '', recoveryEmail: '', recoveryPhone: '' };
@@ -893,15 +928,39 @@ export class AdminComponent implements OnInit {
 
   readonly filteredUsers = computed(() => {
     const q = this.searchQuery().toLowerCase().trim();
-    if (!q) return this.users();
-    return this.users().filter(u =>
-      (u.displayName ?? '').toLowerCase().includes(q) ||
-      (u.firstName  ?? '').toLowerCase().includes(q) ||
-      (u.lastName   ?? '').toLowerCase().includes(q) ||
-      (u.username   ?? '').toLowerCase().includes(q) ||
-      (u.office     ?? '').toLowerCase().includes(q) ||
-      (u.email      ?? '').toLowerCase().includes(q),
-    );
+    const field = this.sortField();
+    const dir = this.sortDir();
+
+    let list = q
+      ? this.users().filter(u =>
+          (u.displayName ?? '').toLowerCase().includes(q) ||
+          (u.firstName  ?? '').toLowerCase().includes(q) ||
+          (u.lastName   ?? '').toLowerCase().includes(q) ||
+          (u.username   ?? '').toLowerCase().includes(q) ||
+          (u.office     ?? '').toLowerCase().includes(q) ||
+          (u.email      ?? '').toLowerCase().includes(q),
+        )
+      : [...this.users()];
+
+    list.sort((a, b) => {
+      let va: string | number = '';
+      let vb: string | number = '';
+      if (field === 'status') {
+        const rank = (u: AdminUser) => !u.enabledInAd ? 3 : !u.hasLoggedIn ? 2 : u.mustChangePassword ? 1 : 0;
+        va = rank(a); vb = rank(b);
+      } else if (field === 'lastLoginAt') {
+        va = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : 0;
+        vb = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : 0;
+      } else {
+        va = ((a as Record<string, unknown>)[field] as string ?? '').toLowerCase();
+        vb = ((b as Record<string, unknown>)[field] as string ?? '').toLowerCase();
+      }
+      if (va < vb) return dir === 'asc' ? -1 : 1;
+      if (va > vb) return dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return list;
   });
 
   readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredUsers().length / this.pageSize)));
@@ -914,6 +973,16 @@ export class AdminComponent implements OnInit {
 
   prevPage(): void { this.currentPage.update(p => Math.max(1, p - 1)); }
   nextPage(): void { this.currentPage.update(p => Math.min(this.totalPages(), p + 1)); }
+
+  sortBy(field: string): void {
+    if (this.sortField() === field) {
+      this.sortDir.update(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      this.sortField.set(field);
+      this.sortDir.set('asc');
+    }
+    this.currentPage.set(1);
+  }
 
   // ── Groups tab state ──────────────────────────────────────────────────────
   readonly groups = signal<AdGroup[]>([]);

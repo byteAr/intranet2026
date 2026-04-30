@@ -178,7 +178,6 @@ export class MailService {
     historical = false,
     advanced?: { q?: string; dateFrom?: string; dateTo?: string; year?: number },
   ): void {
-    this.emails.set([]);
     this.loading.set(true);
     let params = new HttpParams().set('page', page).set('limit', limit);
     if (folder) params = params.set('folder', folder);

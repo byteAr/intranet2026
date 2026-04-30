@@ -389,9 +389,19 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
             }
 
             <!-- Body — codes highlighted green (exists) / red (not found) -->
-            <div (click)="onBodyCodeClick($event)"
-                 (mouseup)="onBodyMouseUp($event)"
-                 [innerHTML]="highlightedBodyHtml()"></div>
+            @if (loadingBody()) {
+              <div class="space-y-2 mt-2">
+                <div class="h-3 bg-gray-100 rounded animate-pulse w-full"></div>
+                <div class="h-3 bg-gray-100 rounded animate-pulse w-5/6"></div>
+                <div class="h-3 bg-gray-100 rounded animate-pulse w-full"></div>
+                <div class="h-3 bg-gray-100 rounded animate-pulse w-4/6"></div>
+                <div class="h-3 bg-gray-100 rounded animate-pulse w-3/4"></div>
+              </div>
+            } @else {
+              <div (click)="onBodyCodeClick($event)"
+                   (mouseup)="onBodyMouseUp($event)"
+                   [innerHTML]="highlightedBodyHtml()"></div>
+            }
 
             <!-- Copy tooltip -->
             @if (copyTooltip()) {
@@ -480,6 +490,7 @@ export class MailComponent implements OnInit {
   private suppressTooltip = false;
 
   readonly uploadingDecryptedId = signal<string | null>(null);
+  loadingBody = signal(false);
   readonly uploadingSiena = signal(false);
 
   get isEncriptado(): boolean {
@@ -619,11 +630,16 @@ export class MailComponent implements OnInit {
     this.navHistory.set([]);
     this.navIndex.set(-1);
     this.activeEmail.set(email);
+    this.loadingBody.set(true);
     this.mailService.getEmail(email.id).subscribe({
       next: (full) => {
+        this.loadingBody.set(false);
         this.activeEmail.set(full);
         this.navHistory.set([full]);
         this.navIndex.set(0);
+      },
+      error: () => {
+        this.loadingBody.set(false);
       },
     });
 

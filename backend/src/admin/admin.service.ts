@@ -333,9 +333,13 @@ export class AdminService implements OnApplicationBootstrap {
   }
 
   async listUsers(): Promise<object[]> {
-    // Fetch all users from AD
-    const bridgeResult = (await this.callBridgeGet('/list-users')) as { users: AdUserEntry[] };
-    const adUsers = bridgeResult.users ?? [];
+    // Fetch all users from AD and office group names in parallel
+    const [bridgeResult, officePerms] = await Promise.all([
+      this.callBridgeGet('/list-users') as Promise<{ users: AdUserEntry[] }>,
+      this.groupPermRepo.find({ where: { category: 'oficina' } }),
+    ]);
+    const adUsers = (bridgeResult as { users: AdUserEntry[] }).users ?? [];
+    const officeGroupNames = new Set(officePerms.map((p) => p.groupName.toUpperCase()));
 
     // Fetch all DB users indexed by username
     const dbUsers = await this.userRepo.find();
@@ -344,6 +348,8 @@ export class AdminService implements OnApplicationBootstrap {
     // Merge: AD is the source of truth, DB provides login status
     return adUsers.map((adUser) => {
       const dbUser = dbByUsername.get(adUser.username.toLowerCase());
+      const groups = adUser.groups ?? [];
+      const officeGroup = groups.find((g) => officeGroupNames.has(g.toUpperCase())) ?? null;
       return {
         username:           adUser.username,
         displayName:        adUser.displayName || `${adUser.firstName} ${adUser.lastName}`.trim(),
@@ -351,10 +357,11 @@ export class AdminService implements OnApplicationBootstrap {
         lastName:           adUser.lastName,
         email:              adUser.email,
         office:             adUser.office,
+        officeGroup,
         title:              adUser.title,
         enabledInAd:        adUser.enabled,
         dn:                 adUser.dn,
-        adGroups:           adUser.groups ?? [],
+        adGroups:           groups,
         hasLoggedIn:        !!dbUser?.lastLoginAt,
         mustChangePassword: dbUser?.mustChangePassword ?? false,
         lastLoginAt:        dbUser?.lastLoginAt ?? null,

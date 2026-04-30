@@ -19,6 +19,7 @@ export interface UpsertUserDto {
   phone?: string;
   mobile?: string;
   office?: string;
+  officeGroup?: string;
   manager?: string;
   employeeId?: string;
 }
@@ -79,6 +80,7 @@ export class UsersService {
       user.phone = dto.phone ?? user.phone;
       user.mobile = dto.mobile ?? user.mobile;
       user.office = dto.office ?? user.office;
+      user.officeGroup = dto.officeGroup ?? user.officeGroup;
       user.manager = dto.manager ?? user.manager;
       user.employeeId = dto.employeeId ?? user.employeeId;
       user.lastLoginAt = new Date();

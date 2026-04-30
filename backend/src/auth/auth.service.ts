@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { In, Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { GroupPermission } from '../admin/entities/group-permission.entity';
 import { TokenBlacklistService } from './token-blacklist.service';
 
 /** Shape of the LDAP/AD entry returned by passport-ldapauth */
@@ -34,6 +37,8 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly tokenBlacklist: TokenBlacklistService,
+    @InjectRepository(GroupPermission)
+    private readonly groupPermRepo: Repository<GroupPermission>,
   ) {}
 
   async login(ldapEntry: LdapEntry): Promise<{ access_token: string; user: User }> {
@@ -48,6 +53,7 @@ export class AuthService {
     const lastName = ldapEntry.sn as string | undefined;
     const adDn = ldapEntry.dn;
     const roles = this.extractRoles(ldapEntry.memberOf);
+    const officeGroup = await this.findOfficeGroup(roles);
 
     const user = await this.usersService.upsert({
       username,
@@ -64,6 +70,7 @@ export class AuthService {
       phone: ldapEntry.telephoneNumber,
       mobile: ldapEntry.mobile,
       office: ldapEntry.physicalDeliveryOfficeName,
+      officeGroup,
       manager: this.extractCn(ldapEntry.manager),
       employeeId: ldapEntry.employeeID ?? ldapEntry.employeeNumber,
     });
@@ -97,6 +104,15 @@ export class AuthService {
     } catch {
       // ignore decode errors on logout
     }
+  }
+
+  /** Returns the CN of the first AD group (from roles) that has category='oficina' in the DB */
+  private async findOfficeGroup(roles: string[]): Promise<string | undefined> {
+    if (roles.length === 0) return undefined;
+    const perm = await this.groupPermRepo.findOne({
+      where: { groupName: In(roles), category: 'oficina' },
+    });
+    return perm?.groupName ?? undefined;
   }
 
   /** Extract CN from a DN string (e.g. manager field) */

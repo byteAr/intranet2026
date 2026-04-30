@@ -54,6 +54,9 @@ export class User {
   office: string; // physicalDeliveryOfficeName
 
   @Column({ nullable: true })
+  officeGroup: string; // CN del grupo AD con category='oficina' al que pertenece
+
+  @Column({ nullable: true })
   manager: string; // CN del manager extraído del DN
 
   @Column({ nullable: true })

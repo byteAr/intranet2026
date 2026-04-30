@@ -334,7 +334,7 @@ export class CuentaComponent {
       { label: 'Cargo', value: u?.title },
       { label: 'Departamento', value: u?.department },
       { label: 'Empresa', value: u?.company },
-      { label: 'Oficina', value: u?.office },
+      { label: 'Oficina', value: u?.officeGroup || u?.office },
       { label: 'Teléfono', value: u?.phone },
       { label: 'Móvil', value: u?.mobile },
       { label: 'Jefe directo', value: u?.manager },

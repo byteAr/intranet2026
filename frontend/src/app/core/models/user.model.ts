@@ -20,6 +20,7 @@ export interface User {
   phone?: string;
   mobile?: string;
   office?: string;
+  officeGroup?: string;
   manager?: string;
   employeeId?: string;
   mustChangePassword?: boolean;

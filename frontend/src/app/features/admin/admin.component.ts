@@ -13,6 +13,7 @@ interface AdminUser {
   firstName?: string;
   lastName?: string;
   office?: string;
+  officeGroup?: string | null;
   title?: string;
   roles: string[];
   adGroups?: string[];
@@ -199,7 +200,7 @@ const RANK_GROUPS = [
                           <div class="text-gray-300 dark:text-zinc-600 mt-0.5 italic">Sin correo de recuperación</div>
                         }
                       </td>
-                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400">{{ user.office || '—' }}</td>
+                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400">{{ user.officeGroup || user.office || '—' }}</td>
                       <td class="px-4 py-3">
                         @if (!user.enabledInAd) {
                           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-zinc-700 dark:text-zinc-400">Deshabilitado</span>
@@ -305,7 +306,7 @@ const RANK_GROUPS = [
                   </div>
                   <div>
                     <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-0.5">Área</p>
-                    <p class="text-gray-800 dark:text-zinc-200">{{ detailUser()!.office || '—' }}</p>
+                    <p class="text-gray-800 dark:text-zinc-200">{{ detailUser()!.officeGroup || detailUser()!.office || '—' }}</p>
                   </div>
                   <div>
                     <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-0.5">Correo institucional</p>
@@ -845,8 +846,13 @@ const RANK_GROUPS = [
 
             <div>
               <label class="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">Área de trabajo</label>
-              <input [(ngModel)]="editForm.office" type="text" placeholder="Ej: TICOM"
-                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+              <select [(ngModel)]="editForm.officeGroupCn"
+                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                <option value="">— Sin oficina —</option>
+                @for (og of officeGroups(); track og.dn) {
+                  <option [value]="og.cn">{{ og.cn }}</option>
+                }
+              </select>
             </div>
 
             <div>
@@ -988,7 +994,8 @@ export class AdminComponent implements OnInit {
   private suggestionTimer: ReturnType<typeof setTimeout> | null = null;
 
   form = { firstName: '', secondName: '', lastName: '', office: '', officeGroupDn: '', title: '', email: '', recoveryEmail: '', recoveryPhone: '' };
-  editForm = { office: '', title: '' };
+  editForm = { officeGroupCn: '', title: '' };
+  private editInitialOfficeCn = '';
 
   readonly filteredUsers = computed(() => {
     const q = this.searchQuery().toLowerCase().trim();
@@ -1371,7 +1378,13 @@ export class AdminComponent implements OnInit {
 
   openEditModal(user: AdminUser): void {
     this.editingUser.set(user);
-    this.editForm = { office: user.office ?? '', title: user.title ?? '' };
+    if (this.groups().length === 0) this.loadGroups();
+    // Use pre-computed officeGroup from backend if available, otherwise derive from adGroups × officeGroups
+    const currentOfficeCn = user.officeGroup
+      ?? user.adGroups?.find(g => this.officeGroups().some(og => og.cn.toUpperCase() === g.toUpperCase()))
+      ?? '';
+    this.editInitialOfficeCn = currentOfficeCn;
+    this.editForm = { officeGroupCn: currentOfficeCn, title: user.title ?? '' };
     this.editError.set(null);
     this.showEditModal.set(true);
   }
@@ -1499,12 +1512,42 @@ export class AdminComponent implements OnInit {
     if (!user) return;
     this.saving.set(true);
     this.editError.set(null);
-    this.http.patch(`/api/admin/users/${user.username}`, this.editForm).subscribe({
+
+    const onSuccess = () => {
+      this.saving.set(false);
+      this.closeEditModal();
+      this.loadUsers();
+      this.showToast('Usuario actualizado', 'success');
+    };
+
+    const newOfficeCn = this.editForm.officeGroupCn;
+    const officeChanged = newOfficeCn.toUpperCase() !== this.editInitialOfficeCn.toUpperCase();
+
+    this.http.patch(`/api/admin/users/${user.username}`, { title: this.editForm.title }).subscribe({
       next: () => {
-        this.saving.set(false);
-        this.closeEditModal();
-        this.loadUsers();
-        this.showToast('Usuario actualizado', 'success');
+        if (officeChanged && newOfficeCn && user.dn) {
+          const newGroup = this.officeGroups().find(g => g.cn === newOfficeCn);
+          const oldDn = this.editInitialOfficeCn
+            ? this.officeGroups().find(g => g.cn.toUpperCase() === this.editInitialOfficeCn.toUpperCase())?.dn
+            : undefined;
+          if (newGroup) {
+            this.http.post('/api/admin/groups/members', {
+              groupDn: newGroup.dn, userDn: user.dn,
+              groupName: newGroup.cn, userName: user.displayName,
+              ...(oldDn ? { removeFromGroupDn: oldDn } : {}),
+            }).subscribe({
+              next: () => onSuccess(),
+              error: (err) => {
+                this.saving.set(false);
+                this.editError.set(err.error?.message ?? 'Error al cambiar de oficina');
+              },
+            });
+          } else {
+            onSuccess();
+          }
+        } else {
+          onSuccess();
+        }
       },
       error: (err) => {
         this.saving.set(false);

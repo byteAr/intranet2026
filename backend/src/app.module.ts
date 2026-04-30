@@ -78,7 +78,7 @@ import { DraftMailDirector } from './draft-mail/entities/draft-mail-director.ent
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 10,
+        limit: 300, // Límite general permisivo — auth endpoints lo sobreescriben con @Throttle()
       },
     ]),
     ScheduleModule.forRoot(),

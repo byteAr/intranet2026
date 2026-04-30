@@ -167,18 +167,12 @@ const RANK_GROUPS = [
               <table class="w-full text-sm whitespace-nowrap">
                 <thead class="bg-gray-50 dark:bg-zinc-800">
                   <tr>
-                    <th (click)="sortBy('displayName')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700 group">
+                    <th (click)="sortBy('displayName')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700">
                       <span class="flex items-center gap-1">Nombre <span class="text-gray-400">{{ sortField() === 'displayName' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
-                    </th>
-                    <th (click)="sortBy('username')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700">
-                      <span class="flex items-center gap-1">Usuario <span class="text-gray-400">{{ sortField() === 'username' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
                     </th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Correos</th>
                     <th (click)="sortBy('office')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700">
                       <span class="flex items-center gap-1">Área <span class="text-gray-400">{{ sortField() === 'office' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
-                    </th>
-                    <th (click)="sortBy('title')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700">
-                      <span class="flex items-center gap-1">Jerarquía <span class="text-gray-400">{{ sortField() === 'title' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
                     </th>
                     <th (click)="sortBy('status')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-700">
                       <span class="flex items-center gap-1">Estado <span class="text-gray-400">{{ sortField() === 'status' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
@@ -187,15 +181,14 @@ const RANK_GROUPS = [
                       <span class="flex items-center gap-1">Último ingreso <span class="text-gray-400">{{ sortField() === 'lastLoginAt' ? (sortDir() === 'asc' ? '↑' : '↓') : '↕' }}</span></span>
                     </th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Grupos AD</th>
-                    <th class="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-zinc-700">
                   @for (user of pagedUsers(); track user.username) {
-                    <tr class="hover:bg-gray-50 dark:hover:bg-zinc-800/50"
+                    <tr (click)="detailUser.set(user)"
+                      class="cursor-pointer transition-colors hover:bg-teal-50 dark:hover:bg-teal-900/20"
                       [class.opacity-50]="!user.enabledInAd">
                       <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ user.displayName }}</td>
-                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400 font-mono text-xs">{{ user.username }}</td>
                       <td class="px-4 py-3 text-xs">
                         <div class="text-gray-700 dark:text-zinc-300">{{ user.email || '—' }}</div>
                         @if (user.recoveryEmail) {
@@ -207,32 +200,20 @@ const RANK_GROUPS = [
                         }
                       </td>
                       <td class="px-4 py-3 text-gray-500 dark:text-zinc-400">{{ user.office || '—' }}</td>
-                      <td class="px-4 py-3 text-gray-500 dark:text-zinc-400 text-xs">{{ user.title || '—' }}</td>
                       <td class="px-4 py-3">
                         @if (!user.enabledInAd) {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-zinc-700 dark:text-zinc-400">
-                            Deshabilitado
-                          </span>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-zinc-700 dark:text-zinc-400">Deshabilitado</span>
                         } @else if (!user.hasLoggedIn) {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-zinc-700 dark:text-zinc-300">
-                            Nunca ingresó
-                          </span>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-zinc-700 dark:text-zinc-300">Nunca ingresó</span>
                         } @else if (user.mustChangePassword) {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                            Sin contraseña propia
-                          </span>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Sin contraseña propia</span>
                         } @else {
-                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                            Activo
-                          </span>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Activo</span>
                         }
                       </td>
                       <td class="px-4 py-3 text-xs text-gray-500 dark:text-zinc-400">
-                        @if (user.lastLoginAt) {
-                          {{ user.lastLoginAt | date:'dd/MM/yyyy HH:mm' }}
-                        } @else {
-                          <span class="text-gray-300 dark:text-zinc-600">—</span>
-                        }
+                        @if (user.lastLoginAt) { {{ user.lastLoginAt | date:'dd/MM/yyyy HH:mm' }} }
+                        @else { <span class="text-gray-300 dark:text-zinc-600">—</span> }
                       </td>
                       <td class="px-4 py-3 max-w-[220px]">
                         @if (user.adGroups?.length) {
@@ -245,15 +226,9 @@ const RANK_GROUPS = [
                           <span class="text-gray-300 dark:text-zinc-600 text-xs">—</span>
                         }
                       </td>
-                      <td class="px-4 py-3 text-right">
-                        <button (click)="openEditModal(user)"
-                          class="text-teal-600 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-200 text-xs font-medium">
-                          Editar
-                        </button>
-                      </td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400 dark:text-zinc-500">
+                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400 dark:text-zinc-500">
                       No se encontraron usuarios
                     </td></tr>
                   }
@@ -287,6 +262,94 @@ const RANK_GROUPS = [
             </div>
           }
         </div>
+
+        <!-- ── MODAL DETALLE USUARIO ── -->
+        @if (detailUser()) {
+          <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+               (click)="detailUser.set(null)">
+            <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+                 (click)="$event.stopPropagation()">
+
+              <!-- Header con avatar -->
+              <div class="bg-gradient-to-br from-teal-500 to-teal-700 px-6 py-5 flex items-center gap-4">
+                <div class="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-xl shrink-0">
+                  {{ detailUser()!.displayName.charAt(0).toUpperCase() }}
+                </div>
+                <div class="min-w-0">
+                  <h3 class="text-white font-semibold text-lg leading-tight truncate">{{ detailUser()!.displayName }}</h3>
+                  <p class="text-teal-100 text-sm font-mono mt-0.5">{{ detailUser()!.username }}</p>
+                  <div class="mt-1.5">
+                    @if (!detailUser()!.enabledInAd) {
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white/20 text-white">Deshabilitado</span>
+                    } @else if (!detailUser()!.hasLoggedIn) {
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white/20 text-white">Nunca ingresó</span>
+                    } @else if (detailUser()!.mustChangePassword) {
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-400/80 text-white">Sin contraseña propia</span>
+                    } @else {
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-400/80 text-white">Activo</span>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <!-- Cuerpo -->
+              <div class="px-6 py-5 space-y-4">
+                <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                  <div>
+                    <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-0.5">Jerarquía</p>
+                    <p class="text-gray-800 dark:text-zinc-200">{{ detailUser()!.title || '—' }}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-0.5">Área</p>
+                    <p class="text-gray-800 dark:text-zinc-200">{{ detailUser()!.office || '—' }}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-0.5">Correo institucional</p>
+                    <p class="text-gray-800 dark:text-zinc-200 break-all">{{ detailUser()!.email || '—' }}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-0.5">Correo de recuperación</p>
+                    <p class="text-gray-800 dark:text-zinc-200 break-all">{{ detailUser()!.recoveryEmail || '—' }}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-0.5">Último ingreso</p>
+                    <p class="text-gray-800 dark:text-zinc-200">
+                      @if (detailUser()!.lastLoginAt) { {{ detailUser()!.lastLoginAt | date:'dd/MM/yyyy HH:mm' }} }
+                      @else { <span class="text-gray-400 italic">Sin registros</span> }
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-0.5">Rango</p>
+                    <p class="text-gray-800 dark:text-zinc-200">{{ detailUser()!.rank || '—' }}</p>
+                  </div>
+                </div>
+
+                @if (detailUser()!.adGroups?.length) {
+                  <div>
+                    <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-1.5">Grupos AD</p>
+                    <div class="flex flex-wrap gap-1.5">
+                      @for (g of detailUser()!.adGroups; track g) {
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-mono border border-blue-100 dark:border-blue-800">{{ g }}</span>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <!-- Footer -->
+              <div class="px-6 py-4 bg-gray-50 dark:bg-zinc-800/50 border-t border-gray-100 dark:border-zinc-700 flex items-center justify-between">
+                <button (click)="detailUser.set(null)"
+                  class="px-4 py-2 text-sm text-gray-600 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors">
+                  Cerrar
+                </button>
+                <button (click)="openEditModal(detailUser()!); detailUser.set(null)"
+                  class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors">
+                  Editar usuario
+                </button>
+              </div>
+            </div>
+          </div>
+        }
       }
 
       <!-- ── GRUPOS ── -->
@@ -921,6 +984,7 @@ export class AdminComponent implements OnInit {
   readonly pageSize = 20;
   readonly sortField = signal('displayName');
   readonly sortDir = signal<'asc' | 'desc'>('asc');
+  readonly detailUser = signal<AdminUser | null>(null);
   private suggestionTimer: ReturnType<typeof setTimeout> | null = null;
 
   form = { firstName: '', secondName: '', lastName: '', office: '', officeGroupDn: '', title: '', email: '', recoveryEmail: '', recoveryPhone: '' };

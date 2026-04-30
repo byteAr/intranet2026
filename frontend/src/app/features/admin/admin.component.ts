@@ -267,33 +267,37 @@ const RANK_GROUPS = [
         @if (detailUser()) {
           <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
                (click)="detailUser.set(null)">
-            <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+            <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-visible"
                  (click)="$event.stopPropagation()">
 
-              <!-- Header con avatar -->
-              <div class="bg-gradient-to-br from-teal-500 to-teal-700 px-6 py-5 flex items-center gap-4">
-                <div class="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-xl shrink-0">
-                  {{ detailUser()!.displayName.charAt(0).toUpperCase() }}
+              <!-- Header con avatar sobresaliente -->
+              <div class="relative bg-gradient-to-br from-teal-500 to-teal-700 px-6 pt-6 pb-14 rounded-t-2xl text-center">
+                <h3 class="text-white font-semibold text-lg leading-tight">{{ detailUser()!.displayName }}</h3>
+                <p class="text-teal-100 text-sm font-mono mt-0.5">{{ detailUser()!.username }}</p>
+                <div class="mt-2">
+                  @if (!detailUser()!.enabledInAd) {
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20 text-white">Deshabilitado</span>
+                  } @else if (!detailUser()!.hasLoggedIn) {
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20 text-white">Nunca ingresó</span>
+                  } @else if (detailUser()!.mustChangePassword) {
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-400/80 text-white">Sin contraseña propia</span>
+                  } @else {
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-400/80 text-white">Activo</span>
+                  }
                 </div>
-                <div class="min-w-0">
-                  <h3 class="text-white font-semibold text-lg leading-tight truncate">{{ detailUser()!.displayName }}</h3>
-                  <p class="text-teal-100 text-sm font-mono mt-0.5">{{ detailUser()!.username }}</p>
-                  <div class="mt-1.5">
-                    @if (!detailUser()!.enabledInAd) {
-                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white/20 text-white">Deshabilitado</span>
-                    } @else if (!detailUser()!.hasLoggedIn) {
-                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white/20 text-white">Nunca ingresó</span>
-                    } @else if (detailUser()!.mustChangePassword) {
-                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-400/80 text-white">Sin contraseña propia</span>
-                    } @else {
-                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-400/80 text-white">Activo</span>
-                    }
-                  </div>
+                <!-- Avatar grande sobresaliendo del header -->
+                <div class="absolute -bottom-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full ring-4 ring-white dark:ring-zinc-900 overflow-hidden bg-teal-600 flex items-center justify-center shadow-xl">
+                  <span class="text-white font-bold text-4xl select-none">{{ detailUser()!.displayName.charAt(0).toUpperCase() }}</span>
+                  @if (detailUser()!.id) {
+                    <img [src]="'/api/users/' + detailUser()!.id + '/avatar'"
+                         class="absolute inset-0 w-full h-full object-cover"
+                         (error)="$any($event.target).style.display='none'">
+                  }
                 </div>
               </div>
 
-              <!-- Cuerpo -->
-              <div class="px-6 py-5 space-y-4">
+              <!-- Cuerpo con espacio para el avatar -->
+              <div class="px-6 pt-16 pb-5 space-y-4">
                 <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                   <div>
                     <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-0.5">Jerarquía</p>

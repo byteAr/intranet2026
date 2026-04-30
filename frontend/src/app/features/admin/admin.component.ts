@@ -318,10 +318,6 @@ const RANK_GROUPS = [
                       @else { <span class="text-gray-400 italic">Sin registros</span> }
                     </p>
                   </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-0.5">Rango</p>
-                    <p class="text-gray-800 dark:text-zinc-200">{{ detailUser()!.rank || '—' }}</p>
-                  </div>
                 </div>
 
                 @if (detailUser()!.adGroups?.length) {

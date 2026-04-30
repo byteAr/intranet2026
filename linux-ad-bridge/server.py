@@ -490,11 +490,11 @@ def update_ad_user(data: dict) -> None:
         dn = conn.entries[0].entry_dn
         changes = {}
         if 'office' in data and data['office'] is not None:
-            changes['physicalDeliveryOfficeName'] = [(ldap3.MODIFY_REPLACE, [data['office']])]
+            changes['physicalDeliveryOfficeName'] = [(ldap3.MODIFY_REPLACE, [data['office']] if data['office'] else [])]
         if 'title' in data and data['title'] is not None:
-            changes['title'] = [(ldap3.MODIFY_REPLACE, [data['title']])]
+            changes['title'] = [(ldap3.MODIFY_REPLACE, [data['title']] if data['title'] else [])]
         if 'email' in data and data['email'] is not None:
-            changes['mail'] = [(ldap3.MODIFY_REPLACE, [data['email']])]
+            changes['mail'] = [(ldap3.MODIFY_REPLACE, [data['email']] if data['email'] else [])]
         if 'firstName' in data and data['firstName']:
             changes['givenName'] = [(ldap3.MODIFY_REPLACE, [data['firstName']])]
         if 'lastName' in data and data['lastName']:

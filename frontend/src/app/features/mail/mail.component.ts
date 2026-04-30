@@ -397,6 +397,10 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 <div class="h-3 bg-gray-100 rounded animate-pulse w-4/6"></div>
                 <div class="h-3 bg-gray-100 rounded animate-pulse w-3/4"></div>
               </div>
+            } @else if (bodyLoadError()) {
+              <p class="text-xs text-red-400 italic mt-2">No se pudo cargar el contenido del correo.</p>
+            } @else if (!activeEmail()!.bodyText?.trim() && !activeEmail()!.bodyHtml?.trim()) {
+              <p class="text-xs text-gray-400 italic mt-2">Sin contenido.</p>
             } @else {
               <div (click)="onBodyCodeClick($event)"
                    (mouseup)="onBodyMouseUp($event)"
@@ -491,6 +495,7 @@ export class MailComponent implements OnInit {
 
   readonly uploadingDecryptedId = signal<string | null>(null);
   loadingBody = signal(false);
+  bodyLoadError = signal(false);
   readonly uploadingSiena = signal(false);
 
   get isEncriptado(): boolean {
@@ -631,6 +636,7 @@ export class MailComponent implements OnInit {
     this.navIndex.set(-1);
     this.activeEmail.set(email);
     this.loadingBody.set(true);
+    this.bodyLoadError.set(false);
     this.mailService.getEmail(email.id).subscribe({
       next: (full) => {
         this.loadingBody.set(false);
@@ -638,8 +644,10 @@ export class MailComponent implements OnInit {
         this.navHistory.set([full]);
         this.navIndex.set(0);
       },
-      error: () => {
+      error: (err) => {
         this.loadingBody.set(false);
+        this.bodyLoadError.set(true);
+        console.error('Error al cargar el cuerpo del correo:', err);
       },
     });
 
@@ -966,6 +974,7 @@ export class MailComponent implements OnInit {
     const span = (event.target as HTMLElement).closest<HTMLElement>('[data-ref-id]');
     const emailId = span?.getAttribute('data-ref-id');
     if (!emailId) return;
+    this.bodyLoadError.set(false);
     this.mailService.getEmail(emailId).subscribe({
       next: (email) => {
         const truncated = this.navHistory().slice(0, this.navIndex() + 1);
@@ -979,6 +988,7 @@ export class MailComponent implements OnInit {
   navBack(): void {
     const idx = this.navIndex();
     if (idx <= 0) return;
+    this.bodyLoadError.set(false);
     this.navIndex.set(idx - 1);
     this.activeEmail.set(this.navHistory()[idx - 1]);
   }
@@ -987,6 +997,7 @@ export class MailComponent implements OnInit {
     const idx = this.navIndex();
     const history = this.navHistory();
     if (idx >= history.length - 1) return;
+    this.bodyLoadError.set(false);
     this.navIndex.set(idx + 1);
     this.activeEmail.set(history[idx + 1]);
   }

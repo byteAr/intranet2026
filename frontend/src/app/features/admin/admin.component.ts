@@ -952,8 +952,8 @@ export class AdminComponent implements OnInit {
         va = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : 0;
         vb = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : 0;
       } else {
-        va = ((a as Record<string, unknown>)[field] as string ?? '').toLowerCase();
-        vb = ((b as Record<string, unknown>)[field] as string ?? '').toLowerCase();
+        va = ((a as unknown as Record<string, unknown>)[field] as string ?? '').toLowerCase();
+        vb = ((b as unknown as Record<string, unknown>)[field] as string ?? '').toLowerCase();
       }
       if (va < vb) return dir === 'asc' ? -1 : 1;
       if (va > vb) return dir === 'asc' ? 1 : -1;

@@ -148,24 +148,35 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
               }
             </div>
 
-            <button type="submit" [disabled]="loading()"
-              class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md
-                     shadow-sm text-sm font-medium text-white
-                     focus:outline-none focus:ring-2 focus:ring-offset-2
-                     focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed
-                     transition-all duration-200"
-              style="background: linear-gradient(to right, #14B8A5, #22C562)"
-              onmouseover="this.style.background='linear-gradient(to right, #0f9d8f, #1aad52)'"
-              onmouseout="this.style.background='linear-gradient(to right, #14B8A5, #22C562)'">
-              @if (loading()) {
-                <svg class="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 3 2.373 3 5.373A8.001 8.001 0 004 12z"></path>
-                </svg>
-              } @else {
-                Iniciar sesión
-              }
-            </button>
+            @if (throttleCountdown() > 0) {
+              <div class="w-full rounded-md py-2.5 px-4 text-sm font-medium text-center border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-900">
+                <p class="text-red-600 dark:text-red-400 font-semibold">Demasiados intentos fallidos</p>
+                <p class="text-red-500 dark:text-red-500 text-xs mt-0.5">Podés intentar nuevamente en <span class="font-bold tabular-nums">{{ throttleCountdown() }}s</span></p>
+                <div class="mt-2 h-1 rounded-full bg-red-200 dark:bg-red-900 overflow-hidden">
+                  <div class="h-full bg-red-500 transition-all duration-1000 ease-linear"
+                       [style.width.%]="(throttleCountdown() / 60) * 100"></div>
+                </div>
+              </div>
+            } @else {
+              <button type="submit" [disabled]="loading()"
+                class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md
+                       shadow-sm text-sm font-medium text-white
+                       focus:outline-none focus:ring-2 focus:ring-offset-2
+                       focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed
+                       transition-all duration-200"
+                style="background: linear-gradient(to right, #14B8A5, #22C562)"
+                onmouseover="this.style.background='linear-gradient(to right, #0f9d8f, #1aad52)'"
+                onmouseout="this.style.background='linear-gradient(to right, #14B8A5, #22C562)'">
+                @if (loading()) {
+                  <svg class="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 3 2.373 3 5.373A8.001 8.001 0 004 12z"></path>
+                  </svg>
+                } @else {
+                  Iniciar sesión
+                }
+              </button>
+            }
           </form>
 
           <div class="text-center space-y-3">
@@ -443,6 +454,8 @@ export class LoginComponent {
   errorMessage = signal<string | null>(null);
   successMessage = signal<string | null>(null);
   showPassword = signal(false);
+  throttleCountdown = signal(0);
+  private countdownInterval: ReturnType<typeof setInterval> | null = null;
   showNewPassword = signal(false);
   forgotUsername = signal('');
   otpDigits = signal<string[]>(['', '', '', '']);
@@ -539,7 +552,7 @@ export class LoginComponent {
   }
 
   onLogin(): void {
-    if (this.loginForm.invalid) { this.loginForm.markAllAsTouched(); return; }
+    if (this.loginForm.invalid || this.throttleCountdown() > 0) { this.loginForm.markAllAsTouched(); return; }
 
     this.loading.set(true);
     this.clearMessages();
@@ -547,11 +560,31 @@ export class LoginComponent {
 
     this.authService.login(username, password).subscribe({
       next: () => void this.router.navigate(['/cuenta']),
-      error: () => {
+      error: (err: { status?: number; error?: { retryAfter?: number } }) => {
         this.loading.set(false);
-        this.errorMessage.set('Credenciales incorrectas. Verifica tu usuario y contraseña de dominio.');
+        if (err.status === 429) {
+          const seconds = err.error?.retryAfter ?? 60;
+          this.startThrottleCountdown(seconds);
+        } else {
+          this.errorMessage.set('Credenciales incorrectas. Verifica tu usuario y contraseña de dominio.');
+        }
       },
     });
+  }
+
+  private startThrottleCountdown(seconds: number): void {
+    if (this.countdownInterval) clearInterval(this.countdownInterval);
+    this.throttleCountdown.set(seconds);
+    this.countdownInterval = setInterval(() => {
+      const remaining = this.throttleCountdown() - 1;
+      if (remaining <= 0) {
+        clearInterval(this.countdownInterval!);
+        this.countdownInterval = null;
+        this.throttleCountdown.set(0);
+      } else {
+        this.throttleCountdown.set(remaining);
+      }
+    }, 1000);
   }
 
   onSendOtp(): void {

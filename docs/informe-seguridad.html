@@ -1,852 +1,1349 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Informe de Seguridad — Sistema Intranet Institucional</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Informe de Seguridad — Sistema Intranet Diredtos</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ==============================
+       RESET & BASE
+    ============================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      font-size: 11pt;
-      color: #1a1a2e;
-      background: #fff;
-      line-height: 1.6;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      line-height: 1.65;
+      color: #1e293b;
+      background: #f1f5f9;
     }
 
-    /* ── Portada ── */
+    /* ==============================
+       PAGE WRAPPER
+    ============================== */
+    .page-wrapper {
+      max-width: 800px;
+      margin: 32px auto;
+      background: #fff;
+      box-shadow: 0 4px 32px rgba(14,51,96,0.10);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    /* ==============================
+       COVER PAGE
+    ============================== */
     .cover {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      background: linear-gradient(160deg, #0f3460 0%, #16213e 60%, #1a1a2e 100%);
+      background: linear-gradient(160deg, #0E3360 0%, #1a4d8f 60%, #1e5fa8 100%);
       color: #fff;
-      page-break-after: always;
-      padding: 60px;
+      padding: 64px 56px 56px;
+      position: relative;
+      min-height: 360px;
     }
-    .cover .logo-area {
-      font-size: 48pt;
-      margin-bottom: 24px;
-      opacity: 0.85;
+
+    .cover::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, #f59e0b, #f97316, #ef4444);
     }
-    .cover h1 {
-      font-size: 26pt;
-      font-weight: 700;
+
+    .cover-logo {
+      width: 72px;
+      height: 72px;
+      background: rgba(255,255,255,0.12);
+      border: 2px solid rgba(255,255,255,0.30);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 800;
       letter-spacing: 1px;
+      color: #fff;
+      margin-bottom: 36px;
+    }
+
+    .cover-title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.15;
       margin-bottom: 12px;
     }
-    .cover h2 {
-      font-size: 14pt;
-      font-weight: 400;
-      opacity: 0.8;
+
+    .cover-subtitle {
+      font-size: 15px;
+      color: rgba(255,255,255,0.75);
       margin-bottom: 40px;
-    }
-    .cover .meta {
-      font-size: 10pt;
-      opacity: 0.65;
-      border-top: 1px solid rgba(255,255,255,0.25);
-      padding-top: 20px;
-      width: 100%;
-      max-width: 500px;
-    }
-    .cover .meta p { margin: 4px 0; }
-    .cover .badge {
-      display: inline-block;
-      background: rgba(255,255,255,0.12);
-      border: 1px solid rgba(255,255,255,0.3);
-      border-radius: 20px;
-      padding: 6px 20px;
-      font-size: 9pt;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      margin-bottom: 32px;
+      font-weight: 400;
     }
 
-    /* ── Contenido ── */
-    .content {
-      max-width: 820px;
-      margin: 0 auto;
-      padding: 50px 60px;
+    .cover-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 32px;
+      font-size: 12px;
+    }
+
+    .cover-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .cover-meta-label {
+      text-transform: uppercase;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: rgba(255,255,255,0.55);
+    }
+
+    .cover-meta-value {
+      font-weight: 600;
+      color: rgba(255,255,255,0.95);
+    }
+
+    .cover-badges {
+      margin-top: 28px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .cover-badge {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      color: rgba(255,255,255,0.90);
+    }
+
+    /* ==============================
+       DOCUMENT BODY
+    ============================== */
+    .doc-body {
+      padding: 48px 56px 64px;
+    }
+
+    /* ==============================
+       TABLE OF CONTENTS
+    ============================== */
+    .toc {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #0E3360;
+      border-radius: 0 4px 4px 0;
+      padding: 24px 28px;
+      margin-bottom: 40px;
+      page-break-after: always;
+    }
+
+    .toc-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #0E3360;
+      margin-bottom: 16px;
+    }
+
+    .toc-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .toc-list li {
+      padding: 4px 0;
+      border-bottom: 1px dotted #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .toc-list li:last-child { border-bottom: none; }
+
+    .toc-list a {
+      color: #1e293b;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 12.5px;
+    }
+
+    .toc-list a:hover { color: #0E3360; }
+
+    .toc-num {
+      font-weight: 700;
+      color: #0E3360;
+      margin-right: 10px;
+      min-width: 22px;
+      display: inline-block;
+    }
+
+    /* ==============================
+       SECTIONS
+    ============================== */
+    .section {
+      margin-bottom: 40px;
+      page-break-inside: avoid;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .section-num {
+      background: #0E3360;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
 
     h1.section-title {
-      font-size: 18pt;
-      color: #0f3460;
-      border-bottom: 3px solid #0f3460;
-      padding-bottom: 8px;
-      margin: 48px 0 20px;
-      page-break-after: avoid;
-    }
-    h2.subsection {
-      font-size: 13pt;
-      color: #16213e;
-      margin: 28px 0 10px;
-      padding-left: 12px;
-      border-left: 4px solid #e94560;
-      page-break-after: avoid;
-    }
-    h3.item {
-      font-size: 11pt;
-      color: #0f3460;
-      margin: 18px 0 6px;
-      font-weight: 600;
+      font-size: 20px;
+      font-weight: 800;
+      color: #0E3360;
+      letter-spacing: -0.3px;
     }
 
-    p { margin-bottom: 10px; }
-    ul { margin: 8px 0 12px 22px; }
-    ul li { margin-bottom: 5px; }
+    /* Subsections */
+    .subsection {
+      margin: 24px 0 20px 0;
+      padding-left: 14px;
+      border-left: 3px solid #bfdbfe;
+    }
 
-    /* ── Tabla resumen ── */
-    table {
+    h2.subsection-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin-bottom: 10px;
+      color: #334155;
+      font-size: 13px;
+    }
+
+    /* ==============================
+       CALLOUT / HIGHLIGHT BOX
+    ============================== */
+    .callout {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-left: 4px solid #1d4ed8;
+      border-radius: 0 4px 4px 0;
+      padding: 14px 18px;
+      margin: 14px 0;
+      font-size: 12.5px;
+      color: #1e3a8a;
+    }
+
+    .callout strong { color: #1e3a8a; }
+
+    .callout-warning {
+      background: #fefce8;
+      border-color: #fde047;
+      border-left-color: #ca8a04;
+      color: #713f12;
+    }
+
+    .callout-warning strong { color: #713f12; }
+
+    /* ==============================
+       LISTS
+    ============================== */
+    ul.content-list, ol.content-list {
+      margin: 10px 0 10px 0;
+      padding-left: 22px;
+    }
+
+    ul.content-list li, ol.content-list li {
+      margin-bottom: 5px;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    ul.content-list li::marker {
+      color: #0E3360;
+    }
+
+    /* ==============================
+       TABLES
+    ============================== */
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      margin: 14px 0 20px 0;
+      border-radius: 6px;
+      box-shadow: 0 1px 6px rgba(14,51,96,0.08);
+    }
+
+    table.data-table {
       width: 100%;
       border-collapse: collapse;
-      margin: 16px 0 24px;
-      font-size: 10pt;
+      font-size: 12px;
     }
-    thead tr {
-      background: #0f3460;
-      color: #fff;
+
+    table.data-table thead tr {
+      background-color: #0E3360;
     }
-    thead th {
-      padding: 10px 14px;
+
+    table.data-table thead th {
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 10px 13px;
       text-align: left;
-      font-weight: 600;
-      letter-spacing: 0.3px;
+      border: 1px solid #1a4d8f;
     }
-    tbody tr:nth-child(even) { background: #f4f7fb; }
-    tbody tr:nth-child(odd)  { background: #fff; }
-    tbody td {
-      padding: 9px 14px;
-      border-bottom: 1px solid #e0e6ef;
+
+    table.data-table tbody tr:nth-child(odd) {
+      background-color: #f8fafc;
+    }
+
+    table.data-table tbody tr:nth-child(even) {
+      background-color: #ffffff;
+    }
+
+    table.data-table tbody tr:hover {
+      background-color: #eff6ff;
+    }
+
+    table.data-table tbody td {
+      padding: 8px 13px;
+      border: 1px solid #e2e8f0;
+      color: #334155;
       vertical-align: top;
-    }
-    tbody td:first-child { font-weight: 600; color: #0f3460; }
-
-    /* ── Badges de estado ── */
-    .badge-ok {
-      display: inline-block;
-      background: #d4edda;
-      color: #155724;
-      border-radius: 4px;
-      padding: 2px 8px;
-      font-size: 9pt;
-      font-weight: 600;
-    }
-    .badge-note {
-      display: inline-block;
-      background: #fff3cd;
-      color: #856404;
-      border-radius: 4px;
-      padding: 2px 8px;
-      font-size: 9pt;
-      font-weight: 600;
-    }
-    .badge-critical {
-      display: inline-block;
-      background: #f8d7da;
-      color: #721c24;
-      border-radius: 4px;
-      padding: 2px 8px;
-      font-size: 9pt;
-      font-weight: 600;
+      line-height: 1.5;
     }
 
-    /* ── Recuadros informativos ── */
-    .info-box {
-      background: #eef3fb;
-      border-left: 4px solid #0f3460;
+    table.data-table tbody td:first-child {
+      font-weight: 600;
+      color: #1e3a8a;
+    }
+
+    /* Cover info table specific */
+    table.cover-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 14px;
+    }
+
+    table.cover-table td {
+      padding: 7px 12px;
+      border: 1px solid #e2e8f0;
+    }
+
+    table.cover-table td:first-child {
+      font-weight: 700;
+      background: #f8fafc;
+      color: #0E3360;
+      width: 38%;
+    }
+
+    /* ==============================
+       BADGES / STATUS
+    ============================== */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+    }
+
+    .badge-implementado {
+      background: #dcfce7;
+      color: #14532d;
+      border: 1px solid #86efac;
+    }
+
+    .badge-parcial {
+      background: #fef9c3;
+      color: #713f12;
+      border: 1px solid #fde047;
+    }
+
+    .badge-pendiente {
+      background: #fee2e2;
+      color: #7f1d1d;
+      border: 1px solid #fca5a5;
+    }
+
+    .badge-ver {
+      background: #dbeafe;
+      color: #1e3a8a;
+      border: 1px solid #93c5fd;
+    }
+
+    /* ==============================
+       CODE BLOCKS
+    ============================== */
+    pre, code {
+      font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+      font-size: 11.5px;
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 6px;
+    }
+
+    pre {
       padding: 14px 18px;
-      margin: 16px 0;
-      border-radius: 0 6px 6px 0;
-      font-size: 10pt;
-    }
-    .warn-box {
-      background: #fffbea;
-      border-left: 4px solid #f59e0b;
-      padding: 14px 18px;
-      margin: 16px 0;
-      border-radius: 0 6px 6px 0;
-      font-size: 10pt;
+      margin: 12px 0;
+      overflow-x: auto;
+      line-height: 1.6;
     }
 
-    /* ── Código inline ── */
     code {
-      font-family: 'Consolas', 'Courier New', monospace;
-      background: #f0f4f8;
       padding: 1px 5px;
       border-radius: 3px;
-      font-size: 9.5pt;
-      color: #c0392b;
     }
 
-    /* ── Separador de sección ── */
-    .page-break { page-break-before: always; }
+    p code, li code {
+      background: #f1f5f9;
+      color: #0E3360;
+      font-size: 11.5px;
+      padding: 1px 5px;
+    }
 
-    /* ── Footer ── */
-    .footer {
-      margin-top: 60px;
-      padding-top: 20px;
-      border-top: 1px solid #dde3ec;
-      font-size: 9pt;
-      color: #888;
+    /* ==============================
+       DIVIDER
+    ============================== */
+    .section-divider {
+      border: none;
+      border-top: 1px solid #e2e8f0;
+      margin: 36px 0;
+    }
+
+    /* ==============================
+       FOOTER
+    ============================== */
+    .doc-footer {
+      background: #0E3360;
+      color: rgba(255,255,255,0.65);
       text-align: center;
+      padding: 16px 56px;
+      font-size: 11px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
-    /* ── Índice ── */
-    .toc { margin: 20px 0 40px; }
-    .toc ol { margin-left: 24px; }
-    .toc li { margin: 6px 0; font-size: 11pt; }
-    .toc li span { color: #888; font-size: 9pt; margin-left: 8px; }
+    .doc-footer-confidential {
+      color: #f59e0b;
+      font-weight: 700;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
 
-    /* ── Print ── */
+    /* ==============================
+       PRINT STYLES
+    ============================== */
     @media print {
-      .cover { height: 100vh; }
-      h1.section-title { page-break-before: auto; }
+      body {
+        background: #fff;
+        font-size: 11px;
+      }
+
+      .page-wrapper {
+        max-width: 100%;
+        margin: 0;
+        box-shadow: none;
+        border-radius: 0;
+      }
+
+      .cover {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .toc { page-break-after: always; }
+
+      .section { page-break-inside: avoid; }
+
+      table.data-table thead {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .doc-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0; right: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      pre { white-space: pre-wrap; word-break: break-all; }
+    }
+
+    @media (max-width: 860px) {
+      .page-wrapper { margin: 0; border-radius: 0; }
+      .cover, .doc-body { padding: 32px 24px; }
+      .doc-footer { padding: 14px 24px; }
+      .cover-meta { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 
-<!-- ═══════════════════ PORTADA ═══════════════════ -->
-<div class="cover">
-  <div class="logo-area">🔒</div>
-  <div class="badge">Confidencial — Uso Interno</div>
-  <h1>Informe de Seguridad<br>del Sistema Intranet Institucional</h1>
-  <h2>Medidas de protección implementadas en la plataforma</h2>
-  <div class="meta">
-    <p><strong>Organismo:</strong> Instituto Universitario GNA</p>
-    <p><strong>Área responsable:</strong> Dirección de Tecnología e Informática</p>
-    <p><strong>Fecha de emisión:</strong> Abril 2026</p>
-    <p><strong>Clasificación:</strong> Uso interno / Auditoría</p>
-  </div>
-</div>
+<div class="page-wrapper">
 
-<!-- ═══════════════════ CONTENIDO ═══════════════════ -->
-<div class="content">
+  <!-- ===================== COVER ===================== -->
+  <div class="cover">
+    <div class="cover-logo">IUGNA</div>
+    <div class="cover-title">Informe de Seguridad<br>Sistema Intranet Diredtos</div>
+    <div class="cover-subtitle">Medidas de protección implementadas en la plataforma</div>
 
-  <!-- ÍNDICE -->
-  <h1 class="section-title">Índice</h1>
-  <div class="toc">
-    <ol>
-      <li>Descripción del sistema</li>
-      <li>Resumen ejecutivo de controles de seguridad</li>
-      <li>Autenticación y gestión de sesiones</li>
-      <li>Protección de credenciales y secretos</li>
-      <li>Seguridad en la capa de transporte (TLS/HTTPS)</li>
-      <li>Controles de acceso y autorización</li>
-      <li>Protección de APIs y endpoints</li>
-      <li>Auditoría y trazabilidad</li>
-      <li>Seguridad de infraestructura y contenedores</li>
-      <li>Protección del frontend</li>
-      <li>Pendientes y recomendaciones</li>
-    </ol>
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Unidad</span>
+        <span class="cover-meta-value">Dirección de Educación e Institutos</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Área Responsable</span>
+        <span class="cover-meta-value">División Tecnologías de la Información y Comunicaciones</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Fecha de Emisión</span>
+        <span class="cover-meta-value">Abril 2026</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Responsable</span>
+        <span class="cover-meta-value">Cabo Marcos López</span>
+      </div>
+    </div>
+
+    <div class="cover-badges">
+      <span class="cover-badge">Uso interno / Auditoría</span>
+      <span class="cover-badge">Documento controlado</span>
+    </div>
   </div>
 
-  <!-- 1. DESCRIPCIÓN DEL SISTEMA -->
-  <h1 class="section-title">1. Descripción del Sistema</h1>
+  <!-- ===================== DOCUMENT BODY ===================== -->
+  <div class="doc-body">
 
-  <p>
-    La plataforma Intranet Institucional es un sistema web de uso interno desarrollado para
-    el Instituto Universitario GNA. Integra los siguientes módulos funcionales:
-  </p>
-  <ul>
-    <li><strong>Chat institucional</strong> con mensajería en tiempo real y adjuntos</li>
-    <li><strong>Gestión de incidencias</strong> con seguimiento de estado y asignación</li>
-    <li><strong>Sistema de reservas</strong> de espacios y equipamiento</li>
-    <li><strong>Módulo de correo</strong> con integración IMAP/SMTP al servidor de correo institucional</li>
-    <li><strong>Redacción MTO</strong> (Draft-Mail) con flujo de aprobación y firma digital</li>
-    <li><strong>Panel de administración</strong> con gestión de usuarios en Active Directory y Google Workspace</li>
-    <li><strong>Notificaciones push</strong> y presencia en tiempo real (Socket.IO)</li>
-  </ul>
+    <!-- TABLE OF CONTENTS -->
+    <div class="toc">
+      <div class="toc-title">Índice de contenidos</div>
+      <ol class="toc-list" style="list-style:none;padding:0;">
+        <li><a href="#s1"><span class="toc-num">1.</span>Descripción del sistema</a></li>
+        <li><a href="#s2"><span class="toc-num">2.</span>Resumen ejecutivo de controles de seguridad</a></li>
+        <li><a href="#s3"><span class="toc-num">3.</span>Autenticación y gestión de sesiones</a></li>
+        <li><a href="#s4"><span class="toc-num">4.</span>Protección de credenciales y secretos</a></li>
+        <li><a href="#s5"><span class="toc-num">5.</span>Seguridad en la capa de transporte (TLS/HTTPS)</a></li>
+        <li><a href="#s6"><span class="toc-num">6.</span>Controles de acceso y autorización</a></li>
+        <li><a href="#s7"><span class="toc-num">7.</span>Protección de APIs y endpoints</a></li>
+        <li><a href="#s8"><span class="toc-num">8.</span>Auditoría y trazabilidad</a></li>
+        <li><a href="#s9"><span class="toc-num">9.</span>Seguridad de infraestructura y contenedores</a></li>
+        <li><a href="#s10"><span class="toc-num">10.</span>Protección del frontend</a></li>
+        <li><a href="#s11"><span class="toc-num">11.</span>Backups</a></li>
+      </ol>
+    </div>
 
-  <h2 class="subsection">Arquitectura de despliegue</h2>
-  <table>
-    <thead>
-      <tr><th>Componente</th><th>Tecnología</th><th>Ubicación</th></tr>
-    </thead>
-    <tbody>
-      <tr><td>Backend API</td><td>NestJS 11 / Node.js</td><td>Servidor Debian 10.98.40.24 (Docker)</td></tr>
-      <tr><td>Frontend</td><td>Angular 20 / nginx</td><td>Servidor Debian 10.98.40.24 (Docker)</td></tr>
-      <tr><td>Base de datos</td><td>PostgreSQL 16</td><td>Servidor Debian 10.98.40.24 (Docker)</td></tr>
-      <tr><td>Caché / Blacklist</td><td>Redis 7</td><td>Servidor Debian 10.98.40.24 (Docker)</td></tr>
-      <tr><td>Directorio</td><td>Active Directory (LDAP)</td><td>Controlador de dominio 10.98.40.22</td></tr>
-      <tr><td>Proxy inverso / TLS</td><td>nginx</td><td>Servidor Debian 10.98.40.24 (host)</td></tr>
-      <tr><td>Puente de correo</td><td>Node.js (mail-bridge)</td><td>PC Windows 172.21.36.104</td></tr>
-    </tbody>
-  </table>
+    <!-- ===================== SECTION 1 ===================== -->
+    <div class="section" id="s1">
+      <div class="section-header">
+        <div class="section-num">1</div>
+        <h1 class="section-title">Descripción del sistema</h1>
+      </div>
 
-  <!-- 2. RESUMEN EJECUTIVO -->
-  <div class="page-break"></div>
-  <h1 class="section-title">2. Resumen Ejecutivo de Controles de Seguridad</h1>
+      <p>
+        La plataforma <strong>Intranet Diredtos</strong> es un sistema web de uso interno desarrollado para la
+        Dirección de Educación e Institutos. Integra los siguientes módulos funcionales:
+      </p>
 
-  <table>
-    <thead>
-      <tr><th>Área</th><th>Control implementado</th><th>Estado</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Sesiones</td>
-        <td>JWT en cookie httpOnly (sin acceso desde JavaScript)</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Sesiones</td>
-        <td>Lista negra de tokens en Redis (invalidación en logout)</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Credenciales</td>
-        <td>Secretos en Docker Secrets (archivos fuera del proceso)</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Credenciales</td>
-        <td>Secretos excluidos del repositorio Git</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Transporte</td>
-        <td>HTTPS con certificado en acceso público (nginx TLS)</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Transporte</td>
-        <td>TLS autofirmado en comunicación interna bridge↔backend</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Autenticación</td>
-        <td>Autenticación centralizada contra Active Directory (LDAP)</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Autenticación</td>
-        <td>Rate limiting en endpoint de login</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Auditoría</td>
-        <td>Log de intentos de autenticación (éxito y fallo) con IP</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Autorización</td>
-        <td>Control de acceso basado en roles (RBAC) del AD</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>API interna</td>
-        <td>Whitelist de IP en endpoint de ingestión del bridge</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>API interna</td>
-        <td>Secreto compartido con comparación resistente a timing attack</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Frontend</td>
-        <td>Cabeceras de seguridad HTTP (Helmet)</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Frontend</td>
-        <td>Protección CORS con lista de orígenes permitidos</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Validación</td>
-        <td>Validación estricta de entradas en todos los endpoints</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Infraestructura</td>
-        <td>Puertos de base de datos y servicios internos no expuestos</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Infraestructura</td>
-        <td>Aislamiento de red entre contenedores (Docker network)</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-      <tr>
-        <td>Contraseñas</td>
-        <td>Cambio forzado de contraseña en primer login (AD policy)</td>
-        <td><span class="badge-ok">IMPLEMENTADO</span></td>
-      </tr>
-    </tbody>
-  </table>
+      <ul class="content-list">
+        <li>Chat institucional con mensajería en tiempo real y envío de archivos adjuntos</li>
+        <li>Gestión de incidencias con seguimiento de estado y asignación</li>
+        <li>Sistema de reservas de espacios y equipamiento para videoconferencias</li>
+        <li>Módulo de correo con integración IMAP/SMTP al servidor de correo institucional</li>
+        <li>Redacción MTO (Draft-Mail) con flujo de aprobación y firma digital</li>
+        <li>Panel de administración con gestión de usuarios en Active Directory y Google Workspace</li>
+        <li>Notificaciones push y presencia en tiempo real (Socket.IO)</li>
+      </ul>
 
-  <!-- 3. AUTENTICACIÓN -->
-  <div class="page-break"></div>
-  <h1 class="section-title">3. Autenticación y Gestión de Sesiones</h1>
+      <div class="subsection">
+        <h2 class="subsection-title">Arquitectura de despliegue</h2>
+        <div class="table-wrapper">
+          <table class="data-table" width="100%" border="1" cellpadding="8" cellspacing="0">
+            <thead>
+              <tr>
+                <th>Componente</th>
+                <th>Tecnología</th>
+                <th>Ubicación</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Backend API</td><td>NestJS 11 / Node.js</td><td>Servidor Debian <code>10.98.40.24</code> (Docker)</td></tr>
+              <tr><td>Frontend</td><td>Angular 20 / nginx</td><td>Servidor Debian <code>10.98.40.24</code> (Docker)</td></tr>
+              <tr><td>Base de datos</td><td>PostgreSQL 16</td><td>Servidor Debian <code>10.98.40.24</code> (Docker)</td></tr>
+              <tr><td>Caché / Blacklist</td><td>Redis 7</td><td>Servidor Debian <code>10.98.40.24</code> (Docker)</td></tr>
+              <tr><td>Directorio</td><td>Active Directory (LDAP)</td><td>Controlador de dominio Windows Server <code>10.98.40.22</code></td></tr>
+              <tr><td>Proxy inverso / TLS</td><td>nginx</td><td>Servidor Debian <code>10.98.40.24</code> (host)</td></tr>
+              <tr><td>Puente de correo</td><td>Node.js (mail-bridge)</td><td>PC Windows <code>172.21.36.104</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-  <h2 class="subsection">3.1 Autenticación contra Active Directory</h2>
-  <p>
-    Todos los usuarios del sistema se autentican exclusivamente contra el Active Directory
-    institucional mediante el protocolo LDAP. No existen contraseñas locales almacenadas
-    en la base de datos del sistema. El servidor AD reside en la red interna y no es
-    accesible desde internet.
-  </p>
-  <ul>
-    <li>Protocolo: LDAP sobre red interna (dominio <code>iugnad.lan</code>)</li>
-    <li>Credenciales de servicio: almacenadas como Docker Secret (no en variables de entorno planas)</li>
-    <li>Error de AD 773 (contraseña expirada) devuelve mensaje claro al usuario en lugar de error genérico</li>
-    <li>Los roles y permisos se extraen del atributo <code>memberOf</code> del AD en cada login</li>
-  </ul>
+    <hr class="section-divider">
 
-  <h2 class="subsection">3.2 Tokens JWT con cookie httpOnly</h2>
-  <p>
-    Tras una autenticación exitosa, el servidor emite un token JWT que se entrega al
-    navegador exclusivamente mediante una <strong>cookie httpOnly</strong>. Esta modalidad
-    impide que cualquier script JavaScript (incluyendo eventuales scripts inyectados por
-    ataques XSS) pueda leer o robar el token de sesión.
-  </p>
-  <ul>
-    <li><strong>httpOnly: true</strong> — inaccesible desde JavaScript</li>
-    <li><strong>SameSite: Strict</strong> — protección contra ataques CSRF</li>
-    <li><strong>Secure: true</strong> en producción — solo transmitida por HTTPS</li>
-    <li>Vigencia del token: 8 horas</li>
-    <li>El payload incluye un identificador único de token (<code>jti</code>) generado criptográficamente</li>
-  </ul>
+    <!-- ===================== SECTION 2 ===================== -->
+    <div class="section" id="s2">
+      <div class="section-header">
+        <div class="section-num">2</div>
+        <h1 class="section-title">Resumen ejecutivo de controles de seguridad</h1>
+      </div>
 
-  <div class="info-box">
-    <strong>Mejora respecto a la versión anterior:</strong> En versiones previas el token JWT
-    se almacenaba en <code>localStorage</code> del navegador, siendo accesible desde JavaScript.
-    Esta vulnerabilidad fue corregida migrando a cookie httpOnly, eliminando el riesgo de
-    robo de sesión por XSS.
+      <div class="table-wrapper">
+        <table class="data-table" width="100%" border="1" cellpadding="8" cellspacing="0">
+          <thead>
+            <tr>
+              <th>Área</th>
+              <th>Control implementado</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Sesiones</td>
+              <td>JWT en cookie httpOnly (sin acceso desde JavaScript)</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Sesiones</td>
+              <td>Lista negra de tokens en Redis (invalidación en logout)</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Credenciales</td>
+              <td>Secretos en Docker Secrets (archivos fuera del proceso)</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Transporte</td>
+              <td>HTTPS con certificado en acceso externo (nginx TLS)</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Transporte</td>
+              <td>TLS autofirmado en comunicación interna bridge-backend</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Autenticación</td>
+              <td>Autenticación centralizada contra Active Directory (LDAP)</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Autenticación</td>
+              <td>Rate limiting en endpoint de login</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Auditoría</td>
+              <td>Log de intentos de autenticación (éxito y fallo) con IP</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Autorización</td>
+              <td>Control de acceso basado en roles (RBAC) del AD</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>API interna</td>
+              <td>Whitelist de IP en endpoint de ingestión del bridge</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>API interna</td>
+              <td>Secreto compartido con comparación resistente a timing attack</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Frontend</td>
+              <td>Cabeceras de seguridad HTTP (Helmet) y protección CORS</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Validación</td>
+              <td>Validación estricta de entradas en todos los endpoints</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Infraestructura</td>
+              <td>Puertos de BD y servicios internos no expuestos; aislamiento Docker</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Contraseñas</td>
+              <td>Cambio forzado de contraseña en primer login (AD policy)</td>
+              <td><span class="badge badge-implementado">&#10003; IMPLEMENTADO</span></td>
+            </tr>
+            <tr>
+              <td>Backups</td>
+              <td>Procedimiento de respaldo de base de datos y volúmenes</td>
+              <td><span class="badge badge-ver">&#8594; VER SECCIÓN 11</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- ===================== SECTION 3 ===================== -->
+    <div class="section" id="s3">
+      <div class="section-header">
+        <div class="section-num">3</div>
+        <h1 class="section-title">Autenticación y gestión de sesiones</h1>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">3.1 Autenticación contra Active Directory</h2>
+        <p>
+          Todos los usuarios del sistema se autentican exclusivamente contra el Active Directory local mediante el
+          protocolo LDAP. No existen contraseñas locales almacenadas en la base de datos del sistema.
+          El servidor AD reside en la red interna y no es accesible desde internet.
+        </p>
+        <ul class="content-list">
+          <li><strong>Protocolo:</strong> LDAP sobre red interna (dominio <code>iugnad.lan</code>, controlador <code>10.98.40.22</code>)</li>
+          <li><strong>Credenciales de cuenta de servicio:</strong> almacenadas como Docker Secret, nunca en variables de entorno planas</li>
+          <li><strong>Error AD 773</strong> (contraseña expirada): devuelve mensaje claro al usuario en lugar de error genérico</li>
+          <li><strong>Roles y permisos:</strong> extraídos del atributo <code>memberOf</code> del AD en cada login</li>
+        </ul>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">3.2 Tokens JWT con cookie httpOnly</h2>
+        <p>
+          Tras una autenticación exitosa, el servidor emite un token JWT entregado al navegador exclusivamente mediante
+          una cookie <code>httpOnly</code>. Esta modalidad impide que cualquier script JavaScript pueda leer o robar el token de sesión.
+        </p>
+        <ul class="content-list">
+          <li><code>httpOnly: true</code> — inaccesible desde JavaScript</li>
+          <li><code>SameSite: Strict</code> — protección contra ataques CSRF</li>
+          <li><code>Secure: true</code> en producción — solo transmitida por HTTPS</li>
+          <li><strong>Vigencia del token:</strong> 8 horas</li>
+          <li>El payload incluye un identificador único de token (<code>jti</code>) generado criptográficamente</li>
+        </ul>
+        <div class="callout">
+          <strong>Mejora respecto a la versión anterior:</strong> En versiones previas el token JWT se almacenaba en
+          <code>localStorage</code> del navegador, siendo accesible desde JavaScript. Esta vulnerabilidad fue corregida
+          migrando a cookie <code>httpOnly</code>, eliminando el riesgo de robo de sesión por XSS.
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">3.3 Lista negra de tokens (Redis)</h2>
+        <p>
+          Al cerrar sesión, el identificador único del token (<code>jti</code>) se registra en Redis como token invalidado.
+          Cualquier intento posterior de usar ese token es rechazado, incluso si el token aún no expiró.
+        </p>
+        <ul class="content-list">
+          <li><strong>Almacenamiento:</strong> Redis 7 en memoria, accesible solo desde la red interna de Docker</li>
+          <li><strong>TTL automático:</strong> la entrada en Redis expira al mismo tiempo que el token JWT original</li>
+          <li><strong>Verificación:</strong> el guard de JWT consulta Redis en cada request autenticado</li>
+        </ul>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">3.4 Rate limiting en login</h2>
+        <p>
+          El endpoint de autenticación tiene un límite estricto de intentos para mitigar ataques de fuerza bruta
+          y relleno de credenciales.
+        </p>
+        <ul class="content-list">
+          <li>Máximo <strong>3 intentos por minuto</strong> por dirección IP</li>
+          <li>Al superar el límite: respuesta <code>429 Too Many Requests</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- ===================== SECTION 4 ===================== -->
+    <div class="section" id="s4">
+      <div class="section-header">
+        <div class="section-num">4</div>
+        <h1 class="section-title">Protección de credenciales y secretos</h1>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">4.1 Docker Secrets</h2>
+        <p>
+          Todos los secretos del sistema se gestionan mediante <strong>Docker Secrets</strong>. Los valores se almacenan
+          en archivos independientes montados en el contenedor como archivos de solo lectura en <code>/run/secrets/</code>.
+          Los secretos nunca aparecen en variables de entorno visibles, en logs, ni en el repositorio de código.
+        </p>
+        <div class="table-wrapper">
+          <table class="data-table" width="100%" border="1" cellpadding="8" cellspacing="0">
+            <thead>
+              <tr>
+                <th>Secreto</th>
+                <th>Uso</th>
+                <th>Fortaleza</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>jwt_secret</code></td><td>Firma de tokens JWT</td><td>64 bytes hexadecimales (512 bits)</td></tr>
+              <tr><td><code>postgres_password</code></td><td>Acceso a la base de datos</td><td>48 bytes hexadecimales (384 bits)</td></tr>
+              <tr><td><code>ldap_bind_credentials</code></td><td>Cuenta de servicio AD para búsquedas LDAP</td><td>Contraseña compleja rotada periódicamente</td></tr>
+              <tr><td><code>bridge_secret</code></td><td>Autenticación del AD Bridge interno</td><td>48 bytes hexadecimales (384 bits)</td></tr>
+              <tr><td><code>mail_bridge_secret</code></td><td>Autenticación del puente de correo externo</td><td>48 bytes hexadecimales (384 bits)</td></tr>
+              <tr><td><code>smtp_pass</code></td><td>Cuenta de correo saliente (SMTP)</td><td>Token de aplicación de 16 caracteres</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">4.2 Exclusión del repositorio Git</h2>
+        <p>
+          El directorio <code>secrets/</code> contiene un archivo <code>.gitignore</code> que excluye todos los archivos
+          <code>*.txt</code>, impidiendo que cualquier credencial sea comprometida accidentalmente en el historial del repositorio.
+        </p>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">4.3 Generación criptográfica de secretos</h2>
+        <p>
+          Todos los secretos fueron generados utilizando <code>crypto.randomBytes()</code> de Node.js (CSPRNG).
+          Ningún secreto fue elegido manualmente ni reutilizado entre entornos.
+        </p>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- ===================== SECTION 5 ===================== -->
+    <div class="section" id="s5">
+      <div class="section-header">
+        <div class="section-num">5</div>
+        <h1 class="section-title">Seguridad en la capa de transporte (TLS/HTTPS)</h1>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">5.1 Acceso externo — nginx con TLS</h2>
+        <p>
+          El acceso a la plataforma se realiza exclusivamente a través de HTTPS. nginx actúa como proxy inverso
+          y termina la conexión TLS antes de reenviar el tráfico a los servicios internos.
+        </p>
+        <ul class="content-list">
+          <li>Puerto <strong>443 (HTTPS)</strong> expuesto hacia la red institucional</li>
+          <li>Certificado TLS distribuido a los equipos del dominio mediante Política de Grupo (GPO) del controlador de dominio Windows Server</li>
+          <li>Puerto 80 (HTTP) no expuesto al exterior</li>
+          <li>Backend y frontend accesibles solo desde localhost en el servidor</li>
+        </ul>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">5.2 Comunicación interna — puente de correo (mail-bridge)</h2>
+        <p>
+          El puente de correo opera en una PC Windows en la red <code>172.21.36.104</code> (TELEMÁTICO), separada del
+          servidor principal por un firewall FortiGate. La comunicación entre ambos componentes utiliza TLS con certificado autofirmado.
+        </p>
+        <ul class="content-list">
+          <li>Certificado autofirmado con SAN (Subject Alternative Name) para la IP <code>172.21.36.104</code></li>
+          <li>Algoritmo: RSA 2048 bits, validez 10 años</li>
+          <li>El servidor HTTPS del bridge escucha en el puerto <code>3002</code></li>
+          <li>El backend verifica la identidad del bridge mediante secreto compartido adicional</li>
+        </ul>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">5.3 Comunicación con servicios de correo</h2>
+        <ul class="content-list">
+          <li>IMAP sobre TLS (puerto 993) para recepción</li>
+          <li>SMTP con STARTTLS (puerto 587) para envío</li>
+        </ul>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- ===================== SECTION 6 ===================== -->
+    <div class="section" id="s6">
+      <div class="section-header">
+        <div class="section-num">6</div>
+        <h1 class="section-title">Controles de acceso y autorización</h1>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">6.1 Control de acceso basado en roles (RBAC)</h2>
+        <p>
+          Los permisos de acceso están determinados por los grupos del Active Directory a los que pertenece cada usuario.
+          Los roles se extraen del atributo <code>memberOf</code> en el momento del login y se incluyen en el payload del token JWT.
+        </p>
+        <ul class="content-list">
+          <li><strong>Roles institucionales:</strong> <code>DIREDTOS</code>, <code>TICOM</code>, <code>AYUDANTIADIREDTOS</code>, <code>AYUDANTIARECTORADO</code>, entre otros</li>
+          <li><strong>Rol admin:</strong> acceso al panel de administración de usuarios y configuración</li>
+          <li>Cada endpoint de la API declara explícitamente qué roles tienen acceso</li>
+        </ul>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">6.2 Guard global de autenticación</h2>
+        <p>
+          Todos los endpoints de la API requieren autenticación JWT por defecto. Las rutas públicas se declaran
+          explícitamente con el decorador <code>@Public()</code>, evitando la exposición accidental de endpoints protegidos.
+        </p>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">6.3 Permisos configurables por grupo</h2>
+        <p>
+          Los administradores pueden restringir el acceso a módulos específicos
+          (chat, incidencias, reservas, correo, redactar-MTO) por grupo de Active Directory,
+          sin necesidad de modificar el código fuente.
+          Los grupos sin configuración explícita mantienen acceso total para garantizar compatibilidad con versiones anteriores.
+        </p>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">6.4 Creación de usuarios — orden de operaciones con rollback</h2>
+        <ol class="content-list">
+          <li>Creación en <strong>Google Workspace</strong> (si falla, se detiene el proceso)</li>
+          <li>Creación en <strong>Active Directory</strong> con cambio de contraseña forzado en primer login</li>
+          <li>Si AD falla → rollback automático en Google Workspace</li>
+          <li>Registro del usuario en la base de datos local</li>
+          <li>Envío de email de bienvenida (no bloqueante)</li>
+        </ol>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- ===================== SECTION 7 ===================== -->
+    <div class="section" id="s7">
+      <div class="section-header">
+        <div class="section-num">7</div>
+        <h1 class="section-title">Protección de APIs y endpoints</h1>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">7.1 Validación estricta de entradas</h2>
+        <ul class="content-list">
+          <li><code>whitelist: true</code> — propiedades no declaradas en el DTO son eliminadas automáticamente</li>
+          <li><code>forbidNonWhitelisted: true</code> — requests con propiedades no esperadas son rechazados</li>
+          <li><code>transform: true</code> — los tipos de datos son convertidos y validados automáticamente</li>
+        </ul>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">7.2 Cabeceras de seguridad HTTP (Helmet)</h2>
+        <ul class="content-list">
+          <li><code>X-Content-Type-Options: nosniff</code> — previene MIME-type sniffing</li>
+          <li><code>X-Frame-Options: SAMEORIGIN</code> — protección contra clickjacking</li>
+          <li><code>X-XSS-Protection</code> — filtro XSS en navegadores legacy</li>
+          <li><code>Strict-Transport-Security</code> — fuerza HTTPS en navegadores modernos</li>
+          <li><code>Content-Security-Policy</code> — restricción de orígenes de recursos</li>
+        </ul>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">7.3 Protección CORS</h2>
+        <p>
+          La política CORS restringe qué orígenes pueden realizar peticiones a la API.
+          Solo el frontend de la Intranet y el servidor de desarrollo figuran en la lista de orígenes permitidos.
+        </p>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">7.4 Endpoint de ingestión del bridge — doble protección</h2>
+        <p>
+          El endpoint <code>POST /api/mail/bridge/ingest</code> implementa dos capas de protección independientes:
+        </p>
+        <ul class="content-list">
+          <li>
+            <strong>Whitelist de IP:</strong> solo se aceptan conexiones desde <code>172.21.36.104</code>.
+            Cualquier otra IP recibe <code>403 Forbidden</code> sin información adicional.
+          </li>
+          <li>
+            <strong>Secreto compartido:</strong> el bearer token se verifica usando <code>crypto.timingSafeEqual()</code>,
+            que previene ataques de temporización.
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- ===================== SECTION 8 ===================== -->
+    <div class="section" id="s8">
+      <div class="section-header">
+        <div class="section-num">8</div>
+        <h1 class="section-title">Auditoría y trazabilidad</h1>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">8.1 Log de autenticación</h2>
+        <p>
+          Cada intento de autenticación (exitoso o fallido) genera una entrada de log estructurada que incluye:
+        </p>
+        <ul class="content-list">
+          <li>Tipo de evento: <code>AUTH_OK</code> o <code>AUTH_FAIL</code></li>
+          <li>Nombre de usuario utilizado en el intento</li>
+          <li>Dirección IP de origen</li>
+          <li>Timestamp (UTC)</li>
+        </ul>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">8.2 Audit log de acciones administrativas</h2>
+        <p>
+          Todas las acciones realizadas desde el panel de administración quedan registradas en la tabla
+          <code>admin_audit_log</code> de la base de datos, con:
+        </p>
+        <ul class="content-list">
+          <li>ID y nombre del usuario que realizó la acción</li>
+          <li>Descripción de la acción (ej: "Creó usuario X en AD", "Actualizó contraseña de correo DIREDTOS")</li>
+          <li>Timestamp de la operación</li>
+        </ul>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">8.3 Filtro global de excepciones</h2>
+        <p>
+          Un filtro global intercepta todos los errores no controlados de la API y devuelve respuestas de error
+          estructuradas sin exponer stack traces, rutas internas ni información sensible del servidor al cliente.
+        </p>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- ===================== SECTION 9 ===================== -->
+    <div class="section" id="s9">
+      <div class="section-header">
+        <div class="section-num">9</div>
+        <h1 class="section-title">Seguridad de infraestructura y contenedores</h1>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">9.1 Exposición de puertos</h2>
+        <div class="table-wrapper">
+          <table class="data-table" width="100%" border="1" cellpadding="8" cellspacing="0">
+            <thead>
+              <tr>
+                <th>Servicio</th>
+                <th>Puerto interno</th>
+                <th>Acceso externo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>nginx (HTTPS)</td><td>—</td><td>Puerto 443 público</td></tr>
+              <tr><td>Frontend (nginx)</td><td>80 / 8280</td><td>Solo desde localhost del servidor</td></tr>
+              <tr><td>Backend (NestJS)</td><td>3000 / <code>127.0.0.1:3001</code></td><td>Solo desde localhost del servidor</td></tr>
+              <tr><td>PostgreSQL</td><td>5432 / <code>127.0.0.1:5442</code></td><td>Solo desde localhost del servidor</td></tr>
+              <tr><td>Redis</td><td>6379</td><td>Sin exposición externa</td></tr>
+              <tr><td>OpenLDAP (dev)</td><td>389 / 636</td><td>Sin exposición en producción</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">9.2 Aislamiento de red entre contenedores</h2>
+        <p>
+          Todos los contenedores operan en una red Docker interna privada (<code>192.168.200.0/24</code>).
+          La comunicación entre servicios utiliza nombres DNS internos (<code>postgres</code>, <code>redis</code>, etc.),
+          sin exposición a la red del host.
+        </p>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">9.3 Healthchecks y reinicio automático</h2>
+        <p>
+          Los servicios críticos (PostgreSQL, Redis) tienen configurados healthchecks que verifican disponibilidad
+          antes de iniciar servicios dependientes. Todos los contenedores están configurados con política
+          <code>restart: unless-stopped</code> para recuperación automática ante fallos.
+        </p>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">9.4 Gestión de cuentas inactivas (cron automático)</h2>
+        <p>
+          Un proceso cron ejecutado diariamente a las 2:00 AM aplica la política de inactividad:
+        </p>
+        <ul class="content-list">
+          <li>Inactividad mayor a <strong>7 meses</strong> — deshabilita la cuenta en AD</li>
+          <li>Inactividad mayor a <strong>8 meses</strong> y ya deshabilitada — elimina la cuenta de AD</li>
+          <li>Basado en el atributo <code>lastLogonTimestamp</code> del Active Directory</li>
+          <li>Cuentas de servicio y administrativas excluidas del proceso automático</li>
+        </ul>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- ===================== SECTION 10 ===================== -->
+    <div class="section" id="s10">
+      <div class="section-header">
+        <div class="section-num">10</div>
+        <h1 class="section-title">Protección del frontend</h1>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">10.1 Sin tokens en almacenamiento local</h2>
+        <p>
+          El frontend Angular no almacena tokens de sesión en <code>localStorage</code> ni en <code>sessionStorage</code>.
+          El token JWT reside exclusivamente en la cookie <code>httpOnly</code> gestionada por el navegador,
+          eliminando el vector de ataque XSS más común.
+        </p>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">10.2 Interceptor de credenciales</h2>
+        <p>
+          Todas las peticiones HTTP del frontend incluyen automáticamente las cookies de sesión mediante el flag
+          <code>withCredentials: true</code>. El token se envía de forma transparente sin ser accesible desde el código de la aplicación.
+        </p>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">10.3 Manejo de errores de autenticación</h2>
+        <p>
+          Un interceptor global detecta respuestas <code>401 Unauthorized</code>, limpia la sesión local y redirige al login,
+          previniendo estados inconsistentes donde el frontend cree tener sesión activa cuando el servidor ya la invalidó.
+        </p>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">10.4 Límites de tamaño en uploads</h2>
+        <ul class="content-list">
+          <li>Avatares de usuario: <strong>6 MB</strong></li>
+          <li>Adjuntos de chat: <strong>50 MB</strong> (JPG, PNG, GIF, WebP, PDF, DOCX, XLS)</li>
+          <li>Adjuntos de incidencias: <strong>10 MB</strong> (solo imágenes)</li>
+          <li>Adjuntos de borradores MTO: <strong>5 MB</strong> por archivo (20 MB en validación backend)</li>
+        </ul>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- ===================== SECTION 11 ===================== -->
+    <div class="section" id="s11">
+      <div class="section-header">
+        <div class="section-num">11</div>
+        <h1 class="section-title">Backups</h1>
+      </div>
+
+      <p>
+        Los procedimientos de backup se ejecutan fuera del sistema de la aplicación, mediante scripts bash y tareas
+        programadas (cron) directamente en los servidores. Cada servidor VM realiza su propio backup y lo copia
+        vía red al servidor NAS central.
+      </p>
+
+      <div class="subsection">
+        <h2 class="subsection-title">11.1 Base de Datos (PostgreSQL)</h2>
+        <p>
+          La herramienta utilizada es <code>pg_dump</code>, ejecutada desde cada servidor VM mediante cron.
+          El backup se genera en formato comprimido custom (<code>-F c</code>) y se copia al servidor NAS mediante montaje de red.
+        </p>
+        <p><strong>Servidores y bases de datos respaldadas:</strong></p>
+        <ul class="content-list">
+          <li>Servidor SIU — base de datos: <code>gestion</code> (puerto 5432) → <code>/media/nas/repo-docentes/db/</code></li>
+          <li>Servidor Intranet — base de datos: <code>intranet</code> (puerto 5442) → <code>/media/nas/intranet/db/</code></li>
+          <li>Servidor GLPI/Ticket — base de datos: <code>ticket</code> (MySQL, mysqldump) → <code>/media/nas/glpi/</code></li>
+        </ul>
+        <div class="table-wrapper">
+          <table class="data-table" width="100%" border="1" cellpadding="8" cellspacing="0">
+            <thead>
+              <tr><th>Parámetro</th><th>Detalle</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Herramienta</td><td>pg_dump (PostgreSQL) / mysqldump (MySQL/GLPI)</td></tr>
+              <tr><td>Formato</td><td>Custom comprimido (<code>-F c</code>) para PostgreSQL / SQL + gzip para MySQL</td></tr>
+              <tr><td>Frecuencia</td><td>Diaria (cron, horario configurable por servidor)</td></tr>
+              <tr><td>Destino NAS</td><td><code>/var/backups/todo/siu/db/</code>, <code>/var/backups/todo/intranet/db/</code>, <code>/var/backups/todo/proxmox/</code></td></tr>
+              <tr><td>Retención local VM</td><td>60 días (pg-deletebackupold.sh en servidor SIU)</td></tr>
+              <tr><td>Retención NAS</td><td>30 días (cleanup_backups.sh — ver sección 11.3)</td></tr>
+              <tr><td>Nomenclatura</td><td><code>gestion_YYYYMMDDHHMM.backup</code> / <code>intranet_YYYYMMDDHHMM.backup</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>Comandos pg_dump utilizados:</strong></p>
+        <pre>
+# Servidor SIU
+pg_dump -h localhost -p 5432 -U postgres -F c -b -v -f gestion.backup gestion
+
+# Servidor Intranet
+pg_dump -h localhost -p 5442 -U postgres -F c -b -v -f intranet.backup intranet</pre>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">11.2 Volúmenes Docker (Archivos Adjuntos)</h2>
+        <p>
+          Los archivos adjuntos de la intranet se almacenan en volúmenes Docker en el servidor VM. El backup se realiza
+          mediante <code>rsync</code> hacia el NAS, lo que permite sincronización incremental eficiente.
+        </p>
+        <div class="table-wrapper">
+          <table class="data-table" width="100%" border="1" cellpadding="8" cellspacing="0">
+            <thead>
+              <tr><th>Parámetro</th><th>Detalle</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Origen</td><td><code>/var/lib/docker/volumes/intranet2026_mail_attachments/_data</code></td></tr>
+              <tr><td>Destino NAS</td><td><code>/media/nas/intranet/adjuntos/</code> → <code>/var/backups/todo/intranet/adjuntos/</code></td></tr>
+              <tr><td>Herramienta</td><td><code>rsync -avz --delete</code></td></tr>
+              <tr><td>Frecuencia</td><td>Diaria (cron)</td></tr>
+              <tr><td>Log</td><td><code>/var/log/mtos_adjuntos_YYYYMMDD.log</code> (en servidor Intranet)</td></tr>
+              <tr><td>Modo</td><td>Incremental con <code>--delete</code> (elimina en destino lo que no existe en origen)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>Script utilizado (<code>mto-files.sh</code>):</strong></p>
+        <pre>rsync -avz --delete \
+  /var/lib/docker/volumes/intranet2026_mail_attachments/_data \
+  /media/nas/intranet/adjuntos</pre>
+        <p>
+          Adicionalmente, los PDFs del repositorio docente se copian al NAS mediante <code>backup-docentes-pdf.sh</code>:
+        </p>
+        <pre>cp *.pdf /media/nas/repo-docentes/</pre>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">11.3 Frecuencia y Retención</h2>
+        <div class="table-wrapper">
+          <table class="data-table" width="100%" border="1" cellpadding="8" cellspacing="0">
+            <thead>
+              <tr><th>Parámetro</th><th>Detalle</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Frecuencia de backup</td><td>Diaria — cada VM genera backup propio por cron</td></tr>
+              <tr><td>Copia a NAS</td><td>Inmediata — cada script copia al NAS al finalizar</td></tr>
+              <tr><td>Retención en NAS</td><td>30 días</td></tr>
+              <tr><td>Limpieza NAS</td><td>Semanal — todos los domingos a las 07:00 (cleanup_backups.sh)</td></tr>
+              <tr><td>Criterio de eliminación</td><td>Se borran backups con más de 30 días SOLO si existe al menos un backup reciente en el mismo directorio (protección contra borrado total)</td></tr>
+              <tr><td>Retención local VM (SIU)</td><td>60 días (<code>/root/backups</code> en servidor SIU)</td></tr>
+              <tr><td>Tipos de archivo cubiertos</td><td><code>.backup</code>, <code>.gz</code>, <code>.sql</code>, <code>.zst</code>, <code>.vma.zst</code>, <code>.lzo</code>, <code>.vma.lzo</code>, <code>.log</code> y otros</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">11.4 Almacenamiento y Ubicación</h2>
+        <p><strong>Arquitectura de almacenamiento:</strong></p>
+        <div class="table-wrapper">
+          <table class="data-table" width="100%" border="1" cellpadding="8" cellspacing="0">
+            <thead>
+              <tr><th>Parámetro</th><th>Detalle</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Servidor NAS</td><td>Servidor dedicado con disco sda (1.8TB)</td></tr>
+              <tr><td>Ruta raíz backups</td><td><code>/var/backups/todo/</code></td></tr>
+              <tr><td>Backups Proxmox VMs</td><td><code>/var/backups/todo/proxmox/{ip_servidor}/dump/</code></td></tr>
+              <tr><td>Backups BD PostgreSQL</td><td><code>/var/backups/todo/siu/db/</code>, <code>/var/backups/todo/intranet/db/</code></td></tr>
+              <tr><td>Backups BD MySQL (GLPI)</td><td><code>/var/backups/todo/proxmox/</code> (vía NAS mount)</td></tr>
+              <tr><td>Archivos adjuntos intranet</td><td><code>/var/backups/todo/intranet/adjuntos/</code></td></tr>
+              <tr><td>Backups Docker/programas</td><td><code>/var/backups/todo/docker/</code>, <code>/var/backups/todo/programas/</code></td></tr>
+              <tr><td>Almacenamiento externo</td><td><span class="badge badge-pendiente">&#9888; PENDIENTE</span> No disponible actualmente — pendiente incorporar disco externo o NFS offsite</td></tr>
+              <tr><td>Copia offsite</td><td><span class="badge badge-pendiente">&#9888; PENDIENTE</span> No implementada — riesgo identificado</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-warning">
+          <strong>Nota:</strong> El directorio <code>/var/backups/todo/reciente/</code> fue eliminado por ser redundante.
+          El flujo actual es: VM genera backup → copia directa al NAS → limpieza semanal por <code>cleanup_backups.sh</code>.
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">11.5 Procedimiento de Restauración</h2>
+        <p><strong>Restauración de base de datos PostgreSQL:</strong></p>
+        <ol class="content-list">
+          <li>Localizar el backup a restaurar en el NAS: <code>ls -lh /var/backups/todo/siu/db/</code></li>
+          <li>Copiar el backup al servidor destino: <code>cp /var/backups/todo/siu/db/gestion_YYYYMMDDHHMM.backup /root/restore/</code></li>
+          <li>Restaurar con pg_restore: <code>pg_restore -h localhost -p 5432 -U postgres -d gestion -v gestion_YYYYMMDDHHMM.backup</code></li>
+        </ol>
+        <p><strong>Restauración de VMs Proxmox:</strong></p>
+        <ol class="content-list">
+          <li>Acceder a la interfaz web de Proxmox</li>
+          <li>Ir a la VM → Backup → seleccionar backup (<code>.vma.zst</code>) → Restore</li>
+          <li>O vía CLI: <code>qmrestore /var/backups/todo/proxmox/{ip}/dump/vzdump-qemu-{vmid}-{fecha}.vma.zst {vmid}</code></li>
+        </ol>
+        <p><strong>Restauración de archivos adjuntos Docker:</strong></p>
+        <pre>rsync -avz /var/backups/todo/intranet/adjuntos/ \
+  /var/lib/docker/volumes/intranet2026_mail_attachments/_data/</pre>
+        <div class="table-wrapper">
+          <table class="data-table" width="100%" border="1" cellpadding="8" cellspacing="0">
+            <thead>
+              <tr><th>Parámetro</th><th>Detalle</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>RTO estimado (BD)</td><td>30 minutos a 2 horas según tamaño de base</td></tr>
+              <tr><td>RTO estimado (VM completa)</td><td>1 a 4 horas según tamaño de imagen</td></tr>
+              <tr><td>RPO (pérdida máx. de datos)</td><td>24 horas (frecuencia de backup diaria)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h2 class="subsection-title">11.6 Verificación y Pruebas de Recuperación</h2>
+        <div class="table-wrapper">
+          <table class="data-table" width="100%" border="1" cellpadding="8" cellspacing="0">
+            <thead>
+              <tr><th>Parámetro</th><th>Detalle</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Verificación automática</td><td>El script <code>cleanup_backups.sh</code> verifica que existan backups recientes antes de borrar (control de integridad implícito)</td></tr>
+              <tr><td>Log de ejecución</td><td><code>/var/log/cleanup_backups_YYYYMMDD.log</code> — revisión semanal recomendada</td></tr>
+              <tr><td>Pruebas de restauración</td><td><span class="badge badge-pendiente">&#9888; PENDIENTE</span> Pendiente definir procedimiento formal y frecuencia</td></tr>
+              <tr><td>Responsable</td><td><span class="badge badge-pendiente">&#9888; PENDIENTE</span> Área de Informática — pendiente designar responsable específico</td></tr>
+              <tr><td>Registro de resultados</td><td><span class="badge badge-pendiente">&#9888; PENDIENTE</span> Pendiente implementar registro formal de pruebas</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>Pendientes identificados:</strong></p>
+        <ul class="content-list">
+          <li>Implementar prueba de restauración semestral documentada</li>
+          <li>Incorporar almacenamiento externo u offsite para redundancia real</li>
+          <li>Designar responsable formal de verificación de backups</li>
+          <li>Implementar alertas automáticas si el backup falla (monitoreo de logs)</li>
+        </ul>
+      </div>
+    </div>
+
+  </div><!-- /doc-body -->
+
+  <!-- ===================== FOOTER ===================== -->
+  <div class="doc-footer">
+    <span>Informe de Seguridad — Sistema Intranet &nbsp;&middot;&nbsp; Dirección de Educación e Institutos &nbsp;&middot;&nbsp; División TIC</span>
+    <span class="doc-footer-confidential">Abril 2026 &nbsp;&middot;&nbsp; Uso interno</span>
   </div>
 
-  <h2 class="subsection">3.3 Lista negra de tokens (Redis)</h2>
-  <p>
-    Al cerrar sesión, el identificador único del token (<code>jti</code>) se registra en
-    Redis como token invalidado. Cualquier intento posterior de usar ese token es rechazado,
-    incluso si el token aún no expiró. Esto garantiza que el logout sea efectivo e inmediato.
-  </p>
-  <ul>
-    <li>Almacenamiento: Redis 7 en memoria, accesible solo desde la red interna de Docker</li>
-    <li>TTL automático: la entrada en Redis expira al mismo tiempo que el token JWT original</li>
-    <li>Verificación: el guard de JWT consulta Redis en cada request autenticado</li>
-  </ul>
+</div><!-- /page-wrapper -->
 
-  <h2 class="subsection">3.4 Rate limiting en login</h2>
-  <p>
-    El endpoint de autenticación tiene un límite estricto de intentos para mitigar ataques
-    de fuerza bruta y relleno de credenciales (credential stuffing).
-  </p>
-  <ul>
-    <li>Máximo <strong>3 intentos por minuto</strong> por dirección IP</li>
-    <li>Al superar el límite: respuesta <code>429 Too Many Requests</code></li>
-  </ul>
-
-  <!-- 4. CREDENCIALES Y SECRETOS -->
-  <div class="page-break"></div>
-  <h1 class="section-title">4. Protección de Credenciales y Secretos</h1>
-
-  <h2 class="subsection">4.1 Docker Secrets</h2>
-  <p>
-    Todos los secretos del sistema (contraseñas, claves criptográficas, tokens de servicio)
-    se gestionan mediante el mecanismo de <strong>Docker Secrets</strong>. Los valores
-    se almacenan en archivos independientes fuera del proceso de la aplicación y se montan
-    en el sistema de archivos del contenedor como archivos de solo lectura en
-    <code>/run/secrets/</code>.
-  </p>
-  <p>
-    Este enfoque garantiza que los secretos nunca aparezcan en variables de entorno
-    visibles (<code>docker inspect</code>), en logs del sistema, ni en el repositorio de código.
-  </p>
-
-  <table>
-    <thead>
-      <tr><th>Secreto</th><th>Uso</th><th>Fortaleza</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>jwt_secret</td>
-        <td>Firma de tokens JWT</td>
-        <td>64 bytes hexadecimales (512 bits)</td>
-      </tr>
-      <tr>
-        <td>postgres_password</td>
-        <td>Acceso a la base de datos</td>
-        <td>48 bytes hexadecimales (384 bits)</td>
-      </tr>
-      <tr>
-        <td>ldap_bind_credentials</td>
-        <td>Cuenta de servicio AD para búsquedas LDAP</td>
-        <td>Contraseña compleja rotada periódicamente</td>
-      </tr>
-      <tr>
-        <td>bridge_secret</td>
-        <td>Autenticación del AD Bridge interno</td>
-        <td>48 bytes hexadecimales (384 bits)</td>
-      </tr>
-      <tr>
-        <td>mail_bridge_secret</td>
-        <td>Autenticación del puente de correo externo</td>
-        <td>48 bytes hexadecimales (384 bits)</td>
-      </tr>
-      <tr>
-        <td>smtp_pass</td>
-        <td>Cuenta de correo saliente (SMTP)</td>
-        <td>Token de aplicación de 16 caracteres</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <h2 class="subsection">4.2 Exclusión del repositorio Git</h2>
-  <p>
-    El directorio <code>secrets/</code> contiene un archivo <code>.gitignore</code> que
-    excluye todos los archivos <code>*.txt</code>, impidiendo que cualquier credencial
-    sea comprometida accidentalmente en el historial del repositorio.
-  </p>
-
-  <h2 class="subsection">4.3 Generación criptográfica de secretos</h2>
-  <p>
-    Todos los secretos fueron generados utilizando <code>crypto.randomBytes()</code>
-    de Node.js (CSPRNG — generador de números pseudoaleatorios criptográficamente seguro).
-    Ningún secreto fue elegido manualmente ni reutilizado entre entornos.
-  </p>
-
-  <!-- 5. TRANSPORTE TLS -->
-  <div class="page-break"></div>
-  <h1 class="section-title">5. Seguridad en la Capa de Transporte (TLS/HTTPS)</h1>
-
-  <h2 class="subsection">5.1 Acceso público — nginx con TLS</h2>
-  <p>
-    El acceso externo a la plataforma se realiza exclusivamente a través de HTTPS.
-    nginx actúa como proxy inverso y termina la conexión TLS antes de reenviar
-    el tráfico a los servicios internos.
-  </p>
-  <ul>
-    <li>Puerto 443 (HTTPS) expuesto al exterior</li>
-    <li>Certificado TLS distribuido a los equipos del dominio mediante Política de Grupo (GPO) del controlador de dominio Windows Server</li>
-    <li>Puerto 80 (HTTP) no expuesto al exterior</li>
-    <li>Backend y frontend accesibles solo desde <code>localhost</code> en el servidor</li>
-  </ul>
-
-  <h2 class="subsection">5.2 Comunicación interna — puente de correo (mail-bridge)</h2>
-  <p>
-    El puente de correo (mail-bridge) opera en una PC con Windows en la red
-    <code>172.21.36.104</code>, separada del servidor principal por un firewall FortiGate.
-    La comunicación entre ambos componentes utiliza TLS con certificado autofirmado.
-  </p>
-  <ul>
-    <li>Certificado autofirmado con SAN (Subject Alternative Name) para la IP <code>172.21.36.104</code></li>
-    <li>Algoritmo: RSA 2048 bits, validez 10 años</li>
-    <li>El servidor HTTPS del bridge escucha en el puerto <code>3002</code></li>
-    <li>El backend verifica la identidad del bridge mediante secreto compartido adicional</li>
-  </ul>
-
-  <h2 class="subsection">5.3 Comunicación con servicios de correo</h2>
-  <p>
-    La comunicación con el servidor de correo institucional (<code>10.201.2.37</code>)
-    utiliza los protocolos seguros estándar:
-  </p>
-  <ul>
-    <li>IMAP sobre TLS (puerto 993) para recepción</li>
-    <li>SMTP con STARTTLS (puerto 587) para envío</li>
-  </ul>
-
-  <!-- 6. CONTROL DE ACCESO -->
-  <div class="page-break"></div>
-  <h1 class="section-title">6. Controles de Acceso y Autorización</h1>
-
-  <h2 class="subsection">6.1 Control de acceso basado en roles (RBAC)</h2>
-  <p>
-    Los permisos de acceso a módulos y funcionalidades están determinados por los grupos
-    del Active Directory a los que pertenece cada usuario. Los roles se extraen del
-    atributo <code>memberOf</code> en el momento del login y se incluyen en el payload
-    del token JWT.
-  </p>
-  <ul>
-    <li>Roles institucionales: <code>DIREDTOS</code>, <code>TICOM</code>, <code>AYUDANTIADIREDTOS</code>, <code>AYUDANTIARECTORADO</code>, entre otros</li>
-    <li>Rol <code>admin</code>: acceso al panel de administración de usuarios y configuración</li>
-    <li>Cada endpoint de la API declara explícitamente qué roles tienen acceso</li>
-  </ul>
-
-  <h2 class="subsection">6.2 Guard global de autenticación</h2>
-  <p>
-    Todos los endpoints de la API requieren autenticación JWT por defecto. Las rutas
-    públicas (login, health check) se declaran explícitamente con un decorador
-    <code>@Public()</code>, evitando exposición accidental de endpoints protegidos.
-  </p>
-
-  <h2 class="subsection">6.3 Permisos configurables por grupo</h2>
-  <p>
-    Los administradores pueden restringir el acceso a módulos específicos
-    (chat, incidencias, reservas, correo, redactar-MTO) por grupo de Active Directory,
-    sin necesidad de modificar el código fuente. Los grupos sin configuración explícita
-    mantienen acceso total para garantizar compatibilidad con versiones anteriores.
-  </p>
-
-  <h2 class="subsection">6.4 Creación de usuarios — orden de operaciones</h2>
-  <p>
-    El proceso de alta de usuarios implementa un orden de operaciones con rollback
-    automático para garantizar consistencia entre sistemas:
-  </p>
-  <ul>
-    <li>1. Creación en Google Workspace (si falla, se detiene el proceso)</li>
-    <li>2. Creación en Active Directory con cambio de contraseña forzado en primer login</li>
-    <li>3. Si AD falla → rollback automático en Google Workspace</li>
-    <li>4. Registro del usuario en la base de datos local</li>
-    <li>5. Envío de email de bienvenida (no bloqueante)</li>
-  </ul>
-
-  <!-- 7. PROTECCIÓN DE APIs -->
-  <div class="page-break"></div>
-  <h1 class="section-title">7. Protección de APIs y Endpoints</h1>
-
-  <h2 class="subsection">7.1 Validación estricta de entradas</h2>
-  <p>
-    Todos los endpoints de la API aplican validación estricta sobre los datos de entrada
-    mediante el pipe global de validación de NestJS con las siguientes configuraciones:
-  </p>
-  <ul>
-    <li><strong>whitelist: true</strong> — propiedades no declaradas en el DTO son eliminadas automáticamente</li>
-    <li><strong>forbidNonWhitelisted: true</strong> — requests con propiedades no esperadas son rechazados</li>
-    <li><strong>transform: true</strong> — los tipos de datos son convertidos y validados automáticamente</li>
-  </ul>
-
-  <h2 class="subsection">7.2 Cabeceras de seguridad HTTP (Helmet)</h2>
-  <p>
-    El middleware Helmet se aplica globalmente a todas las respuestas de la API,
-    configurando automáticamente las siguientes cabeceras de seguridad:
-  </p>
-  <ul>
-    <li><code>X-Content-Type-Options: nosniff</code> — previene MIME-type sniffing</li>
-    <li><code>X-Frame-Options: SAMEORIGIN</code> — protección contra clickjacking</li>
-    <li><code>X-XSS-Protection</code> — filtro XSS en navegadores legacy</li>
-    <li><code>Strict-Transport-Security</code> — fuerza HTTPS en navegadores modernos</li>
-    <li><code>Content-Security-Policy</code> — restricción de orígenes de recursos</li>
-  </ul>
-
-  <h2 class="subsection">7.3 Protección CORS</h2>
-  <p>
-    La política de Cross-Origin Resource Sharing (CORS) restringe qué orígenes pueden
-    realizar peticiones a la API. Solo el frontend institucional y el servidor de desarrollo
-    están en la lista de orígenes permitidos.
-  </p>
-
-  <h2 class="subsection">7.4 Endpoint de ingestión del bridge — doble protección</h2>
-  <p>
-    El endpoint <code>POST /api/mail/bridge/ingest</code> (recepción de correos desde el
-    bridge externo) implementa dos capas de protección independientes:
-  </p>
-  <ul>
-    <li>
-      <strong>Whitelist de IP:</strong> solo se aceptan conexiones desde la dirección
-      IP del bridge (<code>172.21.36.104</code>). Cualquier otra IP recibe
-      <code>403 Forbidden</code> sin revelar información adicional.
-    </li>
-    <li>
-      <strong>Secreto compartido:</strong> el bearer token se verifica usando
-      <code>crypto.timingSafeEqual()</code>, que previene ataques de temporización
-      (timing attacks) que podrían deducir el secreto midiendo el tiempo de respuesta.
-    </li>
-  </ul>
-
-  <!-- 8. AUDITORÍA -->
-  <h1 class="section-title">8. Auditoría y Trazabilidad</h1>
-
-  <h2 class="subsection">8.1 Log de autenticación</h2>
-  <p>
-    Cada intento de autenticación (exitoso o fallido) genera una entrada de log
-    estructurada que incluye:
-  </p>
-  <ul>
-    <li>Tipo de evento: <code>AUTH_OK</code> o <code>AUTH_FAIL</code></li>
-    <li>Nombre de usuario utilizado en el intento</li>
-    <li>Dirección IP de origen</li>
-    <li>Timestamp (UTC)</li>
-  </ul>
-  <p>
-    Los intentos fallidos son especialmente relevantes para la detección de ataques
-    de fuerza bruta o uso de credenciales comprometidas.
-  </p>
-
-  <h2 class="subsection">8.2 Audit log de acciones administrativas</h2>
-  <p>
-    Todas las acciones realizadas desde el panel de administración quedan registradas
-    en la tabla <code>admin_audit_log</code> de la base de datos, con:
-  </p>
-  <ul>
-    <li>ID y nombre del usuario que realizó la acción</li>
-    <li>Descripción de la acción (ej: "Creó usuario X en AD", "Actualizó contraseña de correo DIREDTOS")</li>
-    <li>Timestamp de la operación</li>
-  </ul>
-
-  <h2 class="subsection">8.3 Filtro global de excepciones</h2>
-  <p>
-    Un filtro global intercepta todos los errores no controlados de la API y devuelve
-    respuestas de error estructuradas sin exponer stack traces, rutas internas,
-    ni información sensible del servidor al cliente.
-  </p>
-
-  <!-- 9. INFRAESTRUCTURA -->
-  <div class="page-break"></div>
-  <h1 class="section-title">9. Seguridad de Infraestructura y Contenedores</h1>
-
-  <h2 class="subsection">9.1 Exposición de puertos</h2>
-  <p>
-    En el entorno de producción, los servicios internos no están expuestos directamente
-    a la red. Solo nginx (proxy inverso) tiene puertos externos accesibles.
-  </p>
-
-  <table>
-    <thead>
-      <tr><th>Servicio</th><th>Puerto interno</th><th>Acceso externo</th></tr>
-    </thead>
-    <tbody>
-      <tr><td>nginx (HTTPS)</td><td>—</td><td><span class="badge-ok">Puerto 443 público</span></td></tr>
-      <tr><td>Frontend (nginx)</td><td>80 → 8280</td><td><span class="badge-note">Solo desde localhost del servidor</span></td></tr>
-      <tr><td>Backend (NestJS)</td><td>3000 → 127.0.0.1:3001</td><td><span class="badge-note">Solo desde localhost del servidor</span></td></tr>
-      <tr><td>PostgreSQL</td><td>5432 → 127.0.0.1:5442</td><td><span class="badge-note">Solo desde localhost del servidor</span></td></tr>
-      <tr><td>Redis</td><td>6379</td><td><span class="badge-critical">Sin exposición externa</span></td></tr>
-      <tr><td>OpenLDAP</td><td>389 / 636</td><td><span class="badge-critical">Sin exposición externa en prod</span></td></tr>
-    </tbody>
-  </table>
-
-  <h2 class="subsection">9.2 Aislamiento de red entre contenedores</h2>
-  <p>
-    Todos los contenedores operan en una red Docker interna privada (<code>192.168.200.0/24</code>).
-    La comunicación entre servicios utiliza nombres de servicio DNS internos
-    (<code>postgres</code>, <code>redis</code>, <code>openldap</code>, etc.),
-    sin exposición a la red del host.
-  </p>
-
-  <h2 class="subsection">9.3 Healthchecks y reinicio automático</h2>
-  <p>
-    Los servicios críticos (PostgreSQL, Redis) tienen configurados healthchecks que
-    verifican disponibilidad antes de iniciar servicios dependientes. Todos los contenedores
-    están configurados con política <code>restart: unless-stopped</code> para recuperación
-    automática ante fallos.
-  </p>
-
-  <h2 class="subsection">9.4 Gestión de cuentas inactivas (cron automático)</h2>
-  <p>
-    Un proceso cron ejecutado diariamente a las 2:00 AM aplica la política de
-    inactividad de cuentas del AD:
-  </p>
-  <ul>
-    <li>Inactividad mayor a 7 meses → deshabilita la cuenta en AD</li>
-    <li>Inactividad mayor a 8 meses y ya deshabilitada → elimina la cuenta de AD</li>
-    <li>Basado en el atributo <code>lastLogonTimestamp</code> del Active Directory</li>
-    <li>Cuentas de servicio y administrativas excluidas del proceso automático</li>
-  </ul>
-
-  <!-- 10. FRONTEND -->
-  <h1 class="section-title">10. Protección del Frontend</h1>
-
-  <h2 class="subsection">10.1 Sin tokens en almacenamiento local</h2>
-  <p>
-    El frontend Angular no almacena tokens de sesión en <code>localStorage</code>
-    ni en <code>sessionStorage</code>. El token JWT reside exclusivamente en la cookie
-    httpOnly gestionada por el navegador, eliminando el vector de ataque XSS más común.
-  </p>
-
-  <h2 class="subsection">10.2 Interceptor de credenciales</h2>
-  <p>
-    Todas las peticiones HTTP del frontend incluyen automáticamente las cookies de sesión
-    mediante el flag <code>withCredentials: true</code>. Esto garantiza que el token
-    se envíe de forma transparente sin ser accesible desde el código de la aplicación.
-  </p>
-
-  <h2 class="subsection">10.3 Manejo de errores de autenticación</h2>
-  <p>
-    Un interceptor global detecta respuestas <code>401 Unauthorized</code> del servidor
-    y limpia la sesión local del usuario, redirigiendo al login. Esto previene estados
-    inconsistentes donde el frontend cree que hay sesión activa cuando el servidor ya
-    la invalidó.
-  </p>
-
-  <h2 class="subsection">10.4 Límites de tamaño en uploads</h2>
-  <p>
-    Los endpoints de carga de archivos tienen límites estrictos por tipo para prevenir
-    ataques de denegación de servicio por archivos masivos:
-  </p>
-  <ul>
-    <li>Avatares de usuario: 6 MB</li>
-    <li>Adjuntos de chat: 50 MB (JPG, PNG, GIF, WebP, PDF, DOCX, XLS)</li>
-    <li>Adjuntos de incidencias: 10 MB (solo imágenes)</li>
-    <li>Adjuntos de borradores MTO: 5 MB por archivo (20 MB en backend)</li>
-  </ul>
-
-  <!-- 11. PENDIENTES -->
-  <div class="page-break"></div>
-  <h1 class="section-title">11. Pendientes y Recomendaciones</h1>
-
-  <div class="warn-box">
-    <strong>Los siguientes puntos son mejoras planificadas que no afectan la seguridad operativa actual,
-    pero se recomienda implementar en los próximos ciclos de mantenimiento.</strong>
-  </div>
-
-  <table>
-    <thead>
-      <tr><th>Ítem</th><th>Descripción</th><th>Prioridad</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Rotación de contraseña PostgreSQL</td>
-        <td>
-          Actualizar la contraseña de la base de datos y el archivo de secreto correspondiente.
-          Requiere <code>ALTER USER</code> en PostgreSQL y rebuild del contenedor.
-        </td>
-        <td><span class="badge-note">MEDIA</span></td>
-      </tr>
-      <tr>
-        <td>Rotación de contraseña cuenta de servicio AD</td>
-        <td>
-          Rotar la contraseña de la cuenta <code>svc-pac</code> utilizada para operaciones
-          en Active Directory. Requiere actualizar el secreto <code>ldap_bind_credentials</code>.
-        </td>
-        <td><span class="badge-note">MEDIA</span></td>
-      </tr>
-      <tr>
-        <td>Certificado TLS público (CA reconocida)</td>
-        <td>
-          Reemplazar el certificado autofirmado del servidor por un certificado emitido por
-          una autoridad certificante reconocida (Let's Encrypt u otra), eliminando la
-          necesidad de distribuirlo por GPO.
-        </td>
-        <td><span class="badge-note">BAJA</span></td>
-      </tr>
-      <tr>
-        <td>Renovación periódica del certificado del bridge</td>
-        <td>
-          El certificado autofirmado del mail-bridge tiene validez de 10 años.
-          Se recomienda establecer un procedimiento de renovación documentado.
-        </td>
-        <td><span class="badge-note">BAJA</span></td>
-      </tr>
-      <tr>
-        <td>Autenticación multifactor (MFA)</td>
-        <td>
-          Implementar segundo factor de autenticación para cuentas con roles administrativos
-          (<code>admin</code>, <code>TICOM</code>).
-        </td>
-        <td><span class="badge-note">MEDIA</span></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <!-- FOOTER -->
-  <div class="footer">
-    <p>
-      Informe de Seguridad — Sistema Intranet Institucional &nbsp;|&nbsp;
-      Instituto Universitario GNA &nbsp;|&nbsp;
-      Dirección de Tecnología e Informática &nbsp;|&nbsp;
-      Abril 2026
-    </p>
-    <p style="margin-top:6px; font-size:8pt;">
-      Documento de uso interno. No distribuir fuera del organismo sin autorización.
-    </p>
-  </div>
-
-</div>
 </body>
 </html>

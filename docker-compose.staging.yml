@@ -1,0 +1,112 @@
+# Stack de staging — se ejecuta en paralelo a producción
+# Uso: docker compose -p intranet_staging -f docker-compose.staging.yml up -d --build
+# Acceso: http://10.98.40.24:8281
+#
+# Comparte la base de datos de producción (solo lectura de correos y datos reales).
+# JWT separado: las sesiones de staging no son válidas en producción y viceversa.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: intranet_staging_redis
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ad-bridge:
+    build: ./linux-ad-bridge
+    container_name: intranet_staging_ad_bridge
+    environment:
+      AD_HOST: ${AD_HOST:-10.98.40.22}
+      AD_USER: ${AD_USER:-svc-pac}
+      AD_DOMAIN: ${AD_DOMAIN:-IUGNAD}
+      AD_BASE_DN: ${AD_BASE_DN:-DC=iugnad,DC=lan}
+      AD_USERS_OU: ${AD_USERS_OU:-CN=Users,DC=iugnad,DC=lan}
+      AD_DOMAIN_FQDN: ${AD_DOMAIN_FQDN:-iugnad.lan}
+      AD_BIND_DN: ${LDAP_BIND_DN}
+      KRB5_REALM: ${KRB5_REALM:-IUGNAD.LAN}
+      AD_PASS: ${LDAP_BIND_CREDENTIALS}
+    secrets:
+      - bridge_secret
+      - ldap_bind_credentials
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: intranet_staging_backend
+    restart: unless-stopped
+    env_file: .env.staging
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '127.0.0.1:3003:3000'
+    depends_on:
+      redis:
+        condition: service_healthy
+      ad-bridge:
+        condition: service_started
+    volumes:
+      - staging_chat_uploads:/app/uploads
+      - staging_mail_attachments:/app/storage/attachments
+      - staging_mail_pst:/app/storage/pst
+      - staging_draft_attachments:/app/storage/draft-attachments
+    secrets:
+      - jwt_secret
+      - bridge_secret
+      - mail_bridge_secret
+      - postgres_password
+      - ldap_bind_credentials
+      - smtp_pass
+    networks:
+      - default
+      - intranet_shared
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: intranet_staging_frontend
+    restart: unless-stopped
+    ports:
+      - '8281:80'
+    volumes:
+      - ./frontend/nginx.staging.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+
+volumes:
+  staging_chat_uploads:
+  staging_mail_attachments:
+  staging_mail_pst:
+  staging_draft_attachments:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 192.168.201.0/24
+  intranet_shared:
+    external: true
+    name: intranet_shared
+
+secrets:
+  jwt_secret:
+    file: ./secrets/jwt_secret_staging.txt
+  bridge_secret:
+    file: ./secrets/bridge_secret.txt
+  mail_bridge_secret:
+    file: ./secrets/mail_bridge_secret.txt
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  ldap_bind_credentials:
+    file: ./secrets/ldap_bind_credentials.txt
+  smtp_pass:
+    file: ./secrets/smtp_pass.txt

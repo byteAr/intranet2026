@@ -13,6 +13,9 @@ services:
       - postgres_data:/var/lib/postgresql/data
     secrets:
       - postgres_password
+    networks:
+      - default
+      - intranet_shared
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 10s
@@ -131,6 +134,11 @@ volumes:
   mail_attachments:
   mail_pst:
   draft_attachments:
+
+networks:
+  intranet_shared:
+    name: intranet_shared
+    driver: bridge
 
 secrets:
   jwt_secret:

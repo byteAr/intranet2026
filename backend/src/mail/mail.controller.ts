@@ -84,8 +84,19 @@ export class MailController {
     @Param('aid') aid: string,
     @Res() res: Response,
   ) {
-    const att = await this.mailService.getAttachment(id, aid);
-    if (!existsSync(att.storagePath)) throw new NotFoundException('Archivo no encontrado en disco');
+    let att: any;
+    try {
+      att = await this.mailService.getAttachment(id, aid);
+    } catch {
+      res.status(404).json({ message: 'Adjunto no encontrado' });
+      return;
+    }
+
+    if (!existsSync(att.storagePath)) {
+      console.error(`[mail-preview] Archivo no existe en disco: ${att.storagePath}`);
+      res.status(404).json({ message: 'Archivo no encontrado en disco' });
+      return;
+    }
 
     const baseMime = (att.contentType ?? '').split(';')[0].trim().toLowerCase();
     const isPdf = baseMime === 'application/pdf';
@@ -101,18 +112,26 @@ export class MailController {
     const outDir = join(tmpdir(), `preview-${randomUUID()}`);
     mkdirSync(outDir, { recursive: true });
     try {
-      await execFileAsync('libreoffice', [
+      const { stdout, stderr } = await execFileAsync('libreoffice', [
         '--headless', '--convert-to', 'pdf',
         '--outdir', outDir,
         att.storagePath,
       ], { timeout: 30000 });
 
+      if (stderr) console.error(`[mail-preview] LibreOffice stderr: ${stderr}`);
+
       const pdfName = basename(att.storagePath).replace(/\.[^.]+$/, '.pdf');
-      const pdfPath = join(outDir, pdfName);
+      let pdfPath = join(outDir, pdfName);
 
       if (!existsSync(pdfPath)) {
-        res.status(500).json({ message: 'Error al generar vista previa' });
-        return;
+        const files = require('fs').readdirSync(outDir).filter((f: string) => f.endsWith('.pdf'));
+        if (files.length > 0) {
+          pdfPath = join(outDir, files[0]);
+        } else {
+          console.error(`[mail-preview] PDF no generado. outDir=${outDir}, storagePath=${att.storagePath}, stdout=${stdout}`);
+          res.status(500).json({ message: 'Error al generar vista previa' });
+          return;
+        }
       }
 
       res.setHeader('Content-Type', 'application/pdf');
@@ -123,9 +142,12 @@ export class MailController {
         try { require('fs').rmdirSync(outDir); } catch {}
       });
       stream.pipe(res);
-    } catch {
+    } catch (err) {
+      console.error(`[mail-preview] Error convirtiendo archivo: storagePath=${att.storagePath}, contentType=${att.contentType}`, err);
       try { require('fs').rmSync(outDir, { recursive: true, force: true }); } catch {}
-      res.status(500).json({ message: 'Error al generar vista previa del documento' });
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'Error al generar vista previa del documento' });
+      }
     }
   }
 

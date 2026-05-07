@@ -202,9 +202,12 @@ export class ChatController {
         try { require('fs').rmdirSync(outDir); } catch {}
       });
       stream.pipe(res);
-    } catch {
+    } catch (err) {
+      console.error(`[chat-preview] Error convirtiendo archivo: ${filePath}`, err);
       try { require('fs').rmSync(outDir, { recursive: true, force: true }); } catch {}
-      res.status(500).json({ message: 'Error al generar vista previa del documento' });
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'Error al generar vista previa del documento' });
+      }
     }
   }
 

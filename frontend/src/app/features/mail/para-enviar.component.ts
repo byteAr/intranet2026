@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 import { switchMap, of, tap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -21,7 +21,7 @@ import { AuthService } from '../../core/services/auth.service';
 @Component({
   selector: 'app-para-enviar',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -236,36 +236,6 @@ import { AuthService } from '../../core/services/auth.service';
                     }
                   </div>
 
-                  <!-- Attachment preview area -->
-                  @if (previewLoading()) {
-                    <div class="mt-3 pt-3 border-t border-gray-100">
-                      <div class="flex items-center gap-2 justify-center py-8">
-                        <svg class="h-5 w-5 animate-spin text-teal-500" viewBox="0 0 24 24" fill="none">
-                          <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
-                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-                        </svg>
-                        <span class="text-xs text-gray-500">Generando vista previa de {{ previewFilename() }}...</span>
-                      </div>
-                    </div>
-                  } @else if (previewUrl()) {
-                    <div class="mt-3 pt-3 border-t border-gray-100">
-                      <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-medium text-gray-500">Vista previa: {{ previewFilename() }}</span>
-                        <button (click)="closePreview()" class="text-xs text-gray-400 hover:text-gray-600">Cerrar vista previa</button>
-                      </div>
-                      <iframe [src]="previewUrl()!" class="w-full rounded border border-gray-200" style="height: 500px;"></iframe>
-                    </div>
-                  } @else if (previewNotSupported()) {
-                    <div class="mt-3 pt-3 border-t border-gray-100">
-                      <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-medium text-gray-500">{{ previewFilename() }}</span>
-                        <button (click)="closePreview()" class="text-xs text-gray-400 hover:text-gray-600">Cerrar</button>
-                      </div>
-                      <div class="rounded-lg bg-gray-50 border border-gray-200 p-4 text-center text-sm text-gray-500">
-                        Vista previa no disponible para este tipo de archivo.
-                      </div>
-                    </div>
-                  }
 
                   @if (activeEmail()!.sendMode === 'pon') {
                     <div class="mt-3 pt-2 border-t border-orange-100">
@@ -415,13 +385,16 @@ import { AuthService } from '../../core/services/auth.service';
         }
       </div>
     </div>
+
+    <app-attachment-preview-modal
+      [request]="previewRequest()"
+      (closed)="previewRequest.set(null)" />
   `,
 })
 export class ParaEnviarComponent implements OnInit {
   readonly draftMailService = inject(DraftMailService);
   private readonly authService = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly sanitizer = inject(DomSanitizer);
 
   private readonly MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
   private readonly MONTHS_LONG = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
@@ -457,11 +430,8 @@ export class ParaEnviarComponent implements OnInit {
   cancelNotes = '';
   readonly sendError = signal<string | null>(null);
 
-  // Attachment preview
-  readonly previewUrl = signal<SafeResourceUrl | null>(null);
-  readonly previewFilename = signal('');
-  readonly previewNotSupported = signal(false);
-  readonly previewLoading = signal(false);
+  // Attachment preview modal
+  readonly previewRequest = signal<AttachmentPreviewRequest | null>(null);
 
   ngOnInit(): void {
     this.loadEmails();
@@ -539,7 +509,7 @@ export class ParaEnviarComponent implements OnInit {
     this.sassAddendum = '';
     this.ponNewFiles.set([]);
     this.ponFileError.set(null);
-    this.closePreview();
+    this.previewRequest.set(null);
   }
 
   unlockEmail(): void {
@@ -633,31 +603,11 @@ export class ParaEnviarComponent implements OnInit {
     return `${dd}${hh}${mm}${this.MONTHS_SHORT[d.getMonth()]}${String(d.getFullYear()).slice(-2)}`;
   }
 
-  // Attachment preview (backend converts DOCX/XLSX to PDF via LibreOffice)
   previewAttachment(draftId: string, att: DraftAttachment): void {
-    this.previewNotSupported.set(false);
-    this.previewFilename.set(att.filename);
-    this.previewLoading.set(true);
-
-    this.draftMailService.previewAttachment(draftId, att.id).subscribe({
-      next: (blob) => {
-        const url = URL.createObjectURL(blob);
-        this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
-        this.previewLoading.set(false);
-      },
-      error: () => {
-        this.previewUrl.set(null);
-        this.previewNotSupported.set(true);
-        this.previewLoading.set(false);
-      },
+    this.previewRequest.set({
+      url: `/api/draft-mail/${draftId}/attachments/${att.id}/preview`,
+      filename: att.filename,
     });
-  }
-
-  closePreview(): void {
-    this.previewUrl.set(null);
-    this.previewFilename.set('');
-    this.previewNotSupported.set(false);
-    this.previewLoading.set(false);
   }
 
   formatFileSize(bytes: number): string {

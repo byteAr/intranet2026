@@ -16,9 +16,26 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname, join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { extname, join, basename } from 'path';
+import { existsSync, mkdirSync, createReadStream, unlinkSync } from 'fs';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { tmpdir } from 'os';
 import { Response } from 'express';
+import { randomUUID } from 'crypto';
+
+const execFileAsync = promisify(execFile);
+
+function guessMime(filename: string): string {
+  const ext = extname(filename).toLowerCase();
+  const map: Record<string, string> = {
+    '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
+    '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  };
+  return map[ext] ?? 'application/octet-stream';
+}
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
 import { ChatService } from './chat.service';
@@ -133,6 +150,62 @@ export class ChatController {
       size: file.size,
       mimeType: file.mimetype,
     };
+  }
+
+  @Get('files/:filename/preview')
+  @Public()
+  async previewFile(
+    @Param('filename') filename: string,
+    @Query('name') name: string,
+    @Res() res: Response,
+  ) {
+    if (filename.includes('/') || filename.includes('..')) {
+      throw new BadRequestException('Nombre de archivo inválido');
+    }
+    const filePath = join(UPLOAD_DIR, filename);
+    if (!existsSync(filePath)) throw new NotFoundException('Archivo no encontrado');
+
+    const realName = name && !name.includes('/') && !name.includes('..') ? name : filename;
+    const mime = guessMime(realName);
+    const isPdf = mime === 'application/pdf';
+    const isImage = mime.startsWith('image/');
+
+    if (isPdf || isImage) {
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Content-Disposition', `inline; filename="${realName}"`);
+      createReadStream(filePath).pipe(res);
+      return;
+    }
+
+    const outDir = join(tmpdir(), `preview-${randomUUID()}`);
+    mkdirSync(outDir, { recursive: true });
+    try {
+      await execFileAsync('libreoffice', [
+        '--headless', '--convert-to', 'pdf',
+        '--outdir', outDir,
+        filePath,
+      ], { timeout: 30000 });
+
+      const pdfName = basename(filePath).replace(/\.[^.]+$/, '.pdf');
+      const pdfPath = join(outDir, pdfName);
+
+      if (!existsSync(pdfPath)) {
+        res.status(500).json({ message: 'Error al generar vista previa' });
+        return;
+      }
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${realName}.pdf"`);
+      const stream = createReadStream(pdfPath);
+      stream.on('end', () => {
+        try { unlinkSync(pdfPath); } catch {}
+        try { require('fs').rmdirSync(outDir); } catch {}
+      });
+      stream.pipe(res);
+    } catch {
+      try { require('fs').rmSync(outDir, { recursive: true, force: true }); } catch {}
+      res.status(500).json({ message: 'Error al generar vista previa del documento' });
+    }
   }
 
   @Get('files/:filename')

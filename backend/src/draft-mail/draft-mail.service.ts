@@ -216,7 +216,7 @@ export class DraftMailService {
     draft.approvedByName = signer?.displayName ?? null;
     draft.approvedByRank = signer?.rank ?? null;
     draft.approvedAt = new Date();
-    draft.hash = await this.generateUniqueHash();
+    draft.hash = draft.hash || await this.generateUniqueHash();
     draft.correctionNotes = null;
 
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
@@ -265,7 +265,6 @@ export class DraftMailService {
     if (draft.status !== 'approved') throw new BadRequestException('Solo se puede rechazar un email aprobado');
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
     draft.status = 'needs_correction';
-    draft.hash = null;
     draft.correctionNotes = dto.notes ?? null;
     draft.hashEnteredAt = null;
     draft.hashEnteredById = null;

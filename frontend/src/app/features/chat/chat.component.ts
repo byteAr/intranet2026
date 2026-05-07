@@ -18,11 +18,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ChatService, ChatMessage, UserSearchResult } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AttachmentPreviewComponent } from './attachment-preview.component';
+import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewComponent, AttachmentPreviewModalComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] bg-white rounded-xl shadow overflow-hidden">
 
@@ -181,23 +182,23 @@ import { AttachmentPreviewComponent } from './attachment-preview.component';
                   @if (msg.attachmentUrl) {
                     @if (isImage(msg.attachmentMimeType)) {
                       <!-- Image preview: cropped, WhatsApp style -->
-                      <a [href]="downloadUrl(msg)" class="block">
+                      <button type="button" (click)="openChatPreview(msg)" class="block w-full text-left">
                         <div style="height:180px; overflow:hidden;">
                           <img [src]="msg.attachmentUrl" [alt]="msg.attachmentName"
                             style="width:100%; height:100%; object-fit:cover; display:block;" />
                         </div>
-                      </a>
+                      </button>
                     } @else {
                       <!-- Document preview -->
-                      <a [href]="downloadUrl(msg)"
-                        class="block hover:opacity-90 transition-opacity"
+                      <button type="button" (click)="openChatPreview(msg)"
+                        class="block w-full text-left hover:opacity-90 transition-opacity"
                         [class.border-b]="msg.content"
                         [class.border-teal-500]="isOwn(msg)"
                         [class.border-gray-200]="!isOwn(msg)">
                         <app-attachment-preview
                           [url]="msg.attachmentUrl!"
                           [mimeType]="msg.attachmentMimeType ?? ''" />
-                        <!-- Filename + size + download -->
+                        <!-- Filename + size -->
                         <div class="flex items-center gap-2 px-3 py-2.5"
                           [class.bg-teal-700]="isOwn(msg)"
                           [class.bg-gray-200]="!isOwn(msg)">
@@ -207,10 +208,12 @@ import { AttachmentPreviewComponent } from './attachment-preview.component';
                           </span>
                           <svg class="h-4 w-4 flex-shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                              d="M15 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M9 10a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1zm0 4a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1z" />
                           </svg>
                         </div>
-                      </a>
+                      </button>
                     }
                   }
                   <!-- Text content -->
@@ -303,6 +306,10 @@ import { AttachmentPreviewComponent } from './attachment-preview.component';
         </div>
       </div>
     </div>
+
+    <app-attachment-preview-modal
+      [request]="previewRequest()"
+      (closed)="previewRequest.set(null)" />
   `,
 })
 export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
@@ -317,6 +324,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   readonly selectedFile = signal<File | null>(null);
   readonly uploading = signal(false);
+  readonly previewRequest = signal<AttachmentPreviewRequest | null>(null);
 
   // Nueva conversación
   readonly newConvOpen = signal(false);
@@ -471,6 +479,16 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     if (!msg.attachmentUrl) return '';
     const name = msg.attachmentName ? encodeURIComponent(msg.attachmentName) : '';
     return name ? `${msg.attachmentUrl}?name=${name}` : msg.attachmentUrl;
+  }
+
+  openChatPreview(msg: ChatMessage): void {
+    if (!msg.attachmentUrl) return;
+    const name = msg.attachmentName ? encodeURIComponent(msg.attachmentName) : '';
+    const filename = msg.attachmentName ?? 'archivo';
+    const parts = msg.attachmentUrl.replace('/api/chat/', '').split('/');
+    const fileKey = parts[parts.length - 1];
+    const previewUrl = `/api/chat/files/${fileKey}/preview${name ? '?name=' + name : ''}`;
+    this.previewRequest.set({ url: previewUrl, filename });
   }
 
   isImage(mimeType?: string): boolean {

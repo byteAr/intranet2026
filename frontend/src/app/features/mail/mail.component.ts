@@ -16,6 +16,7 @@ import {
   SienaFile,
   MailUnreadCounts,
 } from '../../core/services/mail.service';
+import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 
 const FOLDER_LABELS: Record<MailFolder, string> = {
   informativos: 'Informativos',
@@ -27,7 +28,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 @Component({
   selector: 'app-mail',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -295,7 +296,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                     @for (att of activeEmail()!.attachments!; track att.id) {
                       <div class="flex flex-col items-center gap-1">
                         <button
-                          (click)="mailService.downloadAttachment(activeEmail()!.id, att.id, att.filename)"
+                          (click)="openPreview(activeEmail()!.id, att.id, att.filename)"
                           class="flex flex-col items-center gap-1 p-2 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors w-14"
                           [title]="att.filename + ' — ' + formatSize(att.size)">
                           <!-- File type icon -->
@@ -445,6 +446,10 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
         }
       </div>
     </div>
+
+    <app-attachment-preview-modal
+      [request]="previewRequest()"
+      (closed)="previewRequest.set(null)" />
   `,
   styles: [`
     .folder-btn {
@@ -463,6 +468,7 @@ export class MailComponent implements OnInit {
 
   readonly folders: MailFolder[] = ['ejecutivos', 'informativos', 'redgen', 'tx'];
 
+  readonly previewRequest = signal<AttachmentPreviewRequest | null>(null);
   readonly activeFolder = signal<MailFolder | null>(null);
   readonly currentPage = signal(1);
   readonly activeEmail = signal<Email | null>(null);
@@ -807,6 +813,13 @@ export class MailComponent implements OnInit {
     return new Date(dateStr).toLocaleString('es-AR', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  openPreview(emailId: string, attId: string, filename: string): void {
+    this.previewRequest.set({
+      url: `/api/mail/emails/${emailId}/attachments/${attId}/preview`,
+      filename,
     });
   }
 

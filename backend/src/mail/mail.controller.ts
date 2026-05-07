@@ -18,8 +18,14 @@ import {
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage, memoryStorage } from 'multer';
 import { Response } from 'express';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, createReadStream, unlinkSync } from 'fs';
 import { randomUUID } from 'crypto';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { tmpdir } from 'os';
+import { join, basename } from 'path';
+
+const execFileAsync = promisify(execFile);
 import { MailService } from './mail.service';
 import { SmtpSenderService } from './smtp-sender.service';
 import { MailIngestService } from './mail-ingest.service';
@@ -70,6 +76,56 @@ export class MailController {
     const email = await this.mailService.findOne(id, req.user.id);
     if (!email.mailCode) return [];
     return this.mailService.getTree(email.mailCode);
+  }
+
+  @Get('emails/:id/attachments/:aid/preview')
+  async previewAttachment(
+    @Param('id') id: string,
+    @Param('aid') aid: string,
+    @Res() res: Response,
+  ) {
+    const att = await this.mailService.getAttachment(id, aid);
+    if (!existsSync(att.storagePath)) throw new NotFoundException('Archivo no encontrado en disco');
+
+    const isPdf = att.contentType === 'application/pdf';
+    const isImage = att.contentType?.startsWith('image/');
+
+    if (isPdf || isImage) {
+      res.setHeader('Content-Type', att.contentType);
+      res.setHeader('Content-Disposition', `inline; filename="${att.filename}"`);
+      createReadStream(att.storagePath).pipe(res);
+      return;
+    }
+
+    const outDir = join(tmpdir(), `preview-${randomUUID()}`);
+    mkdirSync(outDir, { recursive: true });
+    try {
+      await execFileAsync('libreoffice', [
+        '--headless', '--convert-to', 'pdf',
+        '--outdir', outDir,
+        att.storagePath,
+      ], { timeout: 30000 });
+
+      const pdfName = basename(att.storagePath).replace(/\.[^.]+$/, '.pdf');
+      const pdfPath = join(outDir, pdfName);
+
+      if (!existsSync(pdfPath)) {
+        res.status(500).json({ message: 'Error al generar vista previa' });
+        return;
+      }
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${att.filename}.pdf"`);
+      const stream = createReadStream(pdfPath);
+      stream.on('end', () => {
+        try { unlinkSync(pdfPath); } catch {}
+        try { require('fs').rmdirSync(outDir); } catch {}
+      });
+      stream.pipe(res);
+    } catch {
+      try { require('fs').rmSync(outDir, { recursive: true, force: true }); } catch {}
+      res.status(500).json({ message: 'Error al generar vista previa del documento' });
+    }
   }
 
   @Get('emails/:id/attachments/:aid')

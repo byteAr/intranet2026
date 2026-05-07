@@ -21,6 +21,7 @@ import {
 } from '../../core/services/draft-mail.service';
 import { AuthService } from '../../core/services/auth.service';
 import { MailService, MailRecipient, Email, MailOutgoingRef } from '../../core/services/mail.service';
+import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 
 const STATUS_LABELS: Record<DraftStatus, string> = {
   draft: 'Borrador',
@@ -44,7 +45,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
 @Component({
   selector: 'app-draft-mail',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -406,7 +407,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                 <div>
                   <p class="text-xs font-medium text-gray-400 mb-1">Adjuntos:</p>
                   @for (att of activeDraft()!.attachments; track att.id) {
-                    <button type="button" (click)="downloadAtt(activeDraft()!.id, att.id, att.filename)"
+                    <button type="button" (click)="openPreview(activeDraft()!.id, att.id, att.filename)"
                       class="flex items-center gap-1.5 text-xs text-teal-700 hover:underline mb-0.5">
                       <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -517,7 +518,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                     @if (activeRefEmail()!.attachments?.length) {
                       <div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-2">
                         @for (att of activeRefEmail()!.attachments!; track att.id) {
-                          <button (click)="mailService.downloadAttachment(activeRefEmail()!.id, att.id, att.filename)"
+                          <button (click)="openMailPreview(activeRefEmail()!.id, att.id, att.filename)"
                             class="flex items-center gap-1 text-xs text-teal-700 hover:underline">
                             <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -603,6 +604,10 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
         </div>
       </div>
     }
+
+    <app-attachment-preview-modal
+      [request]="previewRequest()"
+      (closed)="previewRequest.set(null)" />
   `,
 })
 export class DraftMailComponent implements OnInit, OnDestroy {
@@ -626,6 +631,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   readonly toJustAdded = signal(false);
   readonly ccJustAdded = signal(false);
   readonly showFileSizeModal = signal(false);
+  readonly previewRequest = signal<AttachmentPreviewRequest | null>(null);
 
   // Form fields
   readonly toAddresses = signal<string[]>([]);
@@ -859,6 +865,20 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 
   removeFile(name: string): void {
     this.selectedFiles.update(files => files.filter(f => f.name !== name));
+  }
+
+  openPreview(draftId: string, attId: string, filename: string): void {
+    this.previewRequest.set({
+      url: `/api/draft-mail/${draftId}/attachments/${attId}/preview`,
+      filename,
+    });
+  }
+
+  openMailPreview(emailId: string, attId: string, filename: string): void {
+    this.previewRequest.set({
+      url: `/api/mail/emails/${emailId}/attachments/${attId}/preview`,
+      filename,
+    });
   }
 
   downloadAtt(draftId: string, attId: string, filename: string): void {

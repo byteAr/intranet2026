@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { switchMap, of, tap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import * as mammoth from 'mammoth';
 import {
   DraftMailService,
   DraftEmail,
@@ -645,7 +646,6 @@ export class ParaEnviarComponent implements OnInit {
           this.previewFilename.set(att.filename);
         } else if (isDocx) {
           try {
-            const mammoth = await import('mammoth');
             const arrayBuffer = await blob.arrayBuffer();
             const result = await mammoth.convertToHtml({ arrayBuffer });
             const html = `<html><head><style>body{font-family:sans-serif;padding:20px;font-size:14px;line-height:1.6}img{max-width:100%}</style></head><body>${result.value}</body></html>`;
@@ -653,7 +653,8 @@ export class ParaEnviarComponent implements OnInit {
             const url = URL.createObjectURL(htmlBlob);
             this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
             this.previewFilename.set(att.filename);
-          } catch {
+          } catch (e) {
+            console.error('Error previewing DOCX:', e);
             this.previewFilename.set(att.filename);
             this.previewUrl.set(null);
             this.previewNotSupported.set(true);

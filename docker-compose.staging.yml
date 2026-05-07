@@ -53,10 +53,10 @@ services:
       ad-bridge:
         condition: service_started
     volumes:
-      - staging_chat_uploads:/app/uploads
-      - staging_mail_attachments:/app/storage/attachments
-      - staging_mail_pst:/app/storage/pst
-      - staging_draft_attachments:/app/storage/draft-attachments
+      - intranet2026_chat_uploads:/app/uploads:ro
+      - intranet2026_mail_attachments:/app/storage/attachments:ro
+      - intranet2026_mail_pst:/app/storage/pst:ro
+      - intranet2026_draft_attachments:/app/storage/draft-attachments:ro
     secrets:
       - jwt_secret
       - bridge_secret
@@ -83,10 +83,14 @@ services:
       - backend
 
 volumes:
-  staging_chat_uploads:
-  staging_mail_attachments:
-  staging_mail_pst:
-  staging_draft_attachments:
+  intranet2026_chat_uploads:
+    external: true
+  intranet2026_mail_attachments:
+    external: true
+  intranet2026_mail_pst:
+    external: true
+  intranet2026_draft_attachments:
+    external: true
 
 networks:
   default:

@@ -53,10 +53,10 @@ services:
       ad-bridge:
         condition: service_started
     volumes:
-      - intranet2026_chat_uploads:/app/uploads:ro
-      - intranet2026_mail_attachments:/app/storage/attachments:ro
-      - intranet2026_mail_pst:/app/storage/pst:ro
-      - intranet2026_draft_attachments:/app/storage/draft-attachments:ro
+      - intranet2026_chat_uploads:/app/uploads
+      - intranet2026_mail_attachments:/app/storage/attachments
+      - intranet2026_mail_pst:/app/storage/pst
+      - intranet2026_draft_attachments:/app/storage/draft-attachments
     secrets:
       - jwt_secret
       - bridge_secret

@@ -15,6 +15,7 @@ import { HttpClient } from '@angular/common/http';
 export interface AttachmentPreviewRequest {
   url: string;
   filename: string;
+  downloadUrl?: string;
 }
 
 @Component({
@@ -73,6 +74,16 @@ export interface AttachmentPreviewRequest {
                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <p class="text-sm text-gray-400">Vista previa no disponible para este archivo.</p>
+                @if (currentDownloadUrl()) {
+                  <button (click)="downloadFile()"
+                    class="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium transition-colors">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Descargar archivo
+                  </button>
+                }
               </div>
             } @else if (previewUrl()) {
               <iframe [src]="previewUrl()!" class="w-full h-full border-0"></iframe>
@@ -117,6 +128,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
   readonly error = signal(false);
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly currentFilename = signal('');
+  readonly currentDownloadUrl = signal<string | null>(null);
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['request'] && this.request) {
@@ -126,6 +138,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
 
   private open(req: AttachmentPreviewRequest): void {
     this.currentFilename.set(req.filename);
+    this.currentDownloadUrl.set(req.downloadUrl ?? null);
     this.visible.set(true);
     this.loading.set(true);
     this.error.set(false);
@@ -157,11 +170,24 @@ export class AttachmentPreviewModalComponent implements OnChanges {
     });
   }
 
+  downloadFile(): void {
+    const url = this.currentDownloadUrl();
+    if (!url) return;
+    this.http.get(url, { responseType: 'blob' }).subscribe((blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = this.currentFilename();
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  }
+
   close(): void {
     this.visible.set(false);
     this.previewUrl.set(null);
     this.loading.set(false);
     this.error.set(false);
+    this.currentDownloadUrl.set(null);
     this.closed.emit();
   }
 

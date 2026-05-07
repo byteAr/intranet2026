@@ -87,11 +87,12 @@ export class MailController {
     const att = await this.mailService.getAttachment(id, aid);
     if (!existsSync(att.storagePath)) throw new NotFoundException('Archivo no encontrado en disco');
 
-    const isPdf = att.contentType === 'application/pdf';
-    const isImage = att.contentType?.startsWith('image/');
+    const baseMime = (att.contentType ?? '').split(';')[0].trim().toLowerCase();
+    const isPdf = baseMime === 'application/pdf';
+    const isImage = baseMime.startsWith('image/');
 
     if (isPdf || isImage) {
-      res.setHeader('Content-Type', att.contentType);
+      res.setHeader('Content-Type', baseMime);
       res.setHeader('Content-Disposition', `inline; filename="${att.filename}"`);
       createReadStream(att.storagePath).pipe(res);
       return;

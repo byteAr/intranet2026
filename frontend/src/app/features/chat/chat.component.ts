@@ -488,7 +488,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     const parts = msg.attachmentUrl.replace('/api/chat/', '').split('/');
     const fileKey = parts[parts.length - 1];
     const previewUrl = `/api/chat/files/${fileKey}/preview${name ? '?name=' + name : ''}`;
-    this.previewRequest.set({ url: previewUrl, filename });
+    this.previewRequest.set({ url: previewUrl, filename, downloadUrl: msg.attachmentUrl });
   }
 
   isImage(mimeType?: string): boolean {

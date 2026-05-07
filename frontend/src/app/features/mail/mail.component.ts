@@ -820,6 +820,7 @@ export class MailComponent implements OnInit {
     this.previewRequest.set({
       url: `/api/mail/emails/${emailId}/attachments/${attId}/preview`,
       filename,
+      downloadUrl: `/api/mail/emails/${emailId}/attachments/${attId}`,
     });
   }
 

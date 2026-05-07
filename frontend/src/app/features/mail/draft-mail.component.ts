@@ -871,6 +871,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     this.previewRequest.set({
       url: `/api/draft-mail/${draftId}/attachments/${attId}/preview`,
       filename,
+      downloadUrl: `/api/draft-mail/${draftId}/attachments/${attId}`,
     });
   }
 
@@ -878,6 +879,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     this.previewRequest.set({
       url: `/api/mail/emails/${emailId}/attachments/${attId}/preview`,
       filename,
+      downloadUrl: `/api/mail/emails/${emailId}/attachments/${attId}`,
     });
   }
 

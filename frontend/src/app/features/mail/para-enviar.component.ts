@@ -245,6 +245,16 @@ import { AuthService } from '../../core/services/auth.service';
                       </div>
                       <iframe [src]="previewUrl()!" class="w-full rounded border border-gray-200" style="height: 500px;" sandbox="allow-same-origin"></iframe>
                     </div>
+                  } @else if (previewNotSupported()) {
+                    <div class="mt-3 pt-3 border-t border-gray-100">
+                      <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-medium text-gray-500">{{ previewFilename() }}</span>
+                        <button (click)="closePreview()" class="text-xs text-gray-400 hover:text-gray-600">Cerrar</button>
+                      </div>
+                      <div class="rounded-lg bg-gray-50 border border-gray-200 p-4 text-center text-sm text-gray-500">
+                        Vista previa no disponible para este tipo de archivo.
+                      </div>
+                    </div>
                   }
 
                   @if (activeEmail()!.sendMode === 'pon') {
@@ -440,6 +450,7 @@ export class ParaEnviarComponent implements OnInit {
   // Attachment preview
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly previewFilename = signal('');
+  readonly previewNotSupported = signal(false);
 
   ngOnInit(): void {
     this.loadEmails();
@@ -613,18 +624,40 @@ export class ParaEnviarComponent implements OnInit {
 
   // Attachment preview
   previewAttachment(draftId: string, att: DraftAttachment): void {
-    const previewable = att.contentType === 'application/pdf'
-      || att.contentType.startsWith('image/');
+    const isPdf = att.contentType === 'application/pdf';
+    const isImage = att.contentType.startsWith('image/');
+    const isDocx = att.contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      || att.filename.toLowerCase().endsWith('.docx');
+
+    if (!isPdf && !isImage && !isDocx) {
+      this.previewFilename.set(att.filename);
+      this.previewUrl.set(null);
+      this.previewNotSupported.set(true);
+      return;
+    }
+
+    this.previewNotSupported.set(false);
     this.draftMailService.downloadAttachment(draftId, att.id).subscribe({
-      next: (blob) => {
-        if (previewable) {
+      next: async (blob) => {
+        if (isPdf || isImage) {
           const url = URL.createObjectURL(blob);
           this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
           this.previewFilename.set(att.filename);
-        } else {
-          const url = URL.createObjectURL(blob);
-          window.open(url, '_blank');
-          setTimeout(() => URL.revokeObjectURL(url), 60000);
+        } else if (isDocx) {
+          try {
+            const mammoth = await import('mammoth');
+            const arrayBuffer = await blob.arrayBuffer();
+            const result = await mammoth.convertToHtml({ arrayBuffer });
+            const html = `<html><head><style>body{font-family:sans-serif;padding:20px;font-size:14px;line-height:1.6}img{max-width:100%}</style></head><body>${result.value}</body></html>`;
+            const htmlBlob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(htmlBlob);
+            this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
+            this.previewFilename.set(att.filename);
+          } catch {
+            this.previewFilename.set(att.filename);
+            this.previewUrl.set(null);
+            this.previewNotSupported.set(true);
+          }
         }
       },
       error: () => {},
@@ -634,6 +667,7 @@ export class ParaEnviarComponent implements OnInit {
   closePreview(): void {
     this.previewUrl.set(null);
     this.previewFilename.set('');
+    this.previewNotSupported.set(false);
   }
 
   formatFileSize(bytes: number): string {

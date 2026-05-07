@@ -337,11 +337,12 @@ export class AttachmentPreviewModalComponent implements OnChanges {
     const url = this.currentDownloadUrl();
     if (!url) return;
     this.http.get(url, { responseType: 'blob' }).subscribe((blob) => {
+      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      a.href = blobUrl;
       a.download = this.currentFilename();
       a.click();
-      URL.revokeObjectURL(a.href);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
     });
   }
 

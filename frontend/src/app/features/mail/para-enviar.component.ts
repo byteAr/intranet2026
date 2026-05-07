@@ -244,7 +244,7 @@ import { AuthService } from '../../core/services/auth.service';
                         <span class="text-xs font-medium text-gray-500">Vista previa: {{ previewFilename() }}</span>
                         <button (click)="closePreview()" class="text-xs text-gray-400 hover:text-gray-600">Cerrar vista previa</button>
                       </div>
-                      <iframe [src]="previewUrl()!" class="w-full rounded border border-gray-200" style="height: 500px;" sandbox="allow-same-origin"></iframe>
+                      <iframe [src]="previewUrl()!" class="w-full rounded border border-gray-200" style="height: 500px;"></iframe>
                     </div>
                   } @else if (previewNotSupported()) {
                     <div class="mt-3 pt-3 border-t border-gray-100">

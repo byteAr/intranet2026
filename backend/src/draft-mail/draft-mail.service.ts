@@ -6,24 +6,19 @@ import { randomBytes } from 'crypto';
 import { readFileSync } from 'fs';
 import { DraftEmail, DraftHistoryEntry } from './entities/draft-email.entity';
 import { DraftEmailAttachment } from './entities/draft-email-attachment.entity';
-import { DraftMailAuthorizer } from './entities/draft-mail-authorizer.entity';
-import { DraftMailDirector } from './entities/draft-mail-director.entity';
+import { DraftMailSigner } from './entities/draft-mail-signer.entity';
 import { Email } from '../mail/entities/email.entity';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
 import { ReviewActionDto } from './dto/review-action.dto';
 import { SendDraftDto } from './dto/send-draft.dto';
-import { DelegateDto } from './dto/delegate.dto';
-import { AddAuthorizerDto } from './dto/add-authorizer.dto';
-import { SetDirectorDto } from './dto/set-director.dto';
+import { SetSignerDto } from './dto/set-signer.dto';
 import { User } from '../users/entities/user.entity';
 import { SmtpSenderService } from '../mail/smtp-sender.service';
 import { DraftMailGateway } from './draft-mail.gateway';
 
-// Detects PON codes in email body
 const PON_REGEX = /\bPON\s+\d+\/\d+/i;
 
-// Expansión de abreviaturas de jerarquía GN
 const RANK_EXPANSIONS: Record<string, string> = {
   'CTE GRL':   'COMANDANTE GENERAL',
   'CTE MY':    'COMANDANTE MAYOR',
@@ -57,8 +52,7 @@ export class DraftMailService {
   constructor(
     @InjectRepository(DraftEmail) private readonly draftRepo: Repository<DraftEmail>,
     @InjectRepository(DraftEmailAttachment) private readonly attachmentRepo: Repository<DraftEmailAttachment>,
-    @InjectRepository(DraftMailAuthorizer) private readonly authorizerRepo: Repository<DraftMailAuthorizer>,
-    @InjectRepository(DraftMailDirector) private readonly directorRepo: Repository<DraftMailDirector>,
+    @InjectRepository(DraftMailSigner) private readonly signerRepo: Repository<DraftMailSigner>,
     @InjectRepository(Email) private readonly emailRepo: Repository<Email>,
     private readonly configService: ConfigService,
     private readonly smtpSender: SmtpSenderService,
@@ -69,25 +63,12 @@ export class DraftMailService {
     return user.username.toLowerCase() === this.ADMIN_USERNAME;
   }
 
-  async isSuperApprover(user: User): Promise<boolean> {
-    if (this.isMlopez(user)) return true;
-    const director = await this.directorRepo.findOne({ where: { userId: user.id } });
-    return !!director;
-  }
-
-  async isAuthorizer(user: User): Promise<boolean> {
-    if (await this.isSuperApprover(user)) return true;
-    if (user.roles?.includes('MTOSAUTORIZADOS')) return true;
-    const found = await this.authorizerRepo.findOne({ where: { userId: user.id } });
-    return !!found;
-  }
-
   isTicom(user: User): boolean {
     return user.roles?.includes('TICOM') ?? false;
   }
 
   private generateHash(): string {
-    return randomBytes(4).toString('hex').toUpperCase(); // 8 chars hex uppercase
+    return randomBytes(4).toString('hex').toUpperCase();
   }
 
   private async generateUniqueHash(): Promise<string> {
@@ -126,29 +107,18 @@ export class DraftMailService {
   }
 
   async findAllForUser(user: User): Promise<DraftEmail[]> {
-    const isAuth = await this.isAuthorizer(user);
     const isTicom = this.isTicom(user);
 
     const qb = this.draftRepo.createQueryBuilder('d')
       .leftJoinAndSelect('d.attachments', 'att')
       .orderBy('d.createdAt', 'DESC');
 
-    if (isTicom && isAuth) {
-      // Sees everything
-    } else if (isTicom) {
-      // TICOM sees own drafts + approved/sent
+    if (isTicom) {
       qb.where('d.creatorId = :uid OR d.status IN (:...statuses)', {
         uid: user.id,
         statuses: ['approved', 'sent'],
       });
-    } else if (isAuth) {
-      // Authorizer sees own drafts + pending_review + needs_correction + approved + sent + cancelled + assigned
-      qb.where('d.creatorId = :uid OR d.status IN (:...statuses) OR d.assignedReviewerId = :uid', {
-        uid: user.id,
-        statuses: ['pending_review', 'needs_correction', 'approved', 'sent', 'cancelled'],
-      });
     } else {
-      // Regular user: only own drafts
       qb.where('d.creatorId = :uid', { uid: user.id });
     }
 
@@ -173,14 +143,12 @@ export class DraftMailService {
   async findOne(id: string, user: User): Promise<DraftEmail> {
     const draft = await this.draftRepo.findOne({ where: { id }, relations: ['attachments'] });
     if (!draft) throw new NotFoundException('Borrador no encontrado');
-    await this.assertCanView(draft, user);
+    this.assertCanView(draft, user);
     return draft;
   }
 
-  private async assertCanView(draft: DraftEmail, user: User): Promise<void> {
+  private assertCanView(draft: DraftEmail, user: User): void {
     if (draft.creatorId === user.id) return;
-    if (draft.assignedReviewerId === user.id) return;
-    if (await this.isAuthorizer(user)) return;
     if (this.isTicom(user) && ['approved', 'sent'].includes(draft.status)) return;
     throw new ForbiddenException('No tenés acceso a este borrador');
   }
@@ -234,104 +202,42 @@ export class DraftMailService {
     return this.draftRepo.save(draft);
   }
 
-  async submit(id: string, user: User): Promise<DraftEmail> {
+  async confirmDraft(id: string, user: User): Promise<DraftEmail> {
     const draft = await this.findOne(id, user);
-    if (draft.creatorId !== user.id) throw new ForbiddenException();
+    if (draft.creatorId !== user.id) throw new ForbiddenException('Solo el creador puede confirmar su borrador');
     if (!['draft', 'needs_correction'].includes(draft.status)) {
-      throw new BadRequestException('No se puede enviar a revisión en el estado actual');
+      throw new BadRequestException('No se puede confirmar en el estado actual');
     }
-    const type = draft.status === 'draft' ? 'submitted' : 'resubmitted';
-    draft.status = 'pending_review';
+
+    const signer = await this.getSigner();
+
+    draft.status = 'approved';
+    draft.approvedById = user.id;
+    draft.approvedByName = signer?.displayName ?? null;
+    draft.approvedByRank = signer?.rank ?? null;
+    draft.approvedAt = new Date();
+    draft.hash = await this.generateUniqueHash();
     draft.correctionNotes = null;
-    draft.history = [...draft.history, {
-      type,
-      at: new Date().toISOString(),
-      byId: user.id,
-      byName: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName,
-    }];
-    const saved = await this.draftRepo.save(draft);
-    this.gateway.notifyRole('', 'draft_submitted', { id: draft.id, subject: draft.subject, creatorName: draft.creatorName });
-    this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
-    return saved;
-  }
 
-  async selfApprove(id: string, user: User): Promise<DraftEmail> {
-    if (!(await this.isSuperApprover(user))) throw new ForbiddenException('Solo el director puede auto-aprobar');
-    const draft = await this.findOne(id, user);
-    if (draft.creatorId !== user.id) throw new ForbiddenException('Solo podés auto-aprobar tus propios borradores');
-    if (!['draft', 'needs_correction'].includes(draft.status)) throw new BadRequestException('Solo se pueden auto-aprobar borradores en estado borrador o requiere corrección');
-
-    draft.status = 'approved';
-    draft.approvedById = user.id;
-    draft.approvedByName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
-    draft.approvedByRank = expandRank((user as any).rank || user.title);
-    draft.approvedAt = new Date();
-    draft.hash = await this.generateUniqueHash();
-    draft.history = [...draft.history, {
-      type: 'approved',
-      at: new Date().toISOString(),
-      byId: user.id,
-      byName: draft.approvedByName,
-    }];
-    const saved = await this.draftRepo.save(draft);
-    this.gateway.notifyRole('', 'draft_ready_to_send', { id: draft.id, subject: draft.subject });
-    this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
-    return saved;
-  }
-
-  async approve(id: string, user: User): Promise<DraftEmail> {
-    const draft = await this.findOne(id, user);
-    const canApprove = await this.isAuthorizer(user) || draft.assignedReviewerId === user.id;
-    if (!canApprove) throw new ForbiddenException('No tenés permiso para aprobar');
-    if (draft.status !== 'pending_review') throw new BadRequestException('El borrador no está pendiente de revisión');
-
-    draft.status = 'approved';
-    draft.approvedById = user.id;
-    draft.approvedByName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
-    draft.approvedByRank = expandRank((user as any).rank || user.title);
-    draft.approvedAt = new Date();
-    draft.hash = await this.generateUniqueHash();
-    draft.history = [...draft.history, {
-      type: 'approved',
-      at: new Date().toISOString(),
-      byId: user.id,
-      byName: draft.approvedByName,
-    }];
-    const saved = await this.draftRepo.save(draft);
-    this.gateway.notifyUser(draft.creatorId, 'draft_approved', { id: draft.id, subject: draft.subject, hash: draft.hash });
-    this.gateway.notifyRole('', 'draft_ready_to_send', { id: draft.id, subject: draft.subject });
-    this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
-    return saved;
-  }
-
-  async reject(id: string, dto: ReviewActionDto, user: User): Promise<DraftEmail> {
-    const draft = await this.findOne(id, user);
-    const canReview = await this.isAuthorizer(user) || draft.assignedReviewerId === user.id;
-    if (!canReview) throw new ForbiddenException();
-    if (draft.status !== 'pending_review') throw new BadRequestException();
-
-    draft.status = 'needs_correction';
-    draft.correctionNotes = dto.notes ?? null;
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
     draft.history = [...draft.history, {
-      type: 'rejected',
+      type: 'confirmed',
       at: new Date().toISOString(),
       byId: user.id,
       byName,
-      detail: dto.notes,
     }];
+
     const saved = await this.draftRepo.save(draft);
-    this.gateway.notifyUser(draft.creatorId, 'draft_rejected', { id: draft.id, subject: draft.subject, notes: dto.notes });
+    this.gateway.notifyRole('', 'draft_ready_to_send', { id: draft.id, subject: draft.subject });
     this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
     return saved;
   }
 
   async cancel(id: string, dto: ReviewActionDto, user: User): Promise<DraftEmail> {
     const draft = await this.findOne(id, user);
-    const isAuth = await this.isAuthorizer(user);
     const isCreator = draft.creatorId === user.id;
-    if (!isAuth && !isCreator) throw new ForbiddenException('No tenés permiso para cancelar este borrador');
-    if (!['pending_review', 'needs_correction'].includes(draft.status)) {
+    if (!isCreator) throw new ForbiddenException('Solo el creador puede cancelar su borrador');
+    if (!['draft', 'needs_correction'].includes(draft.status)) {
       throw new BadRequestException('No se puede cancelar en el estado actual');
     }
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
@@ -349,7 +255,6 @@ export class DraftMailService {
       detail: dto.notes,
     }];
     const saved = await this.draftRepo.save(draft);
-    this.gateway.notifyUser(draft.creatorId, 'draft_cancelled', { id: draft.id });
     this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
     return saved;
   }
@@ -377,23 +282,6 @@ export class DraftMailService {
     this.gateway.notifyUser(draft.creatorId, 'draft_rejected', { id: draft.id, subject: draft.subject, notes: dto.notes });
     this.gateway.notifyRole('', 'draft_status_changed', { id: draft.id });
     return saved;
-  }
-
-  async delegate(id: string, dto: DelegateDto, user: User): Promise<DraftEmail> {
-    if (!(await this.isSuperApprover(user))) throw new ForbiddenException('Solo el director o mlopez pueden delegar aprobación');
-    const draft = await this.findOne(id, user);
-    if (draft.status !== 'pending_review') throw new BadRequestException();
-    const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
-    draft.assignedReviewerId = dto.userId;
-    draft.assignedReviewerName = dto.displayName;
-    draft.history = [...draft.history, {
-      type: 'delegated',
-      at: new Date().toISOString(),
-      byId: user.id,
-      byName,
-      detail: `Delegado a ${dto.displayName}`,
-    }];
-    return this.draftRepo.save(draft);
   }
 
   async toggleEncryption(id: string, user: User): Promise<DraftEmail> {
@@ -425,7 +313,6 @@ export class DraftMailService {
     const currentYear = new Date().getFullYear().toString().slice(-2);
     const pattern = `DEI %/${currentYear}`;
 
-    // Check sent drafts
     const lastDraft = await this.draftRepo
       .createQueryBuilder('d')
       .where('d.status = :status', { status: 'sent' })
@@ -433,7 +320,6 @@ export class DraftMailService {
       .orderBy('d."sentAt"', 'DESC')
       .getOne();
 
-    // Also check main emails table (PST imports / received)
     const lastEmail = await this.emailRepo
       .createQueryBuilder('e')
       .where("e.\"mailCode\" LIKE :pattern", { pattern })
@@ -473,7 +359,9 @@ export class DraftMailService {
     const rank = expandRank((user as any).rank || user.title);
     const now = new Date();
 
-    const fdoGroup = this.fmtDateGroup(draft.approvedAt ?? now);
+    const fdoDate = new Date(dto.fdoTimestamp);
+    if (isNaN(fdoDate.getTime())) throw new BadRequestException('Fecha/hora del firmado (FDO) inválida');
+    const fdoGroup = this.fmtDateGroup(fdoDate);
     const btGroup = this.fmtDateGroup(draft.hashEnteredAt ?? now);
     const lastName = (user.lastName ?? user.displayName).toUpperCase();
     let composedBody = draft.bodyText;
@@ -486,7 +374,6 @@ export class DraftMailService {
     const finalBody = `${composedBody}\n\nFDO: ${fdoGroup}     BT: ${btGroup}     TX: ${rank} ${lastName}`;
     const finalSubject = dto.subject ?? dto.mailCode;
 
-    // Read attachment files from disk as buffers for SMTP
     const attachmentRows = await this.attachmentRepo.find({ where: { draftEmailId: id } });
     const multerFiles = attachmentRows.map((att) => ({
       originalname: att.filename,
@@ -535,72 +422,38 @@ export class DraftMailService {
   async deleteDraft(id: string, user: User): Promise<void> {
     const draft = await this.findOne(id, user);
     if (draft.creatorId !== user.id) throw new ForbiddenException('Solo el creador puede eliminar el borrador');
-    if (!['draft', 'needs_correction', 'pending_review'].includes(draft.status)) {
+    if (!['draft', 'needs_correction'].includes(draft.status)) {
       throw new BadRequestException('No se puede eliminar en el estado actual');
     }
     await this.draftRepo.remove(draft);
-  }
-
-  // Authorizers management
-  async getAuthorizers(): Promise<DraftMailAuthorizer[]> {
-    return this.authorizerRepo.find({ order: { createdAt: 'DESC' } });
-  }
-
-  async addAuthorizer(dto: AddAuthorizerDto, user: User): Promise<DraftMailAuthorizer> {
-    if (!(await this.isSuperApprover(user))) throw new ForbiddenException();
-    const existing = await this.authorizerRepo.findOne({ where: { userId: dto.userId } });
-    if (existing) throw new BadRequestException('El usuario ya es autorizador');
-    const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
-    const auth = this.authorizerRepo.create({
-      userId: dto.userId,
-      username: dto.username,
-      displayName: dto.displayName,
-      addedById: user.id,
-      addedByName: byName,
-    });
-    return this.authorizerRepo.save(auth);
-  }
-
-  async removeAuthorizer(userId: string, user: User): Promise<void> {
-    if (!(await this.isSuperApprover(user))) throw new ForbiddenException();
-    const auth = await this.authorizerRepo.findOne({ where: { userId } });
-    if (!auth) throw new NotFoundException();
-    await this.authorizerRepo.remove(auth);
-  }
-
-  async getPendingCountForAuthorizer(user: User): Promise<number> {
-    const isAuth = await this.isAuthorizer(user);
-    if (!isAuth) return 0;
-    return this.draftRepo.count({ where: { status: 'pending_review' } });
   }
 
   async getApprovedCount(): Promise<number> {
     return this.draftRepo.count({ where: { status: 'approved' } });
   }
 
-  // Director management (solo mlopez puede gestionar esto)
-  async getDirector(): Promise<DraftMailDirector | null> {
-    const [director] = await this.directorRepo.find({ take: 1 });
-    return director ?? null;
+  // Signer management (solo mlopez)
+  async getSigner(): Promise<DraftMailSigner | null> {
+    const [signer] = await this.signerRepo.find({ take: 1 });
+    return signer ?? null;
   }
 
-  async setDirector(dto: SetDirectorDto, user: User): Promise<DraftMailDirector> {
-    if (!this.isMlopez(user)) throw new ForbiddenException('Solo mlopez puede designar al director');
-    await this.directorRepo.createQueryBuilder().delete().execute();
+  async setSigner(dto: SetSignerDto, user: User): Promise<DraftMailSigner> {
+    if (!this.isMlopez(user)) throw new ForbiddenException('Solo mlopez puede configurar el firmante');
+    await this.signerRepo.createQueryBuilder().delete().execute();
     const byName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName;
-    const director = this.directorRepo.create({
-      userId: dto.userId,
-      username: dto.username,
+    const signer = this.signerRepo.create({
       displayName: dto.displayName,
+      rank: dto.rank,
       setById: user.id,
       setByName: byName,
     });
-    return this.directorRepo.save(director);
+    return this.signerRepo.save(signer);
   }
 
-  async removeDirector(user: User): Promise<void> {
-    if (!this.isMlopez(user)) throw new ForbiddenException('Solo mlopez puede quitar al director');
-    await this.directorRepo.createQueryBuilder().delete().execute();
+  async removeSigner(user: User): Promise<void> {
+    if (!this.isMlopez(user)) throw new ForbiddenException('Solo mlopez puede quitar el firmante');
+    await this.signerRepo.createQueryBuilder().delete().execute();
   }
 
   async getBodyReferences(id: string, user: User): Promise<{ referencedCode: string; referencedEmailId: string | null }[]> {

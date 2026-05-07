@@ -4,7 +4,7 @@ import { Observable, Subject } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
 
-export type DraftStatus = 'draft' | 'pending_review' | 'needs_correction' | 'approved' | 'sent' | 'cancelled';
+export type DraftStatus = 'draft' | 'needs_correction' | 'approved' | 'sent' | 'cancelled';
 
 export interface DraftHistoryEntry {
   type: string;
@@ -45,8 +45,6 @@ export interface DraftEmail {
   sendMode: string;
   requiresEncryption: boolean;
   encryptionManualOverride: boolean;
-  assignedReviewerId: string | null;
-  assignedReviewerName: string | null;
   approvedById: string | null;
   approvedByName: string | null;
   approvedByRank: string | null;
@@ -67,21 +65,10 @@ export interface DraftEmail {
   updatedAt: string;
 }
 
-export interface DraftMailAuthorizer {
+export interface DraftMailSigner {
   id: string;
-  userId: string;
-  username: string;
   displayName: string;
-  addedById: string;
-  addedByName: string;
-  createdAt: string;
-}
-
-export interface DraftMailDirector {
-  id: string;
-  userId: string;
-  username: string;
-  displayName: string;
+  rank: string;
   setById: string;
   setByName: string;
   createdAt: string;
@@ -93,10 +80,7 @@ export class DraftMailService {
   private readonly authService = inject(AuthService);
   private socket: Socket | null = null;
 
-  readonly pendingCount = signal(0);
   readonly approvedCount = signal(0);
-  readonly isAuthorizerSignal = signal(false);
-  readonly isSuperApproverSignal = signal(false);
   readonly draftStatusChanged$ = new Subject<{ id: string; event: string }>();
 
   constructor() {
@@ -107,14 +91,6 @@ export class DraftMailService {
     if (this.socket) return;
     this.socket = io('/draft-mail', { withCredentials: true, transports: ['websocket', 'polling'] });
 
-    this.socket.on('draft_submitted', (p: { id: string }) => {
-      this.loadPendingCount();
-      this.draftStatusChanged$.next({ id: p.id, event: 'draft_submitted' });
-    });
-    this.socket.on('draft_approved', (p: { id: string; subject: string; hash: string }) => {
-      this.loadApprovedCount();
-      this.draftStatusChanged$.next({ id: p.id, event: 'draft_approved' });
-    });
     this.socket.on('draft_ready_to_send', (p: { id: string }) => {
       this.loadApprovedCount();
       this.draftStatusChanged$.next({ id: p.id, event: 'draft_ready_to_send' });
@@ -137,31 +113,7 @@ export class DraftMailService {
   disconnect(): void {
     this.socket?.disconnect();
     this.socket = null;
-    this.pendingCount.set(0);
     this.approvedCount.set(0);
-    this.isAuthorizerSignal.set(false);
-    this.isSuperApproverSignal.set(false);
-  }
-
-  loadIsAuthorizer(): void {
-    this.http.get<{ value: boolean }>('/api/draft-mail/is-authorizer').subscribe({
-      next: (r) => this.isAuthorizerSignal.set(r.value),
-      error: () => {},
-    });
-  }
-
-  loadIsSuperApprover(): void {
-    this.http.get<{ value: boolean }>('/api/draft-mail/is-super-approver').subscribe({
-      next: (r) => this.isSuperApproverSignal.set(r.value),
-      error: () => {},
-    });
-  }
-
-  loadPendingCount(): void {
-    this.http.get<{ count: number }>('/api/draft-mail/pending-count').subscribe({
-      next: (r) => this.pendingCount.set(r.count),
-      error: () => {},
-    });
   }
 
   loadApprovedCount(): void {
@@ -199,20 +151,8 @@ export class DraftMailService {
     return this.http.patch<DraftEmail>(`/api/draft-mail/${id}`, dto);
   }
 
-  submit(id: string): Observable<DraftEmail> {
-    return this.http.post<DraftEmail>(`/api/draft-mail/${id}/submit`, {});
-  }
-
-  selfApprove(id: string): Observable<DraftEmail> {
-    return this.http.post<DraftEmail>(`/api/draft-mail/${id}/self-approve`, {});
-  }
-
-  approve(id: string): Observable<DraftEmail> {
-    return this.http.post<DraftEmail>(`/api/draft-mail/${id}/approve`, {});
-  }
-
-  reject(id: string, notes: string): Observable<DraftEmail> {
-    return this.http.post<DraftEmail>(`/api/draft-mail/${id}/reject`, { notes });
+  confirmDraft(id: string): Observable<DraftEmail> {
+    return this.http.post<DraftEmail>(`/api/draft-mail/${id}/confirm`, {});
   }
 
   cancel(id: string, notes: string): Observable<DraftEmail> {
@@ -223,10 +163,6 @@ export class DraftMailService {
     return this.http.post<DraftEmail>(`/api/draft-mail/${id}/ticom-cancel`, { notes });
   }
 
-  delegate(id: string, userId: string, username: string, displayName: string): Observable<DraftEmail> {
-    return this.http.post<DraftEmail>(`/api/draft-mail/${id}/delegate`, { userId, username, displayName });
-  }
-
   toggleEncryption(id: string): Observable<DraftEmail> {
     return this.http.post<DraftEmail>(`/api/draft-mail/${id}/toggle-encryption`, {});
   }
@@ -235,8 +171,8 @@ export class DraftMailService {
     return this.http.post<DraftEmail>(`/api/draft-mail/${id}/enter-hash`, { hash });
   }
 
-  send(id: string, hash: string, mailCode: string, subject?: string): Observable<DraftEmail> {
-    return this.http.post<DraftEmail>(`/api/draft-mail/${id}/send`, { hash, mailCode, subject });
+  send(id: string, hash: string, mailCode: string, fdoTimestamp: string, subject?: string): Observable<DraftEmail> {
+    return this.http.post<DraftEmail>(`/api/draft-mail/${id}/send`, { hash, mailCode, fdoTimestamp, subject });
   }
 
   delete(id: string): Observable<void> {
@@ -265,29 +201,16 @@ export class DraftMailService {
     return this.http.get<{ referencedCode: string; referencedEmailId: string | null }[]>(`/api/draft-mail/${id}/references`);
   }
 
-  // Director
-  getDirector(): Observable<DraftMailDirector | null> {
-    return this.http.get<DraftMailDirector | null>('/api/draft-mail/director');
+  // Signer (firmante) management
+  getSigner(): Observable<DraftMailSigner | null> {
+    return this.http.get<DraftMailSigner | null>('/api/draft-mail/signer');
   }
 
-  setDirector(userId: string, username: string, displayName: string): Observable<DraftMailDirector> {
-    return this.http.post<DraftMailDirector>('/api/draft-mail/director', { userId, username, displayName });
+  setSigner(displayName: string, rank: string): Observable<DraftMailSigner> {
+    return this.http.post<DraftMailSigner>('/api/draft-mail/signer', { displayName, rank });
   }
 
-  removeDirector(): Observable<void> {
-    return this.http.delete<void>('/api/draft-mail/director');
-  }
-
-  // Authorizers
-  getAuthorizers(): Observable<DraftMailAuthorizer[]> {
-    return this.http.get<DraftMailAuthorizer[]>('/api/draft-mail/authorizers');
-  }
-
-  addAuthorizer(userId: string, username: string, displayName: string): Observable<DraftMailAuthorizer> {
-    return this.http.post<DraftMailAuthorizer>('/api/draft-mail/authorizers', { userId, username, displayName });
-  }
-
-  removeAuthorizer(userId: string): Observable<void> {
-    return this.http.delete<void>(`/api/draft-mail/authorizers/${userId}`);
+  removeSigner(): Observable<void> {
+    return this.http.delete<void>('/api/draft-mail/signer');
   }
 }

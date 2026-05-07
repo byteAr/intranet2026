@@ -15,9 +15,7 @@ import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
 import { ReviewActionDto } from './dto/review-action.dto';
 import { SendDraftDto } from './dto/send-draft.dto';
-import { DelegateDto } from './dto/delegate.dto';
-import { AddAuthorizerDto } from './dto/add-authorizer.dto';
-import { SetDirectorDto } from './dto/set-director.dto';
+import { SetSignerDto } from './dto/set-signer.dto';
 import { DraftEmailAttachment } from './entities/draft-email-attachment.entity';
 import { User } from '../users/entities/user.entity';
 
@@ -50,56 +48,25 @@ export class DraftMailController {
     return draft;
   }
 
-  @Get('is-authorizer')
-  async isAuthorizer(@Request() req: { user: User }) {
-    return { value: await this.service.isAuthorizer(req.user) };
-  }
-
-  @Get('is-super-approver')
-  async isSuperApprover(@Request() req: { user: User }) {
-    return { value: await this.service.isSuperApprover(req.user) };
-  }
-
-  @Get('pending-count')
-  async getPendingCount(@Request() req: { user: User }) {
-    return { count: await this.service.getPendingCountForAuthorizer(req.user) };
-  }
-
   @Get('approved-count')
   async getApprovedCount(@Request() req: { user: User }) {
     if (!this.service.isTicom(req.user)) return { count: 0 };
     return { count: await this.service.getApprovedCount() };
   }
 
-  @Get('director')
-  getDirector() {
-    return this.service.getDirector();
+  @Get('signer')
+  getSigner() {
+    return this.service.getSigner();
   }
 
-  @Post('director')
-  setDirector(@Body() dto: SetDirectorDto, @Request() req: { user: User }) {
-    return this.service.setDirector(dto, req.user);
+  @Post('signer')
+  setSigner(@Body() dto: SetSignerDto, @Request() req: { user: User }) {
+    return this.service.setSigner(dto, req.user);
   }
 
-  @Delete('director')
-  removeDirector(@Request() req: { user: User }) {
-    return this.service.removeDirector(req.user);
-  }
-
-  @Get('authorizers')
-  async getAuthorizers(@Request() req: { user: User }) {
-    if (!(await this.service.isSuperApprover(req.user))) return [];
-    return this.service.getAuthorizers();
-  }
-
-  @Post('authorizers')
-  addAuthorizer(@Body() dto: AddAuthorizerDto, @Request() req: { user: User }) {
-    return this.service.addAuthorizer(dto, req.user);
-  }
-
-  @Delete('authorizers/:userId')
-  removeAuthorizer(@Param('userId') userId: string, @Request() req: { user: User }) {
-    return this.service.removeAuthorizer(userId, req.user);
+  @Delete('signer')
+  removeSigner(@Request() req: { user: User }) {
+    return this.service.removeSigner(req.user);
   }
 
   @Get()
@@ -159,24 +126,9 @@ export class DraftMailController {
     return this.service.deleteDraft(id, req.user);
   }
 
-  @Post(':id/submit')
-  submit(@Param('id') id: string, @Request() req: { user: User }) {
-    return this.service.submit(id, req.user);
-  }
-
-  @Post(':id/self-approve')
-  selfApprove(@Param('id') id: string, @Request() req: { user: User }) {
-    return this.service.selfApprove(id, req.user);
-  }
-
-  @Post(':id/approve')
-  approve(@Param('id') id: string, @Request() req: { user: User }) {
-    return this.service.approve(id, req.user);
-  }
-
-  @Post(':id/reject')
-  reject(@Param('id') id: string, @Body() dto: ReviewActionDto, @Request() req: { user: User }) {
-    return this.service.reject(id, dto, req.user);
+  @Post(':id/confirm')
+  confirmDraft(@Param('id') id: string, @Request() req: { user: User }) {
+    return this.service.confirmDraft(id, req.user);
   }
 
   @Post(':id/cancel')
@@ -187,11 +139,6 @@ export class DraftMailController {
   @Post(':id/ticom-cancel')
   ticomCancel(@Param('id') id: string, @Body() dto: ReviewActionDto, @Request() req: { user: User }) {
     return this.service.ticomCancel(id, dto, req.user);
-  }
-
-  @Post(':id/delegate')
-  delegate(@Param('id') id: string, @Body() dto: DelegateDto, @Request() req: { user: User }) {
-    return this.service.delegate(id, dto, req.user);
   }
 
   @Post(':id/toggle-encryption')
@@ -262,7 +209,7 @@ export class DraftMailController {
     @Request() req: { user: User },
     @Res() res: Response,
   ) {
-    await this.service.findOne(id, req.user); // access check
+    await this.service.findOne(id, req.user);
     const att = await this.attachmentRepo.findOne({ where: { id: attId, draftEmailId: id } });
     if (!att || !existsSync(att.storagePath)) throw new NotFoundException('Adjunto no encontrado');
     res.setHeader('Content-Disposition', `attachment; filename="${att.filename}"`);

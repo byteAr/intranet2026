@@ -4,8 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DraftEmail } from './entities/draft-email.entity';
 import { DraftEmailAttachment } from './entities/draft-email-attachment.entity';
-import { DraftMailAuthorizer } from './entities/draft-mail-authorizer.entity';
-import { DraftMailDirector } from './entities/draft-mail-director.entity';
+import { DraftMailSigner } from './entities/draft-mail-signer.entity';
 import { Email } from '../mail/entities/email.entity';
 import { DraftMailService } from './draft-mail.service';
 import { DraftMailController } from './draft-mail.controller';
@@ -14,7 +13,7 @@ import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, DraftMailDirector, Email]),
+    TypeOrmModule.forFeature([DraftEmail, DraftEmailAttachment, DraftMailSigner, Email]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

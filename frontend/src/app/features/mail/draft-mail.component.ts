@@ -24,16 +24,14 @@ import { MailService, MailRecipient, Email, MailOutgoingRef } from '../../core/s
 
 const STATUS_LABELS: Record<DraftStatus, string> = {
   draft: 'Borrador',
-  pending_review: 'En revisión',
   needs_correction: 'Requiere corrección',
-  approved: 'Aprobado',
+  approved: 'Confirmado',
   sent: 'Enviado',
   cancelled: 'Cancelado',
 };
 
 const STATUS_CLASSES: Record<DraftStatus, string> = {
   draft: 'bg-gray-100 text-gray-600',
-  pending_review: 'bg-amber-100 text-amber-700',
   needs_correction: 'bg-rose-100 text-rose-700',
   approved: 'bg-teal-100 text-teal-700',
   sent: 'bg-blue-100 text-blue-700',
@@ -54,19 +52,15 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
       <aside class="w-80 flex-shrink-0 border-r border-gray-100 flex flex-col">
 
         <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-          <h2 class="text-sm font-semibold text-gray-700">
-            @if (isAuthorizer()) { Revisión de borradores } @else { Mis borradores }
-          </h2>
-          @if (!isAuthorizer() || isTicomUser() || isSuperApprover()) {
-            <button (click)="openNew()"
-              class="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-white"
-              style="background:#0f766e">
-              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-              </svg>
-              Nuevo
-            </button>
-          }
+          <h2 class="text-sm font-semibold text-gray-700">Mis borradores</h2>
+          <button (click)="openNew()"
+            class="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-white"
+            style="background:#0f766e">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Nuevo
+          </button>
         </div>
 
         <div class="flex-1 overflow-y-auto">
@@ -84,9 +78,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
-              <p class="text-sm text-center">
-                @if (isAuthorizer()) { No hay borradores pendientes } @else { No tenés borradores }
-              </p>
+              <p class="text-sm text-center">No tenés borradores</p>
             </div>
           } @else {
             @for (draft of drafts(); track draft.id) {
@@ -449,66 +441,17 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                 @if (isCreator(activeDraft()!) && (activeDraft()!.status === 'draft' || activeDraft()!.status === 'needs_correction')) {
                   <button (click)="openEdit(activeDraft()!)"
                     class="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50">Editar</button>
-                }
-                @if (isCreator(activeDraft()!) && isSuperApprover() && (activeDraft()!.status === 'draft' || activeDraft()!.status === 'needs_correction')) {
-                  <button (click)="selfApproveDraft()" [disabled]="saving()"
+                  <button (click)="confirmAndGenerateHash(activeDraft()!.id)" [disabled]="saving()"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
                     style="background:#0f766e">
-                    Enviar a transmitir
-                  </button>
-                }
-                @if (isCreator(activeDraft()!) && !isSuperApprover() && activeDraft()!.status === 'needs_correction' && canSubmitAfterCorrection()) {
-                  <button (click)="submitDraft(activeDraft()!.id)" [disabled]="saving()"
-                    class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
-                    Reenviar a revisión
-                  </button>
-                }
-                @if (isCreator(activeDraft()!) && !isSuperApprover() && activeDraft()!.status === 'draft') {
-                  <button (click)="submitDraft(activeDraft()!.id)" [disabled]="saving()"
-                    class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
-                    Enviar a revisión
+                    Confirmar y generar hash
                   </button>
                   <button (click)="promptDelete(activeDraft()!.id)"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Eliminar</button>
-                }
-                @if (isCreator(activeDraft()!) && isSuperApprover() && activeDraft()!.status === 'draft') {
-                  <button (click)="promptDelete(activeDraft()!.id)"
-                    class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Eliminar</button>
-                }
-                @if (isCreator(activeDraft()!) && !isAuthorizer() && ['pending_review','needs_correction'].includes(activeDraft()!.status)) {
-                  <button (click)="promptCancel()"
-                    class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Cancelar</button>
-                }
-                @if (isAuthorizer() && activeDraft()!.status === 'pending_review') {
-                  <button (click)="approveDraft()" [disabled]="saving()"
-                    class="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-                    style="background:#0f766e">Aprobar</button>
-                  <button (click)="showRejectForm.set(true)"
-                    class="px-4 py-2 rounded-lg text-sm font-medium text-amber-700 border border-amber-300 hover:bg-amber-50">
-                    Devolver para corrección
-                  </button>
                   <button (click)="promptCancel()"
                     class="px-4 py-2 rounded-lg text-sm font-medium text-rose-600 border border-rose-200 hover:bg-rose-50">Cancelar</button>
                 }
               </div>
-
-              <!-- Reject form -->
-              @if (showRejectForm()) {
-                <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
-                  <p class="text-sm font-medium text-amber-800">Notas de corrección para el redactor:</p>
-                  <textarea [(ngModel)]="rejectNotes" rows="3"
-                    class="w-full rounded-md border border-amber-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
-                    placeholder="Indicá qué debe corregir..."></textarea>
-                  <div class="flex gap-2">
-                    <button (click)="rejectDraft()" [disabled]="saving() || !rejectNotes.trim()"
-                      class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
-                      Confirmar devolución
-                    </button>
-                    <button (click)="showRejectForm.set(false); rejectNotes = ''"
-                      class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
-                  </div>
-                </div>
-              }
 
               <!-- Cancel form -->
               @if (showCancelForm()) {
@@ -698,12 +641,8 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   readonly formError = signal<string | null>(null);
   readonly fileError = signal<string | null>(null);
 
-  // Review actions
-  readonly showRejectForm = signal(false);
   readonly showCancelForm = signal(false);
-  rejectNotes = '';
   cancelNotes = '';
-  cancelIsTicom = false;
 
   // Body references (mailCode highlighting)
   readonly draftRefs = signal<{ referencedCode: string; referencedEmailId: string | null }[]>([]);
@@ -716,8 +655,6 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   private readonly toSearchSubject = new Subject<string>();
   private readonly ccSearchSubject = new Subject<string>();
 
-  readonly isAuthorizer = computed(() => this.draftMailService.isAuthorizerSignal());
-  readonly isSuperApprover = computed(() => this.draftMailService.isSuperApproverSignal());
   readonly isTicomUser = computed(() => !!this.authService.currentUser()?.roles?.includes('TICOM'));
 
   readonly highlightedDraftBody = computed((): SafeHtml => {
@@ -801,7 +738,6 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     this.activeDraft.set(draft);
     this.showForm.set(false);
     this.editingDraft.set(null);
-    this.showRejectForm.set(false);
     this.showCancelForm.set(false);
     this.canSubmitAfterCorrection.set(false);
     this.draftRefs.set([]);
@@ -1010,74 +946,22 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     }
   }
 
-  submitDraft(id: string): void {
+  confirmAndGenerateHash(id: string): void {
+    if (!confirm('¿Confirmar este borrador y generar el hash para imprimir?')) return;
     this.saving.set(true);
-    this.draftMailService.submit(id).subscribe({
+    this.draftMailService.confirmDraft(id).subscribe({
       next: (updated) => {
         this.saving.set(false);
         this.drafts.update((list) => list.map((d) => d.id === updated.id ? updated : d));
         this.activeDraft.set(updated);
         this.showForm.set(false);
         this.editingDraft.set(null);
-      },
-      error: () => this.saving.set(false),
-    });
-  }
-
-  approveDraft(): void {
-    const id = this.activeDraft()?.id;
-    if (!id) return;
-    this.saving.set(true);
-    this.draftMailService.approve(id).subscribe({
-      next: (updated) => {
-        this.saving.set(false);
-        this.drafts.update((list) => list.map((d) => d.id === updated.id ? updated : d));
-        this.activeDraft.set(updated);
-      },
-      error: () => this.saving.set(false),
-    });
-  }
-
-  selfApproveDraft(): void {
-    const id = this.activeDraft()?.id;
-    if (!id) return;
-    this.saving.set(true);
-    this.draftMailService.selfApprove(id).subscribe({
-      next: (updated) => {
-        this.saving.set(false);
-        this.drafts.update((list) => list.map((d) => d.id === updated.id ? updated : d));
-        this.activeDraft.set(updated);
-        this.showForm.set(false);
-        this.editingDraft.set(null);
-      },
-      error: () => this.saving.set(false),
-    });
-  }
-
-  rejectDraft(): void {
-    const id = this.activeDraft()?.id;
-    if (!id || !this.rejectNotes.trim()) return;
-    this.saving.set(true);
-    this.draftMailService.reject(id, this.rejectNotes).subscribe({
-      next: (updated) => {
-        this.saving.set(false);
-        this.drafts.update((list) => list.map((d) => d.id === updated.id ? updated : d));
-        this.activeDraft.set(updated);
-        this.showRejectForm.set(false);
-        this.rejectNotes = '';
       },
       error: () => this.saving.set(false),
     });
   }
 
   promptCancel(): void {
-    this.cancelIsTicom = false;
-    this.cancelNotes = '';
-    this.showCancelForm.set(true);
-  }
-
-  promptTicomCancel(): void {
-    this.cancelIsTicom = true;
     this.cancelNotes = '';
     this.showCancelForm.set(true);
   }
@@ -1086,10 +970,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
     const id = this.activeDraft()?.id;
     if (!id) return;
     this.saving.set(true);
-    const obs = this.cancelIsTicom
-      ? this.draftMailService.ticomCancel(id, this.cancelNotes)
-      : this.draftMailService.cancel(id, this.cancelNotes);
-    obs.subscribe({
+    this.draftMailService.cancel(id, this.cancelNotes).subscribe({
       next: (updated) => {
         this.saving.set(false);
         this.drafts.update((list) => list.map((d) => d.id === updated.id ? updated : d));
@@ -1121,9 +1002,9 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 
   historyLabel(type: string): string {
     const map: Record<string, string> = {
-      created: 'Creado', submitted: 'Enviado a revisión', resubmitted: 'Reenviado a revisión',
+      created: 'Creado', confirmed: 'Confirmado', submitted: 'Enviado a revisión', resubmitted: 'Reenviado a revisión',
       approved: 'Aprobado', rejected: 'Devuelto para corrección', cancelled: 'Cancelado',
-      ticom_cancelled: 'Cancelado por TICOM', sent: 'Enviado', edited: 'Editado', delegated: 'Delegado',
+      ticom_cancelled: 'Devuelto por TICOM', sent: 'Enviado', edited: 'Editado', delegated: 'Delegado',
     };
     return map[type] ?? type;
   }

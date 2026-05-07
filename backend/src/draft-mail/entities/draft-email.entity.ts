@@ -2,7 +2,7 @@ import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, Up
 import { DraftEmailAttachment } from './draft-email-attachment.entity';
 
 export interface DraftHistoryEntry {
-  type: 'created' | 'submitted' | 'resubmitted' | 'approved' | 'rejected' | 'cancelled' | 'ticom_cancelled' | 'sent' | 'delegated' | 'edited';
+  type: 'created' | 'confirmed' | 'submitted' | 'resubmitted' | 'approved' | 'rejected' | 'cancelled' | 'ticom_cancelled' | 'sent' | 'delegated' | 'edited';
   at: string;
   byId: string;
   byName: string;
@@ -35,7 +35,7 @@ export class DraftEmail {
   @Column('simple-json') toAddresses: string[];
   @Column('simple-json') ccAddresses: string[];
 
-  // status: draft | pending_review | needs_correction | approved | sent | cancelled
+  // status: draft | needs_correction | approved | sent | cancelled
   @Column({ default: 'draft' }) status: string;
 
   // sendMode: normal | sass | siena | pon — set by creator, conditions TICOM view
@@ -44,17 +44,13 @@ export class DraftEmail {
   @Column({ default: false }) requiresEncryption: boolean;
   @Column({ default: false }) encryptionManualOverride: boolean;
 
-  // Delegation (specific reviewer for this email)
-  @Column({ type: 'varchar', nullable: true }) assignedReviewerId: string | null;
-  @Column({ type: 'varchar', nullable: true }) assignedReviewerName: string | null;
-
-  // Approval info
+  // Approval / confirmation info
   @Column({ type: 'varchar', nullable: true }) approvedById: string | null;
   @Column({ type: 'varchar', nullable: true }) approvedByName: string | null;
   @Column({ type: 'varchar', nullable: true }) approvedByRank: string | null;
   @Column({ type: 'timestamp', nullable: true }) approvedAt: Date | null;
 
-  // Correction notes (from MTOSAUTORIZADOS or TICOM)
+  // Correction notes (from TICOM)
   @Column({ type: 'text', nullable: true }) correctionNotes: string | null;
 
   // MailCode assigned by TICOM before sending (e.g. "DEI 125/26")
@@ -75,7 +71,7 @@ export class DraftEmail {
   @Column({ type: 'timestamp', nullable: true }) sentAt: Date | null;
   @Column({ type: 'varchar', nullable: true }) sentMessageId: string | null;
 
-  // Cancellation (permanent, by MTOSAUTORIZADOS)
+  // Cancellation
   @Column({ type: 'varchar', nullable: true }) cancelledById: string | null;
   @Column({ type: 'varchar', nullable: true }) cancelledByName: string | null;
   @Column({ type: 'text', nullable: true }) cancellationReason: string | null;

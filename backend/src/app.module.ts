@@ -50,8 +50,7 @@ import { DecryptedAttachment } from './mail/entities/decrypted-attachment.entity
 import { SienaFile } from './mail/entities/siena-file.entity';
 import { DraftEmail } from './draft-mail/entities/draft-email.entity';
 import { DraftEmailAttachment } from './draft-mail/entities/draft-email-attachment.entity';
-import { DraftMailAuthorizer } from './draft-mail/entities/draft-mail-authorizer.entity';
-import { DraftMailDirector } from './draft-mail/entities/draft-mail-director.entity';
+import { DraftMailSigner } from './draft-mail/entities/draft-mail-signer.entity';
 
 @Module({
   imports: [
@@ -70,7 +69,7 @@ import { DraftMailDirector } from './draft-mail/entities/draft-mail-director.ent
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailAuthorizer, DraftMailDirector, Department, AdminAuditLog, GroupPermission, DailyReport, DailyReportEntry, SituationType, ActiveSituation, NonWorkingDay],
+        entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailSigner, Department, AdminAuditLog, GroupPermission, DailyReport, DailyReportEntry, SituationType, ActiveSituation, NonWorkingDay],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),

@@ -7,11 +7,14 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { switchMap, of, tap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   DraftMailService,
   DraftEmail,
+  DraftMailSigner,
+  DraftAttachment,
 } from '../../core/services/draft-mail.service';
 import { AuthService } from '../../core/services/auth.service';
 
@@ -77,7 +80,7 @@ import { AuthService } from '../../core/services/auth.service';
                   </svg>
                   <div class="flex-1 min-w-0">
                     <p class="text-xs font-medium text-gray-700 truncate">{{ email.creatorName }}</p>
-                    <p class="text-[11px] text-gray-400 mt-0.5">Aprobado {{ email.approvedAt | date:'dd/MM/yy HH:mm' }}</p>
+                    <p class="text-[11px] text-gray-400 mt-0.5">Confirmado {{ email.approvedAt | date:'dd/MM/yy HH:mm' }}</p>
                   </div>
                 </div>
               </button>
@@ -146,7 +149,7 @@ import { AuthService } from '../../core/services/auth.service';
                       <div class="border-r border-black p-1 flex justify-around items-center font-bold">
                         <span>Z</span><span>O</span><span>P</span><span>R</span>
                       </div>
-                      <div class="p-1 flex items-center justify-center text-xs">{{ draftDateGroup(activeEmail()!) }}</div>
+                      <div class="p-1 flex items-center justify-center text-xs">{{ fdoDateGroupPreview() }}</div>
                     </div>
                   </div>
                 </div>
@@ -155,11 +158,11 @@ import { AuthService } from '../../core/services/auth.service';
                   <span class="font-bold">PROMOTOR (S):</span> DIREDTOS@MTO.GNA
                 </div>
                 <div class="border-b border-black p-2 leading-tight">
-                  <span class="font-bold">EJECUTIVO (S):</span> {{ activeEmail()!.toAddresses.join(' \u2013 ') || '\u2014' }}
+                  <span class="font-bold">EJECUTIVO (S):</span> {{ activeEmail()!.toAddresses.join(' – ') || '—' }}
                 </div>
                 <div class="border-b border-black p-2 min-h-[2rem]">
                   <span class="font-bold">INFORMATIVO(S):</span>
-                  @if (activeEmail()!.ccAddresses.length) { {{ activeEmail()!.ccAddresses.join(' \u2013 ') }} }
+                  @if (activeEmail()!.ccAddresses.length) { {{ activeEmail()!.ccAddresses.join(' – ') }} }
                 </div>
                 <div class="border-b border-black p-2 min-h-[2rem]">
                   <span class="font-bold">EXCEPTUADO (S):</span>
@@ -183,7 +186,11 @@ import { AuthService } from '../../core/services/auth.service';
                       <div class="text-[10px] p-1 text-center italic">Fecha: <span class="not-italic">{{ draftFechaLarga(activeEmail()!) }}</span></div>
                     </div>
                     <div class="p-4 text-center text-[11px] min-h-[60px]">
-                      @if (activeEmail()!.approvedByName) {
+                      @if (signer()) {
+                        <span class="font-bold uppercase block">{{ signer()!.displayName }}</span>
+                        <span class="uppercase block">{{ signer()!.rank }}</span>
+                        <span class="uppercase block">DIRECCIÓN DE EDUCACIÓN E INSTITUTOS</span>
+                      } @else if (activeEmail()!.approvedByName) {
                         <span class="font-bold uppercase block">{{ activeEmail()!.approvedByName }}</span>
                         <span class="uppercase block">{{ activeEmail()!.approvedByRank ?? '' }}</span>
                         <span class="uppercase block">DIRECCIÓN DE EDUCACIÓN E INSTITUTOS</span>
@@ -199,20 +206,27 @@ import { AuthService } from '../../core/services/auth.service';
                 </div>
               </div>
 
-              <!-- Attachments -->
+              <!-- Attachments with preview -->
               @if (activeEmail()!.attachments.length > 0 || activeEmail()!.sendMode === 'pon') {
                 <div class="bg-white rounded-lg p-3 border border-gray-200">
                   <p class="text-xs font-medium text-gray-500 mb-2">Adjuntos:</p>
                   <div class="space-y-1">
                     @for (att of activeEmail()!.attachments; track att.id) {
                       <div class="flex items-center gap-2">
-                        <button type="button" (click)="downloadAtt(activeEmail()!.id, att.id, att.filename)"
+                        <button type="button" (click)="previewAttachment(activeEmail()!.id, att)"
                           class="flex-1 text-left flex items-center gap-2 text-xs text-teal-700 hover:text-teal-900 hover:underline">
                           <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                           </svg>
                           {{ att.filename }}
+                          <span class="text-gray-400">({{ formatFileSize(att.size) }})</span>
+                        </button>
+                        <button type="button" (click)="downloadAtt(activeEmail()!.id, att.id, att.filename)"
+                          class="text-xs text-gray-400 hover:text-gray-600 px-1" title="Descargar">
+                          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
                         </button>
                         @if (activeEmail()!.sendMode === 'pon') {
                           <button type="button" (click)="deletePonAtt(att.id)" [disabled]="deletingAtt()"
@@ -221,6 +235,18 @@ import { AuthService } from '../../core/services/auth.service';
                       </div>
                     }
                   </div>
+
+                  <!-- Attachment preview area -->
+                  @if (previewUrl()) {
+                    <div class="mt-3 pt-3 border-t border-gray-100">
+                      <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-medium text-gray-500">Vista previa: {{ previewFilename() }}</span>
+                        <button (click)="closePreview()" class="text-xs text-gray-400 hover:text-gray-600">Cerrar vista previa</button>
+                      </div>
+                      <iframe [src]="previewUrl()!" class="w-full rounded border border-gray-200" style="height: 500px;" sandbox="allow-same-origin"></iframe>
+                    </div>
+                  }
+
                   @if (activeEmail()!.sendMode === 'pon') {
                     <div class="mt-3 pt-2 border-t border-orange-100">
                       <label class="text-[11px] text-orange-600 block mb-1">Agregar adjuntos encriptados (máx 5 MB):</label>
@@ -285,6 +311,16 @@ import { AuthService } from '../../core/services/auth.service';
               <div class="border border-teal-100 rounded-xl p-5 space-y-4 bg-teal-50">
                 <h4 class="text-sm font-semibold text-teal-800">Confirmar envío</h4>
 
+                <!-- FDO Timestamp (editable by TICOM) -->
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">
+                    Fecha/hora del firmado (FDO) <span class="text-rose-500">*</span>
+                  </label>
+                  <p class="text-[11px] text-gray-400 mb-1">Ingresá la fecha y hora que figura en el papel firmado por el Director.</p>
+                  <input [(ngModel)]="fdoTimestamp" type="datetime-local"
+                    class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white font-mono" />
+                </div>
+
                 <!-- MailCode -->
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">
@@ -311,10 +347,10 @@ import { AuthService } from '../../core/services/auth.service';
 
                 <!-- Send actions -->
                 <div class="flex flex-wrap gap-2">
-                  <button (click)="sendEmail()" [disabled]="sending() || !editableMailCode.trim() || activeEmail()!.sendMode === 'siena'"
+                  <button (click)="sendEmail()" [disabled]="sending() || !editableMailCode.trim() || !fdoTimestamp.trim() || activeEmail()!.sendMode === 'siena'"
                     class="px-5 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
                     style="background:#0f766e"
-                    [title]="activeEmail()!.sendMode === 'siena' ? 'Bloqueado: enviar desde SIENA' : ''">
+                    [title]="activeEmail()!.sendMode === 'siena' ? 'Bloqueado: enviar desde SIENA' : (!fdoTimestamp.trim() ? 'Completá la fecha/hora del firmado (FDO)' : '')">
                     {{ sending() ? 'Enviando...' : 'Enviar correo' }}
                   </button>
                   <button (click)="promptTicomCancel()"
@@ -365,6 +401,7 @@ export class ParaEnviarComponent implements OnInit {
   readonly draftMailService = inject(DraftMailService);
   private readonly authService = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sanitizer = inject(DomSanitizer);
 
   private readonly MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
   private readonly MONTHS_LONG = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
@@ -378,6 +415,7 @@ export class ParaEnviarComponent implements OnInit {
   readonly emails = signal<DraftEmail[]>([]);
   readonly activeEmail = signal<DraftEmail | null>(null);
   readonly unlockedEmailId = signal<string | null>(null);
+  readonly signer = signal<DraftMailSigner | null>(null);
 
   hashSearch = '';
   readonly hashNotFound = signal(false);
@@ -387,6 +425,7 @@ export class ParaEnviarComponent implements OnInit {
 
   editableMailCode = '';
   editableSubject = '';
+  fdoTimestamp = '';
   private unlockedAt: Date | null = null;
 
   sassAddendum = '';
@@ -398,20 +437,23 @@ export class ParaEnviarComponent implements OnInit {
   cancelNotes = '';
   readonly sendError = signal<string | null>(null);
 
+  // Attachment preview
+  readonly previewUrl = signal<SafeResourceUrl | null>(null);
+  readonly previewFilename = signal('');
+
   ngOnInit(): void {
     this.loadEmails();
+    this.loadSigner();
 
     this.draftMailService.draftStatusChanged$.pipe(
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(({ id, event }) => {
       if (event === 'draft_ready_to_send' || event === 'draft_status_changed') {
-        // A draft was approved → may need to appear in the list
         this.draftMailService.getApproved().subscribe({
           next: (list) => this.emails.set(list),
           error: () => {},
         });
       } else if (event === 'draft_sent' || event === 'draft_cancelled') {
-        // Remove from list if present
         this.emails.update((list) => list.filter((e) => e.id !== id));
         if (this.activeEmail()?.id === id) {
           this.activeEmail.set(null);
@@ -426,6 +468,13 @@ export class ParaEnviarComponent implements OnInit {
     this.draftMailService.getApproved().subscribe({
       next: (list) => { this.emails.set(list); this.loading.set(false); },
       error: () => this.loading.set(false),
+    });
+  }
+
+  loadSigner(): void {
+    this.draftMailService.getSigner().subscribe({
+      next: (s) => this.signer.set(s),
+      error: () => {},
     });
   }
 
@@ -464,9 +513,11 @@ export class ParaEnviarComponent implements OnInit {
     this.sendError.set(null);
     this.editableMailCode = '';
     this.editableSubject = '';
+    this.fdoTimestamp = '';
     this.sassAddendum = '';
     this.ponNewFiles.set([]);
     this.ponFileError.set(null);
+    this.closePreview();
   }
 
   unlockEmail(): void {
@@ -507,6 +558,15 @@ export class ParaEnviarComponent implements OnInit {
         error: () => { this.editableMailCode = ''; this.loadingNextCode.set(false); },
       });
     }
+    this.fdoTimestamp = '';
+  }
+
+  fdoDateGroupPreview(): string {
+    if (this.fdoTimestamp) {
+      const d = new Date(this.fdoTimestamp);
+      if (!isNaN(d.getTime())) return this.fmtDateGroup(d);
+    }
+    return '------';
   }
 
   previewBody(): string {
@@ -522,7 +582,9 @@ export class ParaEnviarComponent implements OnInit {
         body = `${code}.- ${body}`;
       }
     }
-    const fdo = email.approvedAt ? this.fmtDateGroup(new Date(email.approvedAt)) : '------';
+    const fdo = this.fdoTimestamp
+      ? (() => { const d = new Date(this.fdoTimestamp); return !isNaN(d.getTime()) ? this.fmtDateGroup(d) : '------'; })()
+      : '------';
     const bt = email.hashEnteredAt
       ? this.fmtDateGroup(new Date(email.hashEnteredAt))
       : (this.unlockedAt ? this.fmtDateGroup(this.unlockedAt) : '------');
@@ -537,11 +599,6 @@ export class ParaEnviarComponent implements OnInit {
     return `${body}${addendum}\n\n${footer}`;
   }
 
-  draftDateGroup(email: DraftEmail): string {
-    if (!email.approvedAt) return '';
-    return this.fmtDateGroup(new Date(email.approvedAt));
-  }
-
   draftFechaLarga(email: DraftEmail): string {
     const d = email.approvedAt ? new Date(email.approvedAt) : new Date(email.createdAt);
     return `${this.MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`;
@@ -552,6 +609,37 @@ export class ParaEnviarComponent implements OnInit {
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
     return `${dd}${hh}${mm}${this.MONTHS_SHORT[d.getMonth()]}${String(d.getFullYear()).slice(-2)}`;
+  }
+
+  // Attachment preview
+  previewAttachment(draftId: string, att: DraftAttachment): void {
+    const previewable = att.contentType === 'application/pdf'
+      || att.contentType.startsWith('image/');
+    this.draftMailService.downloadAttachment(draftId, att.id).subscribe({
+      next: (blob) => {
+        if (previewable) {
+          const url = URL.createObjectURL(blob);
+          this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
+          this.previewFilename.set(att.filename);
+        } else {
+          const url = URL.createObjectURL(blob);
+          window.open(url, '_blank');
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+        }
+      },
+      error: () => {},
+    });
+  }
+
+  closePreview(): void {
+    this.previewUrl.set(null);
+    this.previewFilename.set('');
+  }
+
+  formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   downloadAtt(draftId: string, attId: string, filename: string): void {
@@ -611,7 +699,7 @@ export class ParaEnviarComponent implements OnInit {
 
   sendEmail(): void {
     const email = this.activeEmail();
-    if (!email || !this.editableMailCode.trim()) return;
+    if (!email || !this.editableMailCode.trim() || !this.fdoTimestamp.trim()) return;
     this.sending.set(true);
     this.sendError.set(null);
 
@@ -626,6 +714,7 @@ export class ParaEnviarComponent implements OnInit {
         email.id,
         this.unlockHash,
         this.editableMailCode,
+        new Date(this.fdoTimestamp).toISOString(),
         this.editableSubject || undefined,
       ))
     ).subscribe({

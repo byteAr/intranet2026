@@ -148,13 +148,6 @@ import { HttpClient } from '@angular/common/http';
             </svg>
             @if (!collapsed()) {
               <span class="ml-3 flex-1">Redactar MTO</span>
-              @if (draftMailService.pendingCount() > 0 && isAuthorizer()) {
-                <span class="bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
-                  {{ draftMailService.pendingCount() }}
-                </span>
-              }
-            } @else if (draftMailService.pendingCount() > 0 && isAuthorizer()) {
-              <span class="absolute top-1 right-1 h-2 w-2 bg-amber-500 rounded-full"></span>
             }
           </a>
           }
@@ -179,15 +172,15 @@ import { HttpClient } from '@angular/common/http';
             </a>
           }
 
-          @if (isSuperApprover()) {
+          @if (isMlopez()) {
             <a routerLink="/correo/autorizadores" routerLinkActive="active-nav"
               class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
-              [title]="collapsed() ? 'Autorizadores' : ''">
+              [title]="collapsed() ? 'Firmante MTO' : ''">
               <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
-              @if (!collapsed()) { <span class="ml-3">Autorizadores</span> }
+              @if (!collapsed()) { <span class="ml-3">Firmante MTO</span> }
             </a>
           }
 
@@ -761,15 +754,6 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   modalIsCivil = false;
 
   readonly isTicom = computed(() => this.authService.currentUser()?.roles?.includes('TICOM') ?? false);
-  readonly isAuthorizer = computed(() => {
-    const u = this.authService.currentUser();
-    if (!u) return false;
-    return u.roles?.includes('MTOSAUTORIZADOS') || u.roles?.includes('TICOM') ||
-      ['mlopez', 'sbatista'].includes(u.username?.toLowerCase() ?? '');
-  });
-  readonly isSuperApprover = computed(() =>
-    ['mlopez', 'sbatista'].includes(this.authService.currentUser()?.username?.toLowerCase() ?? '')
-  );
   readonly isMlopez = computed(() => this.authService.currentUser()?.username === 'mlopez');
 
   // Announcements
@@ -850,9 +834,6 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.mailService.loadEmails(undefined, 1, 50);
     this.mailService.loadUnreadCounts();
     this.draftMailService.connect();
-    this.draftMailService.loadIsAuthorizer();
-    this.draftMailService.loadIsSuperApprover();
-    this.draftMailService.loadPendingCount();
     this.draftMailService.loadApprovedCount();
     this.incidentsService.connect();
     this.incidentsService.loadIncidents(this.incidentsService.isTicom ? false : true);

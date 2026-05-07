@@ -10,7 +10,6 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { switchMap, of, tap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import * as mammoth from 'mammoth';
 import {
   DraftMailService,
   DraftEmail,
@@ -238,7 +237,17 @@ import { AuthService } from '../../core/services/auth.service';
                   </div>
 
                   <!-- Attachment preview area -->
-                  @if (previewUrl()) {
+                  @if (previewLoading()) {
+                    <div class="mt-3 pt-3 border-t border-gray-100">
+                      <div class="flex items-center gap-2 justify-center py-8">
+                        <svg class="h-5 w-5 animate-spin text-teal-500" viewBox="0 0 24 24" fill="none">
+                          <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                        <span class="text-xs text-gray-500">Generando vista previa de {{ previewFilename() }}...</span>
+                      </div>
+                    </div>
+                  } @else if (previewUrl()) {
                     <div class="mt-3 pt-3 border-t border-gray-100">
                       <div class="flex items-center justify-between mb-2">
                         <span class="text-xs font-medium text-gray-500">Vista previa: {{ previewFilename() }}</span>
@@ -452,6 +461,7 @@ export class ParaEnviarComponent implements OnInit {
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly previewFilename = signal('');
   readonly previewNotSupported = signal(false);
+  readonly previewLoading = signal(false);
 
   ngOnInit(): void {
     this.loadEmails();
@@ -623,45 +633,23 @@ export class ParaEnviarComponent implements OnInit {
     return `${dd}${hh}${mm}${this.MONTHS_SHORT[d.getMonth()]}${String(d.getFullYear()).slice(-2)}`;
   }
 
-  // Attachment preview
+  // Attachment preview (backend converts DOCX/XLSX to PDF via LibreOffice)
   previewAttachment(draftId: string, att: DraftAttachment): void {
-    const isPdf = att.contentType === 'application/pdf';
-    const isImage = att.contentType.startsWith('image/');
-    const isDocx = att.contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      || att.filename.toLowerCase().endsWith('.docx');
-
-    if (!isPdf && !isImage && !isDocx) {
-      this.previewFilename.set(att.filename);
-      this.previewUrl.set(null);
-      this.previewNotSupported.set(true);
-      return;
-    }
-
     this.previewNotSupported.set(false);
-    this.draftMailService.downloadAttachment(draftId, att.id).subscribe({
-      next: async (blob) => {
-        if (isPdf || isImage) {
-          const url = URL.createObjectURL(blob);
-          this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
-          this.previewFilename.set(att.filename);
-        } else if (isDocx) {
-          try {
-            const arrayBuffer = await blob.arrayBuffer();
-            const result = await mammoth.convertToHtml({ arrayBuffer });
-            const html = `<html><head><style>body{font-family:sans-serif;padding:20px;font-size:14px;line-height:1.6}img{max-width:100%}</style></head><body>${result.value}</body></html>`;
-            const htmlBlob = new Blob([html], { type: 'text/html' });
-            const url = URL.createObjectURL(htmlBlob);
-            this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
-            this.previewFilename.set(att.filename);
-          } catch (e) {
-            console.error('Error previewing DOCX:', e);
-            this.previewFilename.set(att.filename);
-            this.previewUrl.set(null);
-            this.previewNotSupported.set(true);
-          }
-        }
+    this.previewFilename.set(att.filename);
+    this.previewLoading.set(true);
+
+    this.draftMailService.previewAttachment(draftId, att.id).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
+        this.previewLoading.set(false);
       },
-      error: () => {},
+      error: () => {
+        this.previewUrl.set(null);
+        this.previewNotSupported.set(true);
+        this.previewLoading.set(false);
+      },
     });
   }
 
@@ -669,6 +657,7 @@ export class ParaEnviarComponent implements OnInit {
     this.previewUrl.set(null);
     this.previewFilename.set('');
     this.previewNotSupported.set(false);
+    this.previewLoading.set(false);
   }
 
   formatFileSize(bytes: number): string {

@@ -187,6 +187,10 @@ export class DraftMailService {
     return this.http.get(`/api/draft-mail/${draftId}/attachments/${attId}`, { responseType: 'blob' });
   }
 
+  previewAttachment(draftId: string, attId: string): Observable<Blob> {
+    return this.http.get(`/api/draft-mail/${draftId}/attachments/${attId}/preview`, { responseType: 'blob' });
+  }
+
   deleteAttachment(draftId: string, attId: string): Observable<DraftEmail> {
     return this.http.delete<DraftEmail>(`/api/draft-mail/${draftId}/attachments/${attId}`);
   }

@@ -154,17 +154,28 @@ export class ChatController {
     @Query('name') name: string,
     @Res() res: Response,
   ) {
-    if (filename.includes('/') || filename.includes('..')) {
-      throw new BadRequestException('Nombre de archivo inválido');
-    }
-    const filePath = join(UPLOAD_DIR, filename);
-    if (!existsSync(filePath)) throw new NotFoundException('Archivo no encontrado');
+    try {
+      if (filename.includes('/') || filename.includes('..')) {
+        res.status(400).json({ message: 'Nombre de archivo inválido' });
+        return;
+      }
+      const filePath = join(UPLOAD_DIR, filename);
+      if (!existsSync(filePath)) {
+        res.status(404).json({ message: 'Archivo no encontrado' });
+        return;
+      }
 
-    const realName = name && !name.includes('/') && !name.includes('..') ? name : filename;
-    const mime = guessMime(realName);
-    res.setHeader('Content-Type', mime);
-    res.setHeader('Content-Disposition', `inline; filename="${realName}"`);
-    createReadStream(filePath).pipe(res);
+      const realName = name && !name.includes('/') && !name.includes('..') ? name : filename;
+      const mime = guessMime(realName);
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Content-Disposition', `inline; filename="${realName}"`);
+      createReadStream(filePath).pipe(res);
+    } catch (err) {
+      console.error(`[chat-preview] Error:`, err);
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'Error al obtener archivo' });
+      }
+    }
   }
 
   @Get('files/:filename')

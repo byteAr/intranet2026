@@ -209,14 +209,29 @@ export class DraftMailController {
     @Request() req: { user: User },
     @Res() res: Response,
   ) {
-    await this.service.findOne(id, req.user);
-    const att = await this.attachmentRepo.findOne({ where: { id: attId, draftEmailId: id } });
-    if (!att || !existsSync(att.storagePath)) throw new NotFoundException('Adjunto no encontrado');
+    try {
+      await this.service.findOne(id, req.user);
+      const att = await this.attachmentRepo.findOne({ where: { id: attId, draftEmailId: id } });
+      if (!att) {
+        res.status(404).json({ message: 'Adjunto no encontrado' });
+        return;
+      }
+      if (!existsSync(att.storagePath)) {
+        console.error(`[draft-preview] Archivo no existe: ${att.storagePath}`);
+        res.status(404).json({ message: 'Archivo no encontrado en disco' });
+        return;
+      }
 
-    const baseMime = (att.contentType ?? '').split(';')[0].trim().toLowerCase() || 'application/octet-stream';
-    res.setHeader('Content-Type', baseMime);
-    res.setHeader('Content-Disposition', `inline; filename="${att.filename}"`);
-    createReadStream(att.storagePath).pipe(res);
+      const baseMime = (att.contentType ?? '').split(';')[0].trim().toLowerCase() || 'application/octet-stream';
+      res.setHeader('Content-Type', baseMime);
+      res.setHeader('Content-Disposition', `inline; filename="${att.filename}"`);
+      createReadStream(att.storagePath).pipe(res);
+    } catch (err) {
+      console.error(`[draft-preview] Error:`, err);
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'Error al obtener archivo' });
+      }
+    }
   }
 
   @Get(':id/attachments/:attId')

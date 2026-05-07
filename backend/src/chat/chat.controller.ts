@@ -16,15 +16,10 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname, join, basename } from 'path';
-import { existsSync, mkdirSync, createReadStream, unlinkSync } from 'fs';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { tmpdir } from 'os';
+import { extname, join } from 'path';
+import { existsSync, mkdirSync, createReadStream } from 'fs';
 import { Response } from 'express';
 import { randomUUID } from 'crypto';
-
-const execFileAsync = promisify(execFile);
 
 function guessMime(filename: string): string {
   const ext = extname(filename).toLowerCase();
@@ -167,48 +162,9 @@ export class ChatController {
 
     const realName = name && !name.includes('/') && !name.includes('..') ? name : filename;
     const mime = guessMime(realName);
-    const isPdf = mime === 'application/pdf';
-    const isImage = mime.startsWith('image/');
-
-    if (isPdf || isImage) {
-      res.setHeader('Content-Type', mime);
-      res.setHeader('Content-Disposition', `inline; filename="${realName}"`);
-      createReadStream(filePath).pipe(res);
-      return;
-    }
-
-    const outDir = join(tmpdir(), `preview-${randomUUID()}`);
-    mkdirSync(outDir, { recursive: true });
-    try {
-      await execFileAsync('libreoffice', [
-        '--headless', '--convert-to', 'pdf',
-        '--outdir', outDir,
-        filePath,
-      ], { timeout: 30000 });
-
-      const pdfName = basename(filePath).replace(/\.[^.]+$/, '.pdf');
-      const pdfPath = join(outDir, pdfName);
-
-      if (!existsSync(pdfPath)) {
-        res.status(500).json({ message: 'Error al generar vista previa' });
-        return;
-      }
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${realName}.pdf"`);
-      const stream = createReadStream(pdfPath);
-      stream.on('end', () => {
-        try { unlinkSync(pdfPath); } catch {}
-        try { require('fs').rmdirSync(outDir); } catch {}
-      });
-      stream.pipe(res);
-    } catch (err) {
-      console.error(`[chat-preview] Error convirtiendo archivo: ${filePath}`, err);
-      try { require('fs').rmSync(outDir, { recursive: true, force: true }); } catch {}
-      if (!res.headersSent) {
-        res.status(500).json({ message: 'Error al generar vista previa del documento' });
-      }
-    }
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `inline; filename="${realName}"`);
+    createReadStream(filePath).pipe(res);
   }
 
   @Get('files/:filename')

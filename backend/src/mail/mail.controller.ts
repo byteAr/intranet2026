@@ -18,14 +18,9 @@ import {
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage, memoryStorage } from 'multer';
 import { Response } from 'express';
-import { existsSync, mkdirSync, createReadStream, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, createReadStream } from 'fs';
 import { randomUUID } from 'crypto';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { tmpdir } from 'os';
-import { join, basename } from 'path';
-
-const execFileAsync = promisify(execFile);
+import { join } from 'path';
 import { MailService } from './mail.service';
 import { SmtpSenderService } from './smtp-sender.service';
 import { MailIngestService } from './mail-ingest.service';
@@ -93,62 +88,14 @@ export class MailController {
     }
 
     if (!existsSync(att.storagePath)) {
-      console.error(`[mail-preview] Archivo no existe en disco: ${att.storagePath}`);
       res.status(404).json({ message: 'Archivo no encontrado en disco' });
       return;
     }
 
-    const baseMime = (att.contentType ?? '').split(';')[0].trim().toLowerCase();
-    const isPdf = baseMime === 'application/pdf';
-    const isImage = baseMime.startsWith('image/');
-
-    if (isPdf || isImage) {
-      res.setHeader('Content-Type', baseMime);
-      res.setHeader('Content-Disposition', `inline; filename="${att.filename}"`);
-      createReadStream(att.storagePath).pipe(res);
-      return;
-    }
-
-    const outDir = join(tmpdir(), `preview-${randomUUID()}`);
-    mkdirSync(outDir, { recursive: true });
-    try {
-      const { stdout, stderr } = await execFileAsync('libreoffice', [
-        '--headless', '--convert-to', 'pdf',
-        '--outdir', outDir,
-        att.storagePath,
-      ], { timeout: 30000 });
-
-      if (stderr) console.error(`[mail-preview] LibreOffice stderr: ${stderr}`);
-
-      const pdfName = basename(att.storagePath).replace(/\.[^.]+$/, '.pdf');
-      let pdfPath = join(outDir, pdfName);
-
-      if (!existsSync(pdfPath)) {
-        const files = require('fs').readdirSync(outDir).filter((f: string) => f.endsWith('.pdf'));
-        if (files.length > 0) {
-          pdfPath = join(outDir, files[0]);
-        } else {
-          console.error(`[mail-preview] PDF no generado. outDir=${outDir}, storagePath=${att.storagePath}, stdout=${stdout}`);
-          res.status(500).json({ message: 'Error al generar vista previa' });
-          return;
-        }
-      }
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${att.filename}.pdf"`);
-      const stream = createReadStream(pdfPath);
-      stream.on('end', () => {
-        try { unlinkSync(pdfPath); } catch {}
-        try { require('fs').rmdirSync(outDir); } catch {}
-      });
-      stream.pipe(res);
-    } catch (err) {
-      console.error(`[mail-preview] Error convirtiendo archivo: storagePath=${att.storagePath}, contentType=${att.contentType}`, err);
-      try { require('fs').rmSync(outDir, { recursive: true, force: true }); } catch {}
-      if (!res.headersSent) {
-        res.status(500).json({ message: 'Error al generar vista previa del documento' });
-      }
-    }
+    const baseMime = (att.contentType ?? '').split(';')[0].trim().toLowerCase() || 'application/octet-stream';
+    res.setHeader('Content-Type', baseMime);
+    res.setHeader('Content-Disposition', `inline; filename="${att.filename}"`);
+    createReadStream(att.storagePath).pipe(res);
   }
 
   @Get('emails/:id/attachments/:aid')

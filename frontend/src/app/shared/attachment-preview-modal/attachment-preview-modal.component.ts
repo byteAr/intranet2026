@@ -1,10 +1,12 @@
 import {
   Component,
+  ElementRef,
   EventEmitter,
   Input,
   Output,
   OnChanges,
   SimpleChanges,
+  ViewChild,
   inject,
   signal,
 } from '@angular/core';
@@ -18,19 +20,20 @@ export interface AttachmentPreviewRequest {
   downloadUrl?: string;
 }
 
+type PreviewMode = 'pdf' | 'image' | 'docx' | 'xlsx' | 'unsupported';
+
 @Component({
   selector: 'app-attachment-preview-modal',
   standalone: true,
   imports: [CommonModule],
   template: `
     @if (visible()) {
-      <!-- Backdrop -->
       <div class="fixed inset-0 z-[9999] flex items-center justify-center" (click)="onBackdropClick($event)">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
 
-        <!-- Modal -->
         <div class="relative z-10 flex flex-col bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden"
-             style="width: calc(100vw - 80px); height: calc(100vh - 80px); max-width: 1600px;">
+             style="width: calc(100vw - 80px); height: calc(100vh - 80px); max-width: 1600px;"
+             (dblclick)="downloadFile()">
 
           <!-- Header -->
           <div class="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 flex-shrink-0">
@@ -41,19 +44,28 @@ export interface AttachmentPreviewRequest {
               </svg>
               <span class="text-sm font-medium text-gray-700 dark:text-zinc-300 truncate">{{ currentFilename() }}</span>
             </div>
-            <button (click)="close()"
-              class="flex items-center justify-center h-8 w-8 rounded-full hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200"
-              title="Cerrar">
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div class="flex items-center gap-1">
+              @if (currentDownloadUrl()) {
+                <button (click)="downloadFile()" title="Descargar archivo original"
+                  class="flex items-center justify-center h-8 w-8 rounded-full hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </button>
+              }
+              <button (click)="close()" title="Cerrar (Esc)"
+                class="flex items-center justify-center h-8 w-8 rounded-full hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <!-- Content -->
           <div class="flex-1 overflow-hidden relative bg-gray-100 dark:bg-zinc-950">
             @if (loading()) {
-              <!-- Branded loading screen -->
               <div class="absolute inset-0 flex flex-col items-center justify-center gap-5">
                 <div class="animate-pulse">
                   <img src="assets/images/diredtosintranetlogo.png"
@@ -62,9 +74,7 @@ export interface AttachmentPreviewRequest {
                 </div>
                 <div class="flex items-center gap-1 text-sm text-gray-500 dark:text-zinc-400 font-medium">
                   <span>Generando previsualización</span>
-                  <span class="inline-flex w-6">
-                    <span class="animate-dots">...</span>
-                  </span>
+                  <span class="inline-flex w-6"><span class="animate-dots">...</span></span>
                 </div>
               </div>
             } @else if (error()) {
@@ -85,8 +95,15 @@ export interface AttachmentPreviewRequest {
                   </button>
                 }
               </div>
-            } @else if (previewUrl()) {
+            } @else if (previewMode() === 'pdf') {
               <iframe [src]="previewUrl()!" class="w-full h-full border-0"></iframe>
+            } @else if (previewMode() === 'image') {
+              <div class="absolute inset-0 flex items-center justify-center p-4 overflow-auto">
+                <img [src]="previewUrl()!" [alt]="currentFilename()"
+                     class="max-w-full max-h-full object-contain rounded shadow-lg" />
+              </div>
+            } @else if (previewMode() === 'docx' || previewMode() === 'xlsx') {
+              <div #renderContainer class="absolute inset-0 overflow-auto bg-white"></div>
             }
           </div>
         </div>
@@ -94,11 +111,6 @@ export interface AttachmentPreviewRequest {
     }
   `,
   styles: [`
-    @keyframes dots {
-      0%, 20% { content: '.'; }
-      40% { content: '..'; }
-      60%, 100% { content: '...'; }
-    }
     .animate-dots {
       display: inline-block;
       overflow: hidden;
@@ -117,6 +129,7 @@ export interface AttachmentPreviewRequest {
 export class AttachmentPreviewModalComponent implements OnChanges {
   @Input() request: AttachmentPreviewRequest | null = null;
   @Output() closed = new EventEmitter<void>();
+  @ViewChild('renderContainer') renderContainer!: ElementRef<HTMLDivElement>;
 
   private readonly sanitizer = inject(DomSanitizer);
   private readonly http = inject(HttpClient);
@@ -127,8 +140,11 @@ export class AttachmentPreviewModalComponent implements OnChanges {
   readonly loading = signal(false);
   readonly error = signal(false);
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
+  readonly previewMode = signal<PreviewMode>('unsupported');
   readonly currentFilename = signal('');
   readonly currentDownloadUrl = signal<string | null>(null);
+
+  private currentBlob: Blob | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['request'] && this.request) {
@@ -136,38 +152,172 @@ export class AttachmentPreviewModalComponent implements OnChanges {
     }
   }
 
+  private getExtension(filename: string): string {
+    return (filename.split('.').pop() ?? '').toLowerCase();
+  }
+
+  private detectMode(filename: string): PreviewMode {
+    const ext = this.getExtension(filename);
+    if (ext === 'pdf') return 'pdf';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'image';
+    if (['docx', 'doc'].includes(ext)) return 'docx';
+    if (['xlsx', 'xls'].includes(ext)) return 'xlsx';
+    return 'unsupported';
+  }
+
   private open(req: AttachmentPreviewRequest): void {
     this.currentFilename.set(req.filename);
-    this.currentDownloadUrl.set(req.downloadUrl ?? null);
+    this.currentDownloadUrl.set(req.downloadUrl ?? req.url.replace('/preview', ''));
     this.visible.set(true);
     this.loading.set(true);
     this.error.set(false);
     this.previewUrl.set(null);
+    this.currentBlob = null;
+
+    const mode = this.detectMode(req.filename);
+    this.previewMode.set(mode);
+
+    if (mode === 'unsupported') {
+      this.loading.set(false);
+      this.error.set(true);
+      return;
+    }
 
     const startTime = Date.now();
 
     this.http.get(req.url, { responseType: 'blob' }).subscribe({
       next: (blob) => {
-        const blobUrl = URL.createObjectURL(blob);
-        const safeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(blobUrl);
+        this.currentBlob = blob;
         const elapsed = Date.now() - startTime;
         const remaining = Math.max(0, this.MIN_LOADING_MS - elapsed);
 
         setTimeout(() => {
-          this.previewUrl.set(safeUrl);
-          this.loading.set(false);
+          this.renderBlob(blob, mode);
         }, remaining);
       },
       error: () => {
         const elapsed = Date.now() - startTime;
         const remaining = Math.max(0, this.MIN_LOADING_MS - elapsed);
-
         setTimeout(() => {
           this.error.set(true);
           this.loading.set(false);
         }, remaining);
       },
     });
+  }
+
+  private renderBlob(blob: Blob, mode: PreviewMode): void {
+    if (mode === 'pdf' || mode === 'image') {
+      const blobUrl = URL.createObjectURL(blob);
+      this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(blobUrl));
+      this.loading.set(false);
+      return;
+    }
+
+    if (mode === 'docx') {
+      this.renderDocx(blob);
+      return;
+    }
+
+    if (mode === 'xlsx') {
+      this.renderXlsx(blob);
+      return;
+    }
+
+    this.error.set(true);
+    this.loading.set(false);
+  }
+
+  private async renderDocx(blob: Blob): Promise<void> {
+    try {
+      const docxPreview = await import('docx-preview');
+      const arrayBuffer = await blob.arrayBuffer();
+
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+      const container = this.renderContainer?.nativeElement;
+      if (!container) {
+        this.error.set(true);
+        this.loading.set(false);
+        return;
+      }
+
+      await docxPreview.renderAsync(arrayBuffer, container, undefined, {
+        className: 'docx-preview-wrapper',
+        inWrapper: true,
+        ignoreWidth: false,
+        ignoreHeight: false,
+        ignoreFonts: false,
+        breakPages: true,
+        ignoreLastRenderedPageBreak: true,
+        experimental: false,
+        trimXmlDeclaration: true,
+        useBase64URL: true,
+      });
+
+      this.loading.set(false);
+    } catch (err) {
+      console.error('Error renderizando DOCX:', err);
+      this.error.set(true);
+      this.loading.set(false);
+    }
+  }
+
+  private async renderXlsx(blob: Blob): Promise<void> {
+    try {
+      const XLSX = await import('xlsx');
+      const arrayBuffer = await blob.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+      const container = this.renderContainer?.nativeElement;
+      if (!container) {
+        this.error.set(true);
+        this.loading.set(false);
+        return;
+      }
+
+      let html = '<div style="padding: 16px; font-family: Calibri, Arial, sans-serif; font-size: 13px;">';
+
+      if (workbook.SheetNames.length > 1) {
+        html += '<div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">';
+        workbook.SheetNames.forEach((name, i) => {
+          html += `<button onclick="document.querySelectorAll('.xlsx-sheet').forEach(s=>s.style.display='none');document.getElementById('sheet-${i}').style.display='block';this.parentElement.querySelectorAll('button').forEach(b=>{b.style.background='#f3f4f6';b.style.fontWeight='normal'});this.style.background='#0d9488';this.style.color='white';this.style.fontWeight='bold'"
+            style="padding:6px 14px; border-radius:6px; border:1px solid #e5e7eb; cursor:pointer; font-size:12px; ${i === 0 ? 'background:#0d9488;color:white;font-weight:bold' : 'background:#f3f4f6'}">${name}</button>`;
+        });
+        html += '</div>';
+      }
+
+      workbook.SheetNames.forEach((name, i) => {
+        const sheet = workbook.Sheets[name];
+        const tableHtml = XLSX.utils.sheet_to_html(sheet, { editable: false });
+        html += `<div id="sheet-${i}" class="xlsx-sheet" style="${i > 0 ? 'display:none' : ''}">`;
+        html += tableHtml;
+        html += '</div>';
+      });
+
+      html += '</div>';
+
+      const style = document.createElement('style');
+      style.textContent = `
+        table { border-collapse: collapse; width: auto; min-width: 100%; }
+        td, th { border: 1px solid #d1d5db; padding: 4px 8px; text-align: left; white-space: nowrap; min-width: 60px; }
+        th { background: #f9fafb; font-weight: 600; position: sticky; top: 0; }
+        tr:nth-child(even) { background: #f9fafb; }
+        tr:hover { background: #ecfdf5; }
+      `;
+
+      container.innerHTML = '';
+      container.appendChild(style);
+      container.insertAdjacentHTML('beforeend', html);
+
+      this.loading.set(false);
+    } catch (err) {
+      console.error('Error renderizando XLSX:', err);
+      this.error.set(true);
+      this.loading.set(false);
+    }
   }
 
   downloadFile(): void {
@@ -185,9 +335,11 @@ export class AttachmentPreviewModalComponent implements OnChanges {
   close(): void {
     this.visible.set(false);
     this.previewUrl.set(null);
+    this.previewMode.set('unsupported');
     this.loading.set(false);
     this.error.set(false);
     this.currentDownloadUrl.set(null);
+    this.currentBlob = null;
     this.closed.emit();
   }
 

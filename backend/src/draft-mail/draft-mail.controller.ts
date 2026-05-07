@@ -1,18 +1,13 @@
 import {
   Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Request,
-  UploadedFiles, UseInterceptors, Res, InternalServerErrorException,
+  UploadedFiles, UseInterceptors, Res,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname, join, basename } from 'path';
+import { extname, join } from 'path';
 import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync, createReadStream, unlinkSync } from 'fs';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { tmpdir } from 'os';
 import { Response } from 'express';
-
-const execFileAsync = promisify(execFile);
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DraftMailService } from './draft-mail.service';
@@ -218,43 +213,10 @@ export class DraftMailController {
     const att = await this.attachmentRepo.findOne({ where: { id: attId, draftEmailId: id } });
     if (!att || !existsSync(att.storagePath)) throw new NotFoundException('Adjunto no encontrado');
 
-    const isPdf = att.contentType === 'application/pdf';
-    const isImage = att.contentType.startsWith('image/');
-
-    if (isPdf || isImage) {
-      res.setHeader('Content-Type', att.contentType);
-      res.setHeader('Content-Disposition', `inline; filename="${att.filename}"`);
-      createReadStream(att.storagePath).pipe(res);
-      return;
-    }
-
-    const outDir = join(tmpdir(), `preview-${randomUUID()}`);
-    mkdirSync(outDir, { recursive: true });
-    try {
-      await execFileAsync('libreoffice', [
-        '--headless', '--convert-to', 'pdf',
-        '--outdir', outDir,
-        att.storagePath,
-      ], { timeout: 30000 });
-
-      const pdfName = basename(att.storagePath).replace(/\.[^.]+$/, '.pdf');
-      const pdfPath = join(outDir, pdfName);
-
-      if (!existsSync(pdfPath)) throw new InternalServerErrorException('Error al generar vista previa');
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${att.filename}.pdf"`);
-      const stream = createReadStream(pdfPath);
-      stream.on('end', () => {
-        try { unlinkSync(pdfPath); } catch {}
-        try { require('fs').rmdirSync(outDir); } catch {}
-      });
-      stream.pipe(res);
-    } catch (err) {
-      try { require('fs').rmSync(outDir, { recursive: true, force: true }); } catch {}
-      if (err instanceof InternalServerErrorException) throw err;
-      throw new InternalServerErrorException('Error al generar vista previa del documento');
-    }
+    const baseMime = (att.contentType ?? '').split(';')[0].trim().toLowerCase() || 'application/octet-stream';
+    res.setHeader('Content-Type', baseMime);
+    res.setHeader('Content-Disposition', `inline; filename="${att.filename}"`);
+    createReadStream(att.storagePath).pipe(res);
   }
 
   @Get(':id/attachments/:attId')

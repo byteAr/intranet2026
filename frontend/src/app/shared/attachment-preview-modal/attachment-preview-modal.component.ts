@@ -170,7 +170,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
     const ext = this.getExtension(filename);
     if (ext === 'pdf') return 'pdf';
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'image';
-    if (['docx', 'doc'].includes(ext)) return 'docx';
+    if (['docx', 'doc', 'odt'].includes(ext)) return 'docx';
     if (['xlsx', 'xls', 'ods'].includes(ext)) return 'xlsx';
     return 'unsupported';
   }

@@ -1158,7 +1158,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
       <div>TRAMITESE:</div>
     </div>
   </div>
-  ${hash ? `<div class="hash-section">HASH DE VERIFICACIÓN (no se envía con el correo)<br><span class="hash-val">${hash}</span></div>` : ''}
+  ${hash ? `<div class="hash-section">HASH DE VERIFICACIÓN<br><span class="hash-val">${hash}</span></div>` : ''}
 </div>
 </body>
 </html>`;

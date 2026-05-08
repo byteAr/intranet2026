@@ -124,7 +124,7 @@ import { AuthService } from '../../core/services/auth.service';
 
         } @else if (activeEmail() && unlockedEmailId()) {
           <!-- ── Unlocked: MTO document + send form ─────────── -->
-          <div class="flex-1 overflow-y-auto bg-gray-300 p-5">
+          <div class="flex-1 overflow-y-auto bg-teal-50 p-5">
             <div class="max-w-4xl mx-auto space-y-4">
 
               <!-- Encryption indicator -->
@@ -208,29 +208,29 @@ import { AuthService } from '../../core/services/auth.service';
 
               <!-- Attachments with preview -->
               @if (activeEmail()!.attachments.length > 0 || activeEmail()!.sendMode === 'pon') {
-                <div class="bg-white rounded-lg p-3 border border-gray-200">
-                  <p class="text-xs font-medium text-gray-500 mb-2">Adjuntos:</p>
-                  <div class="space-y-1">
+                <div class="bg-white rounded-lg p-3 border border-teal-200">
+                  <p class="text-xs font-medium text-teal-600 mb-2">Adjuntos:</p>
+                  <div class="flex flex-wrap gap-2">
                     @for (att of activeEmail()!.attachments; track att.id) {
-                      <div class="flex items-center gap-2">
+                      <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-teal-200 bg-teal-50/50 shadow-sm">
                         <button type="button" (click)="previewAttachment(activeEmail()!.id, att)"
-                          class="flex-1 text-left flex items-center gap-2 text-xs text-teal-700 hover:text-teal-900 hover:underline">
+                          class="inline-flex items-center gap-1.5 text-xs text-teal-700 hover:text-teal-900 hover:underline">
                           <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                           </svg>
                           {{ att.filename }}
-                          <span class="text-gray-400">({{ formatFileSize(att.size) }})</span>
+                          <span class="text-teal-500 text-[10px]">({{ formatFileSize(att.size) }})</span>
                         </button>
                         <button type="button" (click)="downloadAtt(activeEmail()!.id, att.id, att.filename)"
-                          class="text-xs text-gray-400 hover:text-gray-600 px-1" title="Descargar">
+                          class="text-xs text-teal-400 hover:text-teal-700 px-0.5" title="Descargar">
                           <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                           </svg>
                         </button>
                         @if (activeEmail()!.sendMode === 'pon') {
                           <button type="button" (click)="deletePonAtt(att.id)" [disabled]="deletingAtt()"
-                            class="text-rose-400 hover:text-rose-600 text-xs px-1 disabled:opacity-40" title="Eliminar adjunto">✕</button>
+                            class="text-rose-400 hover:text-rose-600 text-xs px-0.5 disabled:opacity-40" title="Eliminar adjunto">✕</button>
                         }
                       </div>
                     }

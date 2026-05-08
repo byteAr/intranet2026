@@ -106,14 +106,14 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
 
         @if (showForm()) {
           <!-- ── Editable MTO Document ──────────────────── -->
-          <div class="flex-1 overflow-y-auto bg-gray-300 p-5">
+          <div class="flex-1 overflow-y-auto bg-teal-50 p-5">
             <div class="max-w-3xl mx-auto">
 
               <div class="flex items-center justify-between mb-3">
-                <span class="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                <span class="text-xs text-teal-700 font-medium uppercase tracking-wide">
                   {{ editingDraft() ? 'Editando borrador' : 'Nuevo borrador' }}
                 </span>
-                <button (click)="closeForm()" class="text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>
+                <button (click)="closeForm()" class="text-teal-600 hover:text-teal-800 text-xl leading-none">&times;</button>
               </div>
 
               <!-- ═══ MTO DOCUMENT ═══ -->
@@ -320,7 +320,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
 
         } @else if (activeDraft()) {
           <!-- ── MTO Document (read-only) + actions ────── -->
-          <div class="flex-1 overflow-y-auto bg-gray-300 p-5">
+          <div class="flex-1 overflow-y-auto bg-teal-50 p-5">
             <div class="max-w-3xl mx-auto space-y-3">
 
               <!-- Status + hash bar -->
@@ -405,17 +405,19 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
               <!-- Attachments -->
               @if (activeDraft()!.attachments.length > 0) {
                 <div>
-                  <p class="text-xs font-medium text-gray-400 mb-1">Adjuntos:</p>
-                  @for (att of activeDraft()!.attachments; track att.id) {
-                    <button type="button" (click)="openPreview(activeDraft()!.id, att.id, att.filename)"
-                      class="flex items-center gap-1.5 text-xs text-teal-700 hover:underline mb-0.5">
-                      <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                      </svg>
-                      {{ att.filename }}
-                    </button>
-                  }
+                  <p class="text-xs font-medium text-teal-600 mb-1.5">Adjuntos:</p>
+                  <div class="flex flex-wrap gap-2">
+                    @for (att of activeDraft()!.attachments; track att.id) {
+                      <button type="button" (click)="openPreview(activeDraft()!.id, att.id, att.filename)"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-teal-200 text-xs text-teal-700 hover:bg-teal-50 hover:border-teal-300 transition-colors shadow-sm">
+                        <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        {{ att.filename }}
+                      </button>
+                    }
+                  </div>
                 </div>
               }
 
@@ -1083,9 +1085,9 @@ export class DraftMailComponent implements OnInit, OnDestroy {
 <meta charset="UTF-8">
 <title>MTO</title>
 <style>
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 8mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Courier New', Courier, monospace; font-size: 9pt; color: #000; }
+  body { font-family: 'Courier New', Courier, monospace; font-size: 11pt; color: #000; }
   .doc { border: 2px solid #000; display: flex; flex-direction: column; }
   .b { font-weight: bold; }
   .uc { text-transform: uppercase; }
@@ -1097,25 +1099,25 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   .hdr-mto { padding: 4px 8px; text-align: center; font-weight: bold; border-bottom: 1px solid #000; }
   .hdr-zopr-row { display: grid; grid-template-columns: 50% 50%; }
   .hdr-zopr { padding: 4px 8px; font-weight: bold; letter-spacing: 6px; border-right: 1px solid #000; }
-  .hdr-date { padding: 4px 8px; text-align: center; font-size: 8pt; }
+  .hdr-date { padding: 4px 8px; text-align: center; font-size: 10pt; }
   /* Fields */
   .field-row { border-bottom: 1px solid #000; padding: 4px 10px; min-height: 1.6em; }
   /* Body */
   .body-area { border-bottom: 1px solid #000; padding: 10px; min-height: 160px; white-space: pre-wrap; line-height: 1.7; text-transform: uppercase; }
   /* Footer */
   .ftr { display: grid; grid-template-columns: 25% 17% 33% 25%; }
-  .ftr-bt { border-right: 1px solid #000; padding: 6px 8px; font-size: 8pt; line-height: 2; }
+  .ftr-bt { border-right: 1px solid #000; padding: 6px 8px; font-size: 9.5pt; line-height: 2; }
   .ftr-empty { border-right: 1px solid #000; }
   .ftr-mid { border-right: 1px solid #000; display: flex; flex-direction: column; justify-content: space-between; }
   .ftr-loc { border-bottom: 1px solid #000; }
-  .ftr-loc div { padding: 3px 8px; font-size: 8pt; font-style: italic; }
+  .ftr-loc div { padding: 3px 8px; font-size: 9.5pt; font-style: italic; }
   .ftr-loc div + div { border-top: 1px solid #000; }
-  .ftr-sig { padding: 12px 8px; text-align: center; font-size: 8pt; min-height: 60px; }
-  .ftr-cls { padding: 6px 8px; font-size: 8pt; text-align: center; }
+  .ftr-sig { padding: 12px 8px; text-align: center; font-size: 9.5pt; min-height: 60px; }
+  .ftr-cls { padding: 6px 8px; font-size: 9.5pt; text-align: center; }
   .ftr-cls div { border-bottom: 1px solid #000; padding: 4px; font-weight: bold; font-style: italic; }
   .ftr-cls div:last-child { border-bottom: none; padding-top: 4px; min-height: 40px; }
   /* Hash */
-  .hash-section { border-top: 1px dashed #666; padding: 5px; text-align: center; font-size: 7.5pt; color: #444; }
+  .hash-section { border-top: 1px dashed #666; padding: 5px; text-align: center; font-size: 9pt; color: #444; }
   .hash-val { font-size: 14pt; font-weight: bold; letter-spacing: 5px; color: #000; }
 </style>
 </head>

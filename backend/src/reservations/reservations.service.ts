@@ -53,6 +53,7 @@ export class ReservationsService {
     creatorId?: string;
     date?: string;
     location?: string;
+    orCreatorId?: string;
   }): Promise<Reservation[]> {
     const qb = this.reservationRepo.createQueryBuilder('r');
     if (filters?.status) {
@@ -64,7 +65,12 @@ export class ReservationsService {
     if (filters?.date) {
       qb.andWhere('r.date = :date', { date: filters.date });
     }
-    if (filters?.location) {
+    if (filters?.location && filters?.orCreatorId) {
+      qb.andWhere('(r.location = :location OR r.creatorId = :orCreatorId)', {
+        location: filters.location,
+        orCreatorId: filters.orCreatorId,
+      });
+    } else if (filters?.location) {
       qb.andWhere('r.location = :location', { location: filters.location });
     }
     return qb.orderBy('r.date', 'DESC').addOrderBy('r.startTime', 'ASC').getMany();

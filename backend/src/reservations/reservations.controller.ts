@@ -90,7 +90,7 @@ export class ReservationsController {
       return this.reservationsService.findAll({ status, date });
     }
     if (isAyudantiaRectorado && !isAyudantiaDiredtos) {
-      return this.reservationsService.findAll({ status, date, location: 'piso_6' });
+      return this.reservationsService.findAll({ status, date, location: 'piso_6', orCreatorId: user.id });
     }
     // AYUDANTIADIREDTOS (or legacy AYUDANTIA) → piso_8
     return this.reservationsService.findAll({ status, date, location: 'piso_8' });

@@ -74,7 +74,30 @@ const RANK_GROUPS = [
   imports: [CommonModule, FormsModule, DatePipe],
   template: `
     <div class="p-6 max-w-6xl mx-auto">
-      <h1 class="text-2xl font-bold text-gray-800 dark:text-white mb-6">Panel de Administración</h1>
+      <div class="flex items-center flex-wrap gap-4 mb-6">
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Panel de Administración</h1>
+
+        @if (!loadingUsers() && users().length > 0) {
+          <div class="flex flex-wrap gap-2 ml-auto">
+            @for (s of statCards(); track s.key) {
+              <button (click)="toggleStatFilter(s.key)"
+                class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border"
+                [class]="statFilter() === s.key
+                  ? s.activeCls
+                  : 'bg-white dark:bg-zinc-800 border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-zinc-500'">
+                <span class="flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white" [class]="s.dotCls">
+                  {{ s.icon }}
+                </span>
+                <span>{{ s.label }}</span>
+                <span class="ml-0.5 font-bold">{{ s.count }}</span>
+                @if (s.total) {
+                  <span class="text-[10px] opacity-60">/ {{ s.total }}</span>
+                }
+              </button>
+            }
+          </div>
+        }
+      </div>
 
       <!-- Tabs -->
       <div class="flex border-b border-gray-200 dark:border-zinc-700 mb-6">
@@ -140,6 +163,19 @@ const RANK_GROUPS = [
               Nuevo usuario
             </button>
           </div>
+
+          @if (statFilter()) {
+            <div class="flex items-center gap-2 mb-3 text-sm text-gray-600 dark:text-gray-300">
+              <span class="font-medium">Filtro:</span>
+              <span class="px-2 py-0.5 rounded-full text-xs font-semibold" [class]="activeStatCard()?.activeCls ?? ''">
+                {{ activeStatCard()?.label }}
+              </span>
+              <button (click)="statFilter.set(null); currentPage.set(1)"
+                class="ml-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs underline">
+                Limpiar filtro
+              </button>
+            </div>
+          }
 
           @if (loadingUsers()) {
             <div class="flex justify-center py-12">
@@ -990,6 +1026,7 @@ export class AdminComponent implements OnInit {
 
   readonly rankGroups = RANK_GROUPS;
   readonly searchQuery = signal('');
+  readonly statFilter = signal<string | null>(null);
   readonly currentPage = signal(1);
   readonly pageSize = 20;
   readonly sortField = signal('displayName');
@@ -1003,19 +1040,27 @@ export class AdminComponent implements OnInit {
 
   readonly filteredUsers = computed(() => {
     const q = this.searchQuery().toLowerCase().trim();
+    const sf = this.statFilter();
     const field = this.sortField();
     const dir = this.sortDir();
 
-    let list = q
-      ? this.users().filter(u =>
-          (u.displayName ?? '').toLowerCase().includes(q) ||
-          (u.firstName  ?? '').toLowerCase().includes(q) ||
-          (u.lastName   ?? '').toLowerCase().includes(q) ||
-          (u.username   ?? '').toLowerCase().includes(q) ||
-          (u.office     ?? '').toLowerCase().includes(q) ||
-          (u.email      ?? '').toLowerCase().includes(q),
-        )
-      : [...this.users()];
+    let list = [...this.users()];
+
+    if (sf === 'active') list = list.filter(u => u.enabledInAd && u.hasLoggedIn && !u.mustChangePassword);
+    else if (sf === 'disabled') list = list.filter(u => !u.enabledInAd);
+    else if (sf === 'neverLogged') list = list.filter(u => u.enabledInAd && !u.hasLoggedIn);
+    else if (sf === 'mustChange') list = list.filter(u => u.enabledInAd && u.mustChangePassword);
+
+    if (q) {
+      list = list.filter(u =>
+        (u.displayName ?? '').toLowerCase().includes(q) ||
+        (u.firstName  ?? '').toLowerCase().includes(q) ||
+        (u.lastName   ?? '').toLowerCase().includes(q) ||
+        (u.username   ?? '').toLowerCase().includes(q) ||
+        (u.office     ?? '').toLowerCase().includes(q) ||
+        (u.email      ?? '').toLowerCase().includes(q),
+      );
+    }
 
     list.sort((a, b) => {
       let va: string | number = '';
@@ -1056,6 +1101,37 @@ export class AdminComponent implements OnInit {
       this.sortField.set(field);
       this.sortDir.set('asc');
     }
+    this.currentPage.set(1);
+  }
+
+  readonly statCards = computed(() => {
+    const all = this.users();
+    const total = all.length;
+    const active = all.filter(u => u.enabledInAd && u.hasLoggedIn && !u.mustChangePassword).length;
+    const disabled = all.filter(u => !u.enabledInAd).length;
+    const neverLogged = all.filter(u => u.enabledInAd && !u.hasLoggedIn).length;
+    const mustChange = all.filter(u => u.enabledInAd && u.mustChangePassword).length;
+    const groupCount = this.groups().length;
+    return [
+      { key: 'all',        label: 'Total',            count: total,       total: 0,     icon: '👥', dotCls: 'bg-slate-500',  activeCls: 'bg-slate-100 dark:bg-slate-800 border-slate-400 dark:border-slate-500 text-slate-800 dark:text-slate-200' },
+      { key: 'active',     label: 'Activos',          count: active,      total: total, icon: '✓',  dotCls: 'bg-emerald-500', activeCls: 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-400 dark:border-emerald-600 text-emerald-800 dark:text-emerald-200' },
+      { key: 'disabled',   label: 'Deshabilitados',   count: disabled,    total: total, icon: '✕',  dotCls: 'bg-red-500',    activeCls: 'bg-red-50 dark:bg-red-900/30 border-red-400 dark:border-red-600 text-red-800 dark:text-red-200' },
+      { key: 'neverLogged', label: 'Nunca ingresaron', count: neverLogged, total: total, icon: '?',  dotCls: 'bg-amber-500',  activeCls: 'bg-amber-50 dark:bg-amber-900/30 border-amber-400 dark:border-amber-600 text-amber-800 dark:text-amber-200' },
+      { key: 'mustChange', label: 'Sin contraseña',   count: mustChange,  total: total, icon: '!',  dotCls: 'bg-orange-500', activeCls: 'bg-orange-50 dark:bg-orange-900/30 border-orange-400 dark:border-orange-600 text-orange-800 dark:text-orange-200' },
+      { key: 'groups',     label: 'Grupos AD',        count: groupCount,  total: 0,     icon: '⊞',  dotCls: 'bg-indigo-500', activeCls: 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-400 dark:border-indigo-600 text-indigo-800 dark:text-indigo-200' },
+    ];
+  });
+
+  readonly activeStatCard = computed(() => this.statCards().find(s => s.key === this.statFilter()) ?? null);
+
+  toggleStatFilter(key: string): void {
+    if (key === 'groups') {
+      this.statFilter.set(null);
+      this.openGroupsTab();
+      return;
+    }
+    this.statFilter.update(f => f === key ? null : key);
+    this.activeTab.set('users');
     this.currentPage.set(1);
   }
 

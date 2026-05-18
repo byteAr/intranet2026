@@ -1031,9 +1031,8 @@ export class ReservationsComponent implements OnInit {
     return this.reservationsService.isAyudantia;
   }
 
-  /** Regular users can create; staff roles only view/approve/confirm */
   get canCreate(): boolean {
-    return !this.isAyudantia;
+    return !this.isAyudantiaDiredtos;
   }
 
   get sidebarTitle(): string {

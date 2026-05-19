@@ -39,22 +39,25 @@ export class ChatService {
 
   async getHistory(userId: string, recipientId?: string): Promise<Message[]> {
     if (recipientId) {
-      // DM: los 50 mensajes más recientes entre userId y recipientId
-      return this.messageRepo
+      // DM: los 100 mensajes más recientes entre userId y recipientId
+      const msgs = await this.messageRepo
         .createQueryBuilder('m')
         .where(
           '(m.senderId = :a AND m.recipientId = :b) OR (m.senderId = :b AND m.recipientId = :a)',
           { a: userId, b: recipientId },
         )
-        .orderBy('m.createdAt', 'ASC')
+        .orderBy('m.createdAt', 'DESC')
         .take(100)
         .getMany();
+      return msgs.reverse();
     }
-    // Global: todos los mensajes sin recipientId
-    return this.messageRepo.find({
+    // Global: los 200 mensajes más recientes sin recipientId
+    const global = await this.messageRepo.find({
       where: { recipientId: IsNull() },
-      order: { createdAt: 'ASC' },
+      order: { createdAt: 'DESC' },
+      take: 200,
     });
+    return global.reverse();
   }
 
   async markRead(messageId: string, userId: string): Promise<void> {

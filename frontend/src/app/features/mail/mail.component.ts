@@ -242,7 +242,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                          fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                     </svg>
-                    <span class="text-xs font-semibold text-gray-700 truncate flex-1 text-left">{{ group.sender }}</span>
+                    <span class="text-xs font-semibold text-gray-700 truncate flex-1 text-left">{{ group.sender || '(Sin remitente)' }}</span>
                     <span class="text-[10px] bg-gray-200 text-gray-500 rounded-full px-1.5 py-0.5 flex-shrink-0">{{ group.count }}</span>
                   </button>
                   @if (expandedGroups().has(group.sender)) {

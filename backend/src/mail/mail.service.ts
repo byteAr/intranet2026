@@ -195,7 +195,9 @@ export class MailService implements OnApplicationBootstrap {
     }
 
     const rows = await qb.getRawMany<{ sender: string; count: string; lastDate: string }>();
-    return rows.map(r => ({ sender: r.sender, count: parseInt(r.count, 10), lastDate: r.lastDate }));
+    const mapped = rows.map(r => ({ sender: r.sender ?? '', count: parseInt(r.count, 10), lastDate: r.lastDate }));
+    // Remitentes vacíos al final
+    return [...mapped.filter(r => r.sender), ...mapped.filter(r => !r.sender)];
   }
 
   async findOne(id: string, userId: string, userRoles?: string[]): Promise<Email> {

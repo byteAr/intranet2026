@@ -151,15 +151,59 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
         </div>
 
         <!-- List header -->
-        @if (isSearchMode() || isAdvancedMode()) {
-          <div class="px-3 py-2 flex items-center justify-between border-b border-gray-100">
-            <span class="text-xs text-gray-400">
-              @if (isAdvancedMode()) { Búsqueda avanzada } @else { Resultados }
-            </span>
-            <button (click)="isAdvancedMode() ? clearAdvancedSearch() : clearSearch()"
-              class="text-xs text-teal-600 hover:text-teal-800">Limpiar</button>
+        <div class="px-3 py-1.5 flex items-center justify-between border-b border-gray-100">
+          <span class="text-xs text-gray-400">
+            @if (isAdvancedMode()) { Búsqueda avanzada }
+            @else if (isSearchMode()) { Resultados }
+            @else { &nbsp; }
+          </span>
+          <div class="flex items-center gap-2">
+            @if (isSearchMode() || isAdvancedMode()) {
+              <button (click)="isAdvancedMode() ? clearAdvancedSearch() : clearSearch()"
+                class="text-xs text-teal-600 hover:text-teal-800">Limpiar</button>
+            }
+            <!-- Organizar por -->
+            <div class="relative">
+              <button (click)="showGroupByMenu.set(!showGroupByMenu())"
+                class="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                [class.text-teal-700]="groupBy() === 'from'"
+                [class.text-gray-500]="groupBy() === 'none'">
+                {{ groupBy() === 'from' ? 'Por De' : 'Organizar' }}
+                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              @if (showGroupByMenu()) {
+                <div class="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1"
+                     (mouseleave)="showGroupByMenu.set(false)">
+                  <p class="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Organizar por</p>
+                  <button (click)="setGroupBy('none')"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
+                    [class.text-teal-700]="groupBy() === 'none'"
+                    [class.text-gray-700]="groupBy() !== 'none'">
+                    @if (groupBy() === 'none') {
+                      <svg class="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                    } @else { <span class="w-3"></span> }
+                    Fecha
+                  </button>
+                  <button (click)="setGroupBy('from')"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
+                    [class.text-teal-700]="groupBy() === 'from'"
+                    [class.text-gray-700]="groupBy() !== 'from'">
+                    @if (groupBy() === 'from') {
+                      <svg class="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                    } @else { <span class="w-3"></span> }
+                    De (remitente)
+                  </button>
+                </div>
+              }
+            </div>
           </div>
-        }
+        </div>
 
         <!-- Email rows -->
         <div class="flex-1 overflow-y-auto">
@@ -179,7 +223,59 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               </svg>
               <p class="text-sm">Sin correos</p>
             </div>
+          } @else if (groupBy() === 'from' && emailGroups()) {
+            <!-- Vista agrupada por remitente -->
+            @for (group of emailGroups()!; track group.sender) {
+              <div class="border-b border-gray-100">
+                <button (click)="toggleGroup(group.sender)"
+                  class="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors sticky top-0 z-10 border-b border-gray-200">
+                  <svg class="h-3 w-3 text-gray-400 flex-shrink-0 transition-transform"
+                       [class.rotate-[-90deg]]="collapsedGroups().has(group.sender)"
+                       fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                  <span class="text-xs font-semibold text-gray-600 truncate flex-1 text-left">{{ group.sender }}</span>
+                  <span class="text-[10px] text-gray-400 flex-shrink-0">{{ group.emails.length }}</span>
+                </button>
+                @if (!collapsedGroups().has(group.sender)) {
+                  @for (email of group.emails; track email.id) {
+                    <button
+                      (click)="selectEmail(email)"
+                      [attr.data-email-id]="email.id"
+                      class="w-full text-left px-3 py-2.5 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50 focus:outline-none"
+                      [ngClass]="{
+                        'bg-teal-50 shadow-md relative z-10': activeEmail()?.id === email.id,
+                        'border-l-2 border-l-teal-500': !isRead(email)
+                      }">
+                      <div class="flex items-center justify-between gap-1">
+                        <p class="text-sm truncate flex-1"
+                           [class.font-semibold]="!isRead(email)"
+                           [class.text-gray-800]="!isRead(email)"
+                           [class.text-gray-600]="isRead(email)">
+                          {{ email.subject }}
+                        </p>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                          @if (email.attachmentCount) {
+                            <svg class="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                            </svg>
+                          }
+                          <span class="text-xs text-gray-400">{{ formatDate(email.date) }}</span>
+                        </div>
+                      </div>
+                      <div class="flex items-center justify-end mt-1">
+                        <span class="text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
+                          {{ folderLabel(email.folder) }}
+                        </span>
+                      </div>
+                    </button>
+                  }
+                }
+              </div>
+            }
           } @else {
+            <!-- Vista plana (por fecha) -->
             @for (email of mailService.emails(); track email.id) {
               <button
                 (click)="selectEmail(email)"
@@ -495,6 +591,35 @@ export class MailComponent implements OnInit {
   readonly totalPages = computed(() =>
     Math.max(1, Math.ceil(this.mailService.totalEmails() / 30))
   );
+
+  readonly groupBy = signal<'none' | 'from'>('none');
+  readonly showGroupByMenu = signal(false);
+  readonly collapsedGroups = signal<Set<string>>(new Set());
+
+  readonly emailGroups = computed(() => {
+    if (this.groupBy() !== 'from') return null;
+    const map = new Map<string, Email[]>();
+    for (const email of this.mailService.emails()) {
+      const key = email.fromAddress;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(email);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([sender, emails]) => ({ sender, emails }));
+  });
+
+  setGroupBy(value: 'none' | 'from'): void {
+    this.groupBy.set(value);
+    this.showGroupByMenu.set(false);
+    this.collapsedGroups.set(new Set());
+  }
+
+  toggleGroup(sender: string): void {
+    const next = new Set(this.collapsedGroups());
+    if (next.has(sender)) next.delete(sender); else next.add(sender);
+    this.collapsedGroups.set(next);
+  }
 
   readonly copyTooltip = signal<{ x: number; y: number; copied: boolean } | null>(null);
   private suppressTooltip = false;

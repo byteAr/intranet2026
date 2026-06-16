@@ -12,14 +12,21 @@ export interface MailRecipient {
 @Injectable()
 export class LdapRecipientsService {
   private readonly logger = new Logger(LdapRecipientsService.name);
+  private currentPassword: string;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {
+    this.currentPassword = this.configService.get<string>('BRIDGE_LDAP_BIND_PASSWORD') ?? '';
+  }
+
+  updatePassword(password: string): void {
+    this.currentPassword = password;
+  }
 
   search(query: string): Promise<MailRecipient[]> {
     const host = this.configService.get<string>('BRIDGE_LDAP_HOST') ?? '10.201.0.7';
     const port = parseInt(this.configService.get<string>('BRIDGE_LDAP_PORT') ?? '389', 10);
     const bindUser = this.configService.get<string>('BRIDGE_LDAP_BIND_USER') ?? 'DIREDTOS';
-    const bindPassword = this.configService.get<string>('BRIDGE_LDAP_BIND_PASSWORD') ?? '';
+    const bindPassword = this.currentPassword;
     const baseDn = this.configService.get<string>('BRIDGE_LDAP_BASE_DN') ?? 'OU=MTO,DC=gendarmeria,DC=local';
 
     return new Promise((resolve, reject) => {

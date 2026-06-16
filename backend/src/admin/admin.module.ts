@@ -8,9 +8,10 @@ import { WelcomeEmailService } from './welcome-email.service';
 import { AdminAuditLog } from './entities/admin-audit-log.entity';
 import { GroupPermission } from './entities/group-permission.entity';
 import { User } from '../users/entities/user.entity';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, AdminAuditLog, GroupPermission])],
+  imports: [TypeOrmModule.forFeature([User, AdminAuditLog, GroupPermission]), MailModule],
   controllers: [AdminController, PermissionsController],
   providers: [AdminService, GoogleWorkspaceService, WelcomeEmailService],
 })

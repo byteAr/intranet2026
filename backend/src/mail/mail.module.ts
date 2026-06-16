@@ -46,6 +46,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   ],
   controllers: [MailController, PstImportController],
   providers: [MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService, DecryptedAttachmentService, SienaFileService],
-  exports: [MailParserService, MailIngestService, ImapPollerService, MailService, SmtpSenderService],
+  exports: [MailParserService, MailIngestService, ImapPollerService, MailService, SmtpSenderService, LdapRecipientsService],
 })
 export class MailModule {}

@@ -17,8 +17,11 @@ import { UpdateAdUserDto } from './dto/update-ad-user.dto';
 import { GroupMemberActionDto } from './dto/group-member-action.dto';
 import { GoogleWorkspaceService } from './google-workspace.service';
 import { WelcomeEmailService } from './welcome-email.service';
+import { LdapRecipientsService } from '../mail/ldap-recipients.service';
 import * as https from 'https';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface AdGroupEntry {
   cn: string;
@@ -70,6 +73,7 @@ export class AdminService implements OnApplicationBootstrap {
     private readonly configService: ConfigService,
     private readonly googleWorkspace: GoogleWorkspaceService,
     private readonly welcomeEmail: WelcomeEmailService,
+    private readonly ldapRecipients: LdapRecipientsService,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     @InjectRepository(AdminAuditLog)
@@ -625,6 +629,20 @@ export class AdminService implements OnApplicationBootstrap {
     if (!res.ok) {
       throw new BadRequestException(`Error del bridge: ${res.status} ${res.body}`);
     }
+    this.ldapRecipients.updatePassword(password);
+    this.updateEnvVar('BRIDGE_LDAP_BIND_PASSWORD', password);
     await this.audit(actor, 'Actualizó la contraseña de la cuenta de correo DIREDTOS');
+  }
+
+  private updateEnvVar(key: string, value: string): void {
+    try {
+      const envPath = path.resolve(process.cwd(), '..', '.env');
+      if (!fs.existsSync(envPath)) return;
+      const content = fs.readFileSync(envPath, 'utf8');
+      const updated = content.replace(new RegExp(`^${key}=.*`, 'm'), `${key}=${value}`);
+      fs.writeFileSync(envPath, updated, 'utf8');
+    } catch (err) {
+      this.logger.warn(`No se pudo actualizar .env: ${(err as Error).message}`);
+    }
   }
 }

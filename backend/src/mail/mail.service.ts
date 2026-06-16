@@ -142,6 +142,10 @@ export class MailService implements OnApplicationBootstrap {
       qb.andWhere('e.date <= :dateTo', { dateTo: new Date(dto.dateTo + 'T23:59:59') });
     }
 
+    if (dto.sender?.trim()) {
+      qb.andWhere('e.fromAddress = :sender', { sender: dto.sender.trim() });
+    }
+
     if (dto.q?.trim()) {
       const searchTerm = dto.q.trim();
       // Regex for mailCode: word boundaries on both sides.
@@ -170,6 +174,28 @@ export class MailService implements OnApplicationBootstrap {
 
     const [data, total] = await qb.getManyAndCount();
     return { data, total, page, limit };
+  }
+
+  async groupedBySender(folder?: string, historical?: boolean): Promise<{ sender: string; count: number; lastDate: string }[]> {
+    const qb = this.emailRepo
+      .createQueryBuilder('e')
+      .select('e.fromAddress', 'sender')
+      .addSelect('COUNT(*)', 'count')
+      .addSelect('MAX(e.date)', 'lastDate')
+      .groupBy('e.fromAddress')
+      .orderBy('e.fromAddress', 'ASC');
+
+    if (folder) qb.andWhere('e.folder = :folder', { folder });
+
+    const currentYear = new Date().getFullYear();
+    if (historical) {
+      qb.andWhere('EXTRACT(YEAR FROM e.date) < :year', { year: currentYear });
+    } else {
+      qb.andWhere('EXTRACT(YEAR FROM e.date) = :year', { year: currentYear });
+    }
+
+    const rows = await qb.getRawMany<{ sender: string; count: string; lastDate: string }>();
+    return rows.map(r => ({ sender: r.sender, count: parseInt(r.count, 10), lastDate: r.lastDate }));
   }
 
   async findOne(id: string, userId: string, userRoles?: string[]): Promise<Email> {

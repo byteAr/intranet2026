@@ -223,56 +223,82 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               </svg>
               <p class="text-sm">Sin correos</p>
             </div>
-          } @else if (groupBy() === 'from' && emailGroups()) {
+          } @else if (groupBy() === 'from') {
             <!-- Vista agrupada por remitente -->
-            @for (group of emailGroups()!; track group.sender) {
-              <div class="border-b border-gray-100">
-                <button (click)="toggleGroup(group.sender)"
-                  class="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors sticky top-0 z-10 border-b border-gray-200">
-                  <svg class="h-3 w-3 text-gray-400 flex-shrink-0 transition-transform"
-                       [class.rotate-[-90deg]]="collapsedGroups().has(group.sender)"
-                       fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                  <span class="text-xs font-semibold text-gray-600 truncate flex-1 text-left">{{ group.sender }}</span>
-                  <span class="text-[10px] text-gray-400 flex-shrink-0">{{ group.emails.length }}</span>
-                </button>
-                @if (!collapsedGroups().has(group.sender)) {
-                  @for (email of group.emails; track email.id) {
-                    <button
-                      (click)="selectEmail(email)"
-                      [attr.data-email-id]="email.id"
-                      class="w-full text-left px-3 py-2.5 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50 focus:outline-none"
-                      [ngClass]="{
-                        'bg-teal-50 shadow-md relative z-10': activeEmail()?.id === email.id,
-                        'border-l-2 border-l-teal-500': !isRead(email)
-                      }">
-                      <div class="flex items-center justify-between gap-1">
-                        <p class="text-sm truncate flex-1"
-                           [class.font-semibold]="!isRead(email)"
-                           [class.text-gray-800]="!isRead(email)"
-                           [class.text-gray-600]="isRead(email)">
-                          {{ email.subject }}
-                        </p>
-                        <div class="flex items-center gap-1 flex-shrink-0">
-                          @if (email.attachmentCount) {
-                            <svg class="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                            </svg>
-                          }
-                          <span class="text-xs text-gray-400">{{ formatDate(email.date) }}</span>
-                        </div>
-                      </div>
-                      <div class="flex items-center justify-end mt-1">
-                        <span class="text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
-                          {{ folderLabel(email.folder) }}
-                        </span>
-                      </div>
-                    </button>
-                  }
-                }
+            @if (senderGroupsLoading()) {
+              <div class="flex items-center justify-center h-24">
+                <svg class="h-6 w-6 animate-spin text-teal-600" viewBox="0 0 24 24" fill="none">
+                  <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                </svg>
               </div>
+            } @else {
+              @for (group of senderGroups(); track group.sender) {
+                <div class="border-b border-gray-200">
+                  <button (click)="toggleGroup(group.sender)"
+                    class="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors sticky top-0 z-10">
+                    <svg class="h-3 w-3 text-gray-400 flex-shrink-0 transition-transform duration-150"
+                         [class.-rotate-90]="!expandedGroups().has(group.sender)"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                    <span class="text-xs font-semibold text-gray-700 truncate flex-1 text-left">{{ group.sender }}</span>
+                    <span class="text-[10px] bg-gray-200 text-gray-500 rounded-full px-1.5 py-0.5 flex-shrink-0">{{ group.count }}</span>
+                  </button>
+                  @if (expandedGroups().has(group.sender)) {
+                    @let groupState = groupEmailsMap().get(group.sender);
+                    @if (groupState?.loading && groupState?.emails?.length === 0) {
+                      <div class="flex justify-center py-3">
+                        <svg class="h-4 w-4 animate-spin text-teal-500" viewBox="0 0 24 24" fill="none">
+                          <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+                          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                      </div>
+                    } @else {
+                      @for (email of groupState?.emails ?? []; track email.id) {
+                        <button
+                          (click)="selectEmail(email)"
+                          [attr.data-email-id]="email.id"
+                          class="w-full text-left px-4 py-2.5 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50 focus:outline-none"
+                          [ngClass]="{
+                            'bg-teal-50 shadow-sm relative z-10': activeEmail()?.id === email.id,
+                            'border-l-2 border-l-teal-500': !isRead(email)
+                          }">
+                          <div class="flex items-center justify-between gap-1">
+                            <p class="text-sm truncate flex-1"
+                               [class.font-semibold]="!isRead(email)"
+                               [class.text-gray-800]="!isRead(email)"
+                               [class.text-gray-500]="isRead(email)">
+                              {{ email.subject }}
+                            </p>
+                            <div class="flex items-center gap-1 flex-shrink-0">
+                              @if (email.attachmentCount) {
+                                <svg class="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                </svg>
+                              }
+                              <span class="text-xs text-gray-400">{{ formatDate(email.date) }}</span>
+                            </div>
+                          </div>
+                          <div class="flex items-center justify-between mt-1">
+                            <span class="text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
+                              {{ folderLabel(email.folder) }}
+                            </span>
+                          </div>
+                        </button>
+                      }
+                      @if (groupState && groupState.emails.length < groupState.total) {
+                        <button (click)="loadMoreGroupEmails(group.sender)"
+                          [disabled]="groupState.loading"
+                          class="w-full py-2 text-xs text-teal-600 hover:text-teal-800 hover:bg-teal-50 transition-colors disabled:opacity-50">
+                          {{ groupState.loading ? 'Cargando...' : 'Cargar más (' + (groupState.total - groupState.emails.length) + ' restantes)' }}
+                        </button>
+                      }
+                    }
+                  }
+                </div>
+              }
             }
           } @else {
             <!-- Vista plana (por fecha) -->
@@ -594,31 +620,71 @@ export class MailComponent implements OnInit {
 
   readonly groupBy = signal<'none' | 'from'>('none');
   readonly showGroupByMenu = signal(false);
-  readonly collapsedGroups = signal<Set<string>>(new Set());
-
-  readonly emailGroups = computed(() => {
-    if (this.groupBy() !== 'from') return null;
-    const map = new Map<string, Email[]>();
-    for (const email of this.mailService.emails()) {
-      const key = email.fromAddress;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(email);
-    }
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([sender, emails]) => ({ sender, emails }));
-  });
+  readonly senderGroups = signal<{ sender: string; count: number; lastDate: string }[]>([]);
+  readonly senderGroupsLoading = signal(false);
+  readonly groupEmailsMap = signal<Map<string, { emails: Email[]; page: number; total: number; loading: boolean }>>(new Map());
+  readonly expandedGroups = signal<Set<string>>(new Set());
 
   setGroupBy(value: 'none' | 'from'): void {
     this.groupBy.set(value);
     this.showGroupByMenu.set(false);
-    this.collapsedGroups.set(new Set());
+    if (value === 'from') {
+      this.senderGroups.set([]);
+      this.groupEmailsMap.set(new Map());
+      this.expandedGroups.set(new Set());
+      this.loadSenderGroups();
+    }
+  }
+
+  private loadSenderGroups(): void {
+    this.senderGroupsLoading.set(true);
+    this.mailService.getGroupedBySender(this.activeFolder() ?? undefined, this.isHistorical()).subscribe({
+      next: (groups) => { this.senderGroups.set(groups); this.senderGroupsLoading.set(false); },
+      error: () => this.senderGroupsLoading.set(false),
+    });
   }
 
   toggleGroup(sender: string): void {
-    const next = new Set(this.collapsedGroups());
-    if (next.has(sender)) next.delete(sender); else next.add(sender);
-    this.collapsedGroups.set(next);
+    const expanded = new Set(this.expandedGroups());
+    if (expanded.has(sender)) {
+      expanded.delete(sender);
+      this.expandedGroups.set(expanded);
+      return;
+    }
+    expanded.add(sender);
+    this.expandedGroups.set(expanded);
+    const map = new Map(this.groupEmailsMap());
+    if (!map.has(sender)) {
+      map.set(sender, { emails: [], page: 1, total: 0, loading: true });
+      this.groupEmailsMap.set(map);
+      this.loadGroupEmails(sender, 1);
+    }
+  }
+
+  loadGroupEmails(sender: string, page: number): void {
+    this.mailService.loadEmailsBySender(sender, this.activeFolder() ?? undefined, page, this.isHistorical()).subscribe({
+      next: (res) => {
+        const map = new Map(this.groupEmailsMap());
+        const prev = map.get(sender);
+        const existing = page === 1 ? [] : (prev?.emails ?? []);
+        map.set(sender, { emails: [...existing, ...res.data], page, total: res.total, loading: false });
+        this.groupEmailsMap.set(map);
+      },
+      error: () => {
+        const map = new Map(this.groupEmailsMap());
+        const prev = map.get(sender);
+        if (prev) { map.set(sender, { ...prev, loading: false }); this.groupEmailsMap.set(map); }
+      },
+    });
+  }
+
+  loadMoreGroupEmails(sender: string): void {
+    const state = this.groupEmailsMap().get(sender);
+    if (!state || state.loading) return;
+    const map = new Map(this.groupEmailsMap());
+    map.set(sender, { ...state, loading: true });
+    this.groupEmailsMap.set(map);
+    this.loadGroupEmails(sender, state.page + 1);
   }
 
   readonly copyTooltip = signal<{ x: number; y: number; copied: boolean } | null>(null);
@@ -742,6 +808,7 @@ export class MailComponent implements OnInit {
     this.currentPage.set(1);
     this.activeEmail.set(null);
     this.isSearchMode.set(false);
+    if (this.groupBy() === 'from') { this.senderGroups.set([]); this.groupEmailsMap.set(new Map()); this.expandedGroups.set(new Set()); this.loadSenderGroups(); }
     this.isAdvancedMode.set(false);
     this.showAdvanced.set(false);
     this.searchQuery = '';
@@ -758,6 +825,7 @@ export class MailComponent implements OnInit {
     this.isAdvancedMode.set(false);
     this.showAdvanced.set(false);
     this.searchQuery = '';
+    if (this.groupBy() === 'from') { this.senderGroups.set([]); this.groupEmailsMap.set(new Map()); this.expandedGroups.set(new Set()); this.loadSenderGroups(); return; }
     this.mailService.loadEmails(undefined, 1, 30, next);
   }
 

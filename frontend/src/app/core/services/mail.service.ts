@@ -197,6 +197,20 @@ export class MailService {
     });
   }
 
+  getGroupedBySender(folder?: MailFolder, historical = false): Observable<{ sender: string; count: number; lastDate: string }[]> {
+    let params = new HttpParams();
+    if (folder) params = params.set('folder', folder);
+    if (historical) params = params.set('historical', 'true');
+    return this.http.get<{ sender: string; count: number; lastDate: string }[]>('/api/mail/emails/grouped-by-sender', { params });
+  }
+
+  loadEmailsBySender(sender: string, folder?: MailFolder, page = 1, historical = false): Observable<EmailListResponse> {
+    let params = new HttpParams().set('sender', sender).set('page', page).set('limit', 30);
+    if (folder) params = params.set('folder', folder);
+    if (historical) params = params.set('historical', 'true');
+    return this.http.get<EmailListResponse>('/api/mail/emails', { params });
+  }
+
   loadUnreadCounts(): void {
     this.http.get<MailUnreadCounts>('/api/mail/unread-counts').subscribe({
       next: (counts) => {

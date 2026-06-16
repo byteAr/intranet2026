@@ -47,4 +47,9 @@ export class QueryEmailsDto {
   @IsOptional()
   @IsString()
   dateTo?: string;
+
+  /** Filtrar por remitente exacto */
+  @IsOptional()
+  @IsString()
+  sender?: string;
 }

@@ -66,6 +66,14 @@ export class MailController {
     return this.mailService.findAll({ q: q.trim(), page: 1, limit: 30 }, req.user.id);
   }
 
+  @Get('emails/grouped-by-sender')
+  async groupedBySender(
+    @Query('folder') folder?: string,
+    @Query('historical') historical?: string,
+  ) {
+    return this.mailService.groupedBySender(folder, historical === 'true');
+  }
+
   @Get('emails/:id')
   async findOne(@Param('id') id: string, @Req() req: any) {
     return this.mailService.findOne(id, req.user.id, req.user.roles);

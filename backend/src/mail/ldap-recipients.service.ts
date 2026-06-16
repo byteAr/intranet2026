@@ -59,7 +59,7 @@ export class LdapRecipientsService {
         }
 
         const escaped = query.replace(/[*()\\\x00]/g, '\\$&');
-        const filter = `(&(objectClass=person)(|(cn=*${escaped}*)(mail=*${escaped}*)(displayName=*${escaped}*)(sAMAccountName=*${escaped}*)))`;
+        const filter = `(&(|(objectClass=person)(objectClass=group))(mail=*)(|(cn=*${escaped}*)(mail=*${escaped}*)(displayName=*${escaped}*)(sAMAccountName=*${escaped}*)))`;
 
         const results: MailRecipient[] = [];
 

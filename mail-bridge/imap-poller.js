@@ -257,7 +257,10 @@ class ImapPoller {
 
       const uids = [];
       for await (const msg of client.fetch(uidRange, { uid: true }, { uid: true })) {
-        uids.push(msg.uid);
+        // Algunos servidores IMAP, cuando el rango "N:*" empieza por encima del UID
+        // más alto existente, devuelven igual el último mensaje en vez de nada.
+        // Se descarta acá para no re-procesar el mismo mensaje en cada ciclo.
+        if (msg.uid > lastUid) uids.push(msg.uid);
       }
 
       if (uids.length === 0) return;

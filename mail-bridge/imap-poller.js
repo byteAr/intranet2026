@@ -279,11 +279,13 @@ class ImapPoller {
           break;
         }
         processedUpTo = uid;
+        // Se persiste el avance mensaje a mensaje: si el proceso se cae a mitad de
+        // un lote largo, al reiniciar retoma desde acá en vez de rehacerlo entero.
+        this.state[mailbox] = processedUpTo;
+        saveState(this.state);
       }
 
       if (processedUpTo !== lastUid) {
-        this.state[mailbox] = processedUpTo;
-        saveState(this.state);
         this.log(`Updated lastUid for ${mailbox}: ${processedUpTo}`);
       }
     } finally {

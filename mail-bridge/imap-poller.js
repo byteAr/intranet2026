@@ -17,6 +17,11 @@ const SENT_FOLDER_NAMES = [
 
 const STATE_FILE = path.join(__dirname, 'state.json');
 
+// Tope de mensajes por ciclo. Evita mantener una conexión IMAP abierta durante
+// horas al recuperar un atraso grande — el servidor la corta (ECONNRESET) y se
+// pierde el lote entero. El resto continúa en el ciclo siguiente.
+const MAX_MESSAGES_PER_CYCLE = 50;
+
 function loadState() {
   try {
     return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
@@ -154,6 +159,13 @@ class ImapPoller {
       logger: false,
     });
 
+    // ImapFlow emite 'error' de forma asíncrona. Sin un listener, Node tumba el
+    // proceso entero (ej. ECONNRESET si el servidor corta la conexión). Se loguea
+    // acá y el try/catch de abajo se encarga del rechazo de la operación en curso.
+    client.on('error', (err) => {
+      this.log(`IMAP client error: ${err.message}`);
+    });
+
     try {
       await client.connect();
       await this._fetchFromMailbox(client, 'INBOX', false);
@@ -267,6 +279,11 @@ class ImapPoller {
 
       uids.sort((a, b) => a - b);
       this.log(`Found ${uids.length} new message(s) in ${mailbox} (lastUid=${lastUid})`);
+
+      if (uids.length > MAX_MESSAGES_PER_CYCLE) {
+        this.log(`Procesando ${MAX_MESSAGES_PER_CYCLE} de ${uids.length} en este ciclo; el resto sigue en el próximo`);
+        uids.length = MAX_MESSAGES_PER_CYCLE;
+      }
 
       // Avanzar el UID solo hasta el último mensaje que se subió con éxito al backend.
       // Si uno falla (ej. backend caído), se corta acá para reintentarlo en el próximo

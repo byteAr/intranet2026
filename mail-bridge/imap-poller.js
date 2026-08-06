@@ -262,16 +262,27 @@ class ImapPoller {
 
       if (uids.length === 0) return;
 
+      uids.sort((a, b) => a - b);
       this.log(`Found ${uids.length} new message(s) in ${mailbox} (lastUid=${lastUid})`);
 
+      // Avanzar el UID solo hasta el último mensaje que se subió con éxito al backend.
+      // Si uno falla (ej. backend caído), se corta acá para reintentarlo en el próximo
+      // ciclo en vez de darlo por procesado y perderlo para siempre.
+      let processedUpTo = lastUid;
       for (const uid of uids) {
-        await this._processMessage(client, uid, isSentFolder);
+        const ok = await this._processMessage(client, uid, isSentFolder);
+        if (!ok) {
+          this.log(`Deteniendo lote de ${mailbox} en uid=${uid} — se reintentará en el próximo ciclo`);
+          break;
+        }
+        processedUpTo = uid;
       }
 
-      const maxUid = Math.max(...uids);
-      this.state[mailbox] = maxUid;
-      saveState(this.state);
-      this.log(`Updated lastUid for ${mailbox}: ${maxUid}`);
+      if (processedUpTo !== lastUid) {
+        this.state[mailbox] = processedUpTo;
+        saveState(this.state);
+        this.log(`Updated lastUid for ${mailbox}: ${processedUpTo}`);
+      }
     } finally {
       lock.release();
     }
@@ -280,7 +291,7 @@ class ImapPoller {
   async _processMessage(client, uid, isSentFolder) {
     try {
       const rawResult = await client.fetchOne(String(uid), { source: true }, { uid: true });
-      if (!rawResult?.source) return;
+      if (!rawResult?.source) return true;
 
       const parsed = await simpleParser(rawResult.source);
       const internetMessageId = parsed.messageId || `uid-${uid}-${Date.now()}`;
@@ -317,8 +328,10 @@ class ImapPoller {
 
       await postToBackend(this.config.backendUrl, this.config.secret, payload);
       this.log(`Ingested uid=${uid} <${internetMessageId}>`);
+      return true;
     } catch (err) {
       this.log(`processMessage uid=${uid} error: ${err.message}`);
+      return false;
     }
   }
 

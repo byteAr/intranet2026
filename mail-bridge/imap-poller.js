@@ -22,6 +22,11 @@ const STATE_FILE = path.join(__dirname, 'state.json');
 // pierde el lote entero. El resto continúa en el ciclo siguiente.
 const MAX_MESSAGES_PER_CYCLE = 50;
 
+// Ciclos que se reintenta un mismo UID antes de saltearlo. Sin este tope, un
+// correo que falla siempre (mal formado, rechazado por el backend) trabaría la
+// cola entera. Al saltearlo queda constancia en el log con ATENCIÓN.
+const MAX_UID_RETRIES = 5;
+
 function loadState() {
   try {
     return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
@@ -288,13 +293,32 @@ class ImapPoller {
       // Avanzar el UID solo hasta el último mensaje que se subió con éxito al backend.
       // Si uno falla (ej. backend caído), se corta acá para reintentarlo en el próximo
       // ciclo en vez de darlo por procesado y perderlo para siempre.
+      if (!this.state.__retries) this.state.__retries = {};
+
       let processedUpTo = lastUid;
       for (const uid of uids) {
+        const retryKey = `${mailbox}:${uid}`;
         const ok = await this._processMessage(client, uid, isSentFolder);
+
         if (!ok) {
-          this.log(`Deteniendo lote de ${mailbox} en uid=${uid} — se reintentará en el próximo ciclo`);
+          const intentos = (this.state.__retries[retryKey] ?? 0) + 1;
+
+          if (intentos >= MAX_UID_RETRIES) {
+            this.log(`ATENCIÓN: uid=${uid} de ${mailbox} falló ${intentos} veces — se saltea para no trabar la cola`);
+            delete this.state.__retries[retryKey];
+            processedUpTo = uid;
+            this.state[mailbox] = processedUpTo;
+            saveState(this.state);
+            continue;
+          }
+
+          this.state.__retries[retryKey] = intentos;
+          saveState(this.state);
+          this.log(`Deteniendo lote de ${mailbox} en uid=${uid} (intento ${intentos}/${MAX_UID_RETRIES}) — se reintentará en el próximo ciclo`);
           break;
         }
+
+        delete this.state.__retries[retryKey];
         processedUpTo = uid;
         // Se persiste el avance mensaje a mensaje: si el proceso se cae a mitad de
         // un lote largo, al reiniciar retoma desde acá en vez de rehacerlo entero.
@@ -313,7 +337,12 @@ class ImapPoller {
   async _processMessage(client, uid, isSentFolder) {
     try {
       const rawResult = await client.fetchOne(String(uid), { source: true }, { uid: true });
-      if (!rawResult?.source) return true;
+      if (!rawResult?.source) {
+        // Pasa cuando la conexión está degradada. NO es un éxito: darlo por
+        // procesado saltea el correo para siempre.
+        this.log(`fetchOne uid=${uid} no devolvió contenido — se reintentará`);
+        return false;
+      }
 
       const parsed = await simpleParser(rawResult.source);
       const internetMessageId = parsed.messageId || `uid-${uid}-${Date.now()}`;

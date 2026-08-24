@@ -6,6 +6,12 @@ import { Cron } from '@nestjs/schedule';
 import * as nodemailer from 'nodemailer';
 import { Email } from './entities/email.entity';
 
+/** El contenedor corre en UTC; sin esto las horas del aviso salen corridas. */
+const ZONA_HORARIA = 'America/Argentina/Buenos_Aires';
+
+/** Carpeta del bridge vista por red. String.raw evita escapar cada barra. */
+const CARPETA_BRIDGE = String.raw`\\172.21.36.104\c$\intranet2026\mail-bridge`;
+
 /**
  * Vigila que el correo siga entrando.
  *
@@ -68,12 +74,12 @@ export class MailHealthService {
     return [
       `No se ingiere correo nuevo desde hace ${horas.toFixed(1)} horas.`,
       '',
-      `Ultimo correo ingerido: ${ultima.toLocaleString('es-AR')}`,
+      `Ultimo correo ingerido: ${this.formatear(ultima)}`,
       '',
       'Que revisar, desde PowerShell en tu PC (sin Escritorio Remoto):',
       '',
-      '  Get-Content \\172.21.36.104\c$\intranet2026\mail-bridge\bridge.log -Tail 40',
-      '  Get-Content \\172.21.36.104\c$\intranet2026\mail-bridge\state.json',
+      `  Get-Content ${CARPETA_BRIDGE}\\bridge.log -Tail 40`,
+      `  Get-Content ${CARPETA_BRIDGE}\\state.json`,
       '  schtasks /Query /S 172.21.36.104 /TN "mail-bridge"',
       '',
       'Reiniciar el bridge si hace falta:',
@@ -90,11 +96,15 @@ export class MailHealthService {
     return [
       'La ingesta de correo se normalizo.',
       '',
-      `Ultimo correo ingerido: ${ultima.toLocaleString('es-AR')}`,
+      `Ultimo correo ingerido: ${this.formatear(ultima)}`,
       '',
       'Conviene verificar si quedaron correos sin entrar durante la interrupcion:',
       'comparar la bandeja de la intranet contra Outlook para el periodo afectado.',
     ].join('\n');
+  }
+
+  private formatear(fecha: Date): string {
+    return fecha.toLocaleString('es-AR', { timeZone: ZONA_HORARIA });
   }
 
   /** Devuelve true si el aviso salió; false si no hay destinatarios o falló el SMTP. */

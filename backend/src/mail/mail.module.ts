@@ -18,6 +18,7 @@ import { SienaFileService } from './siena-file.service';
 import { MailGateway } from './mail.gateway';
 import { SmtpSenderService } from './smtp-sender.service';
 import { LdapRecipientsService } from './ldap-recipients.service';
+import { MailHealthService } from './mail-health.service';
 import { BridgeSecretGuard } from './guards/bridge-secret.guard';
 import { PstImportService } from './admin/pst-import.service';
 import { PstImportController } from './admin/pst-import.controller';
@@ -45,7 +46,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [MailController, PstImportController],
-  providers: [MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService, DecryptedAttachmentService, SienaFileService],
+  providers: [MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService, DecryptedAttachmentService, SienaFileService, MailHealthService],
   exports: [MailParserService, MailIngestService, ImapPollerService, MailService, SmtpSenderService, LdapRecipientsService],
 })
 export class MailModule {}

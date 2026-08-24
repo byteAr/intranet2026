@@ -109,7 +109,11 @@ function postToBackend(backendUrl, secret, payload) {
             try { resolve(JSON.parse(data)); }
             catch { resolve({ ok: true }); }
           } else {
-            reject(new Error(`Backend responded ${res.statusCode}: ${data}`));
+            // Se adjunta el status para que el llamador distinga un rechazo del
+            // mensaje (4xx) de una falla de infraestructura (5xx).
+            const err = new Error(`Backend responded ${res.statusCode}: ${data}`);
+            err.statusCode = res.statusCode;
+            reject(err);
           }
         });
       },
@@ -290,21 +294,31 @@ class ImapPoller {
         uids.length = MAX_MESSAGES_PER_CYCLE;
       }
 
-      // Avanzar el UID solo hasta el último mensaje que se subió con éxito al backend.
-      // Si uno falla (ej. backend caído), se corta acá para reintentarlo en el próximo
-      // ciclo en vez de darlo por procesado y perderlo para siempre.
+      // El UID solo avanza hasta el último mensaje subido con éxito. Un fallo
+      // corta el lote acá y se retoma en el ciclo siguiente, en vez de darlo por
+      // procesado y perderlo para siempre.
       if (!this.state.__retries) this.state.__retries = {};
 
       let processedUpTo = lastUid;
       for (const uid of uids) {
         const retryKey = `${mailbox}:${uid}`;
-        const ok = await this._processMessage(client, uid, isSentFolder);
+        const resultado = await this._processMessage(client, uid, isSentFolder);
 
-        if (!ok) {
+        // Falla de infraestructura (backend caído, red, IMAP): se corta el lote y se
+        // reintenta indefinidamente. NO cuenta como intento — si contara, una caída
+        // prolongada del backend descartaría todo el correo que llegue mientras dure.
+        if (resultado === 'infra') {
+          this.log(`Deteniendo lote de ${mailbox} en uid=${uid} — falla de infraestructura, se reintentará sin límite`);
+          break;
+        }
+
+        // El backend rechazó el mensaje (4xx): el problema es del correo en sí.
+        // Se reintenta unas veces y, si insiste, se saltea para no trabar la cola.
+        if (resultado === 'bad') {
           const intentos = (this.state.__retries[retryKey] ?? 0) + 1;
 
           if (intentos >= MAX_UID_RETRIES) {
-            this.log(`ATENCIÓN: uid=${uid} de ${mailbox} falló ${intentos} veces — se saltea para no trabar la cola`);
+            this.log(`ATENCIÓN: el backend rechazó uid=${uid} de ${mailbox} ${intentos} veces — se saltea para no trabar la cola`);
             delete this.state.__retries[retryKey];
             processedUpTo = uid;
             this.state[mailbox] = processedUpTo;
@@ -314,7 +328,7 @@ class ImapPoller {
 
           this.state.__retries[retryKey] = intentos;
           saveState(this.state);
-          this.log(`Deteniendo lote de ${mailbox} en uid=${uid} (intento ${intentos}/${MAX_UID_RETRIES}) — se reintentará en el próximo ciclo`);
+          this.log(`Deteniendo lote de ${mailbox} en uid=${uid} (rechazo ${intentos}/${MAX_UID_RETRIES}) — se reintentará en el próximo ciclo`);
           break;
         }
 
@@ -341,7 +355,7 @@ class ImapPoller {
         // Pasa cuando la conexión está degradada. NO es un éxito: darlo por
         // procesado saltea el correo para siempre.
         this.log(`fetchOne uid=${uid} no devolvió contenido — se reintentará`);
-        return false;
+        return 'infra';
       }
 
       const parsed = await simpleParser(rawResult.source);
@@ -379,10 +393,15 @@ class ImapPoller {
 
       await postToBackend(this.config.backendUrl, this.config.secret, payload);
       this.log(`Ingested uid=${uid} <${internetMessageId}>`);
-      return true;
+      return 'ok';
     } catch (err) {
       this.log(`processMessage uid=${uid} error: ${err.message}`);
-      return false;
+      // Solo un rechazo explícito del backend (4xx) es atribuible al mensaje.
+      // Todo lo demás — red, timeouts, 5xx, IMAP — es infraestructura y debe
+      // reintentarse indefinidamente: si no, una caída del backend hace perder
+      // todos los correos que lleguen mientras dure.
+      const esDelMensaje = err.statusCode >= 400 && err.statusCode < 500;
+      return esDelMensaje ? 'bad' : 'infra';
     }
   }
 

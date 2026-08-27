@@ -27,6 +27,13 @@ async function bootstrap() {
   // Increase body size limit for base64 avatar uploads (default is 1mb)
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const express = require('express');
+
+  // El mail-bridge manda el correo entero en JSON, con los adjuntos en base64
+  // (que infla ~33%). Con el limite general de 6mb, un correo con 5mb de
+  // adjuntos ya se rechazaba y trababa la ingesta. Limite propio y mas alto
+  // solo para esa ruta; el resto sigue en 6mb.
+  app.use('/api/mail/bridge/ingest', express.json({ limit: '50mb' }));
+
   app.use(express.json({ limit: '6mb' }));
   app.use(express.urlencoded({ extended: true, limit: '6mb' }));
 

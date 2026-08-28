@@ -253,6 +253,20 @@ export class PasswordResetService {
         path: logoPath,
         cid: 'logo@intranet',
       }] : [],
+      // Red de seguridad: si el cliente no renderiza el HTML, el código igual
+      // llega. Sin esto, un problema de estilos deja al usuario sin poder entrar.
+      text: [
+        'Recuperación de contraseña - Intranet Diredtos',
+        '',
+        'Hemos recibido una solicitud para restablecer la contraseña de su cuenta de dominio.',
+        '',
+        `Código de verificación: ${otp}`,
+        '',
+        'Este código expira en 10 minutos.',
+        'Si no solicitaste este cambio, ignorá este correo — tu contraseña permanece sin cambios.',
+        '',
+        'División Tecnologías de la Información y Comunicaciones',
+      ].join('\n'),
       html: `
         <!DOCTYPE html>
         <html lang="es">
@@ -264,7 +278,7 @@ export class PasswordResetService {
 
                 <!-- Header -->
                 <tr>
-                  <td style="background:linear-gradient(135deg,#0d9488,#166534);padding:28px 32px;text-align:center">
+                  <td bgcolor="#0f766e" style="background-color:#0f766e;background-image:linear-gradient(135deg,#0d9488,#166534);padding:28px 32px;text-align:center">
                     <img src="cid:logo@intranet" alt="Intranet Diredtos" height="80"
                          style="height:80px;object-fit:contain;display:block;margin:0 auto" />
                   </td>
@@ -281,15 +295,23 @@ export class PasswordResetService {
                       Utilice el siguiente código de verificación:
                     </p>
 
-                    <!-- OTP -->
-                    <div style="background:linear-gradient(135deg,#0d9488,#166534);border-radius:12px;padding:28px;text-align:center;margin:0 0 24px 0">
-                      <p style="margin:0 0 6px 0;font-size:12px;color:rgba(255,255,255,0.8);text-transform:uppercase;letter-spacing:2px;font-weight:600">
-                        Código de verificación
-                      </p>
-                      <p style="margin:0;font-size:64px;font-weight:900;letter-spacing:18px;color:#ffffff;font-family:Georgia,'Times New Roman',serif">
-                        ${otp}
-                      </p>
-                    </div>
+                    <!-- OTP — El fondo se declara sólido ADEMÁS del degradado, y en
+                         una tabla con bgcolor: Outlook de escritorio ignora
+                         linear-gradient y rgba(), y sin ese respaldo el número
+                         blanco quedaba invisible sobre la tarjeta blanca. -->
+                    <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0f766e"
+                           style="background-color:#0f766e;background-image:linear-gradient(135deg,#0d9488,#166534);border-radius:12px;margin:0 0 24px 0">
+                      <tr>
+                        <td style="padding:28px;text-align:center">
+                          <p style="margin:0 0 6px 0;font-size:12px;color:#d1fae5;text-transform:uppercase;letter-spacing:2px;font-weight:600">
+                            Código de verificación
+                          </p>
+                          <p style="margin:0;font-size:64px;font-weight:900;letter-spacing:18px;color:#ffffff;font-family:Georgia,'Times New Roman',serif">
+                            ${otp}
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
 
                     <table width="100%" cellpadding="0" cellspacing="0" style="background:#fef3c7;border-radius:8px;margin:0 0 24px 0">
                       <tr>

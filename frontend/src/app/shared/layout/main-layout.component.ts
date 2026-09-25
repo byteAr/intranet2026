@@ -14,6 +14,7 @@ import { DraftMailService } from '../../core/services/draft-mail.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { PermissionsService } from '../../core/services/permissions.service';
 import { AnnouncementsService } from '../../core/services/announcements.service';
+import { AppVersionService } from '../../core/services/app-version.service';
 import { HttpClient } from '@angular/common/http';
 
 @Component({
@@ -481,6 +482,25 @@ import { HttpClient } from '@angular/common/http';
       </div>
     }
 
+    <!-- ── Aviso de versión nueva ───────────────────────
+         Solo aparece si el usuario sigue trabajando sin pasar a otra
+         ventana; en cuanto la app queda en segundo plano se recarga sola. -->
+    @if (appVersionService.actualizacionPendiente()) {
+      <div class="fixed bottom-6 left-6 z-[99997] max-w-sm">
+        <div class="bg-teal-700 text-white rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3">
+          <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <p class="text-sm flex-1 leading-snug">Hay una versión nueva de la intranet.</p>
+          <button (click)="appVersionService.actualizarAhora()"
+            class="text-sm font-semibold bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5 flex-shrink-0">
+            Actualizar
+          </button>
+        </div>
+      </div>
+    }
+
     <!-- ── Broadcast DM modal (solo mlopez) ────────────── -->
     @if (showBroadcastDmModal()) {
       <div class="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -718,6 +738,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly permissionsService = inject(PermissionsService);
   private readonly pushService = inject(PushNotificationService);
   readonly announcementsService = inject(AnnouncementsService);
+  readonly appVersionService = inject(AppVersionService);
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -840,6 +861,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.reservationsService.connect();
     this.reservationsService.loadReservations(this.reservationsService.hasPrivilegedView ? false : true);
     this.announcementsService.connect();
+    void this.appVersionService.iniciar();
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
     this.isOnMailPage.set(this.router.url === '/correo');
     this.routerSub = this.router.events

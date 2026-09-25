@@ -361,17 +361,27 @@ export class MailService implements OnApplicationBootstrap {
   private async attachReadStatuses(emails: Email[], userId: string): Promise<void> {
     if (emails.length === 0) return;
 
+    const ids = emails.map((e) => e.id);
     const estados = await this.readStatusRepo.find({
       select: { emailId: true, isRead: true, readAt: true },
-      where: { userId, emailId: In(emails.map((e) => e.id)) },
+      where: { userId, emailId: In(ids) },
     });
     const porCorreo = new Map(estados.map((s) => [s.emailId, s]));
+
+    // Se decide en SQL y no en JavaScript por la zona horaria: ver cutoffSql().
+    const filas: { id: string }[] = await this.dataSource.query(
+      `SELECT id FROM emails
+        WHERE id = ANY($1::uuid[])
+          AND ("isFromPstImport" OR ($2::timestamptz IS NOT NULL AND "createdAt" < ${this.cutoffSql('$2')}))`,
+      [ids, this.unreadCutoff?.toISOString() ?? null],
+    );
+    const leidosPorDefecto = new Set(filas.map((f) => f.id));
 
     for (const email of emails) {
       const estado = porCorreo.get(email.id);
       if (estado) {
         email.readStatuses = [estado];
-      } else if (!this.cuentaComoNoLeido(email)) {
+      } else if (leidosPorDefecto.has(email.id)) {
         email.readStatuses = [{ isRead: true } as EmailReadStatus];
       } else {
         email.readStatuses = [];
@@ -379,9 +389,16 @@ export class MailService implements OnApplicationBootstrap {
     }
   }
 
-  private cuentaComoNoLeido(email: Pick<Email, 'createdAt' | 'isFromPstImport'>): boolean {
-    if (email.isFromPstImport) return false;
-    return !this.unreadCutoff || email.createdAt >= this.unreadCutoff;
+  /**
+   * La fecha de corte expresada para comparar contra `createdAt`.
+   *
+   * `@CreateDateColumn` crea en PostgreSQL una columna SIN zona horaria que se
+   * llena con now() en la zona de la sesión. Comparar directamente contra una
+   * fecha con zona descarta el desplazamiento y corre el corte unas horas; así
+   * se convierte primero a la misma zona en la que se guardó el dato.
+   */
+  private cutoffSql(param: string): string {
+    return `(CAST(${param} AS timestamptz) AT TIME ZONE current_setting('TimeZone'))`;
   }
 
   /**
@@ -528,7 +545,7 @@ export class MailService implements OnApplicationBootstrap {
 
   async getUnreadCounts(userId: string): Promise<{ total: number; informativos: number; ejecutivos: number; redgen: number; tx: number }> {
     const currentYear = new Date().getFullYear();
-    // Mismo criterio que cuentaComoNoLeido(): lo importado desde PST y lo
+    // Mismo criterio que attachReadStatuses(): lo importado desde PST y lo
     // ingresado antes del corte no es correo nuevo.
     const qb = this.emailRepo
       .createQueryBuilder('e')
@@ -541,7 +558,9 @@ export class MailService implements OnApplicationBootstrap {
       .groupBy('e.folder');
 
     if (this.unreadCutoff) {
-      qb.andWhere('e."createdAt" >= :corte', { corte: this.unreadCutoff });
+      qb.andWhere(`e."createdAt" >= ${this.cutoffSql(':corte')}`, {
+        corte: this.unreadCutoff.toISOString(),
+      });
     }
 
     const rows = await qb.getRawMany<{ folder: string; count: string }>();

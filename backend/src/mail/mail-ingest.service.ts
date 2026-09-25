@@ -10,6 +10,7 @@ import { Email, MailFolder } from './entities/email.entity';
 import { Attachment } from './entities/attachment.entity';
 import { EmailReference } from './entities/email-reference.entity';
 import { IMailGateway } from './imap-poller.service';
+import { normalizeMailText } from './mail-text.util';
 
 export interface IngestData {
   internetMessageId: string;
@@ -49,7 +50,16 @@ export class MailIngestService {
     this.mailGateway = gateway;
   }
 
-  async ingest(data: IngestData): Promise<IngestResult> {
+  async ingest(raw: IngestData): Promise<IngestResult> {
+    // Antes que nada: la deduplicación y la detección del mailCode tienen que
+    // ver el texto ya corregido, no los caracteres de control.
+    const data: IngestData = {
+      ...raw,
+      subject: normalizeMailText(raw.subject),
+      bodyText: normalizeMailText(raw.bodyText),
+      bodyHtml: normalizeMailText(raw.bodyHtml),
+    };
+
     // Idempotency check by internetMessageId
     const existing = await this.emailRepo.findOne({
       where: { internetMessageId: data.internetMessageId },

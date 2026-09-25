@@ -11,6 +11,7 @@ import { EmailReference } from '../entities/email-reference.entity';
 import { PstImportLog, PstImportStatus } from '../entities/pst-import-log.entity';
 import { MailParserService } from '../mail-parser.service';
 import { MailGateway } from '../mail.gateway';
+import { normalizeMailText } from '../mail-text.util';
 
 /** Data shape sent from the worker thread for each PST message */
 interface WorkerMessageData {
@@ -271,9 +272,16 @@ export class PstImportService {
   }
 
   private async processMessageFromWorker(
-    data: WorkerMessageData,
+    raw: WorkerMessageData,
     stats: Record<string, number>,
   ): Promise<void> {
+    const data: WorkerMessageData = {
+      ...raw,
+      subject: normalizeMailText(raw.subject),
+      bodyText: normalizeMailText(raw.bodyText),
+      bodyHtml: normalizeMailText(raw.bodyHtml),
+    };
+
     const internetMessageId =
       data.internetMessageId || `pst-${data.descriptorNodeId}-${Date.now()}`;
 

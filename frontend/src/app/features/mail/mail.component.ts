@@ -332,6 +332,10 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                    [class.text-gray-600]="isRead(email)">
                   {{ email.subject }}
                 </p>
+                @if (email.snippet) {
+                  <p class="text-xs text-gray-500 mt-1 line-clamp-2 leading-snug"
+                     [innerHTML]="snippetHtml(email.snippet)"></p>
+                }
                 <div class="flex items-center justify-end mt-1">
                   <span class="text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
                     {{ folderLabel(email.folder) }}
@@ -867,6 +871,21 @@ export class MailComponent implements OnInit {
         },
       });
     }
+  }
+
+  /**
+   * El fragmento es texto del correo: primero se escapa entero, y recién
+   * después los marcadores que puso el backend (U+0002 / U+0003) se convierten
+   * en <mark>. Así nada del contenido del correo puede inyectarse como HTML.
+   */
+  snippetHtml(snippet: string): string {
+    return snippet
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/\u0002/g, '<mark class="bg-amber-200 text-gray-900 rounded-sm px-0.5">')
+      .replace(/\u0003/g, '</mark>');
   }
 
   isRead(email: Email): boolean {

@@ -51,6 +51,11 @@ export interface Email {
   readStatuses?: MailReadStatus[];
   outgoingRefs?: MailOutgoingRef[];
   sienaFiles?: SienaFile[];
+  /**
+   * Solo en resultados de búsqueda: fragmento del cuerpo con las coincidencias
+   * delimitadas por U+0002 (inicio) y U+0003 (fin).
+   */
+  snippet?: string;
 }
 
 export interface EmailListResponse {

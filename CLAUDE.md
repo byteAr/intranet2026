@@ -92,7 +92,18 @@ CC=DIREDTOS@MTO.GNA   → INFORMATIVOS  (fallback también)
 - Formato normalizado: `PREFIX NUM/YY` (ej: `DE 130/19`).
 
 ### Búsqueda full-text
-PostgreSQL `tsvector` + `plainto_tsquery` (ignora chars especiales). Mantenido por trigger de DB.
+- `search_vector` mantenido por trigger. Pesos: mailCode y asunto `A`, parte local del remitente `B`, cuerpo `D`.
+- Config `es_unaccent` (= `simple` + `unaccent`): ignora tildes, sin stopwords — la `spanish` descartaba "ES", "DE", "AL" de los códigos. Si no se puede crear la extensión, cae a `simple`.
+- Consulta: `websearch_to_tsquery` + `:*` en cada término (prefijo). Texto, mailCode (trigramas) y adjuntos (trigramas) se unen con `UNION`, no con `OR`.
+- Orden: mailCode exacto > `ts_rank_cd` > fecha. Fragmento resaltado con `ts_headline` (marcadores U+0002/U+0003, el frontend escapa y los convierte en `<mark>`).
+- ⚠️ El estado de lectura se carga aparte, sin JOIN: con JOIN + skip/take TypeORM pagina con DISTINCT y **descarta el ORDER BY**.
+- Migración única en segundo plano (repara caracteres + reindexa). La marca es el comentario de la tabla: `obj_description('emails'::regclass)` = `fts:v3:<config>`. Para forzar otra: `COMMENT ON TABLE emails IS NULL` y reiniciar el backend.
+
+### Texto de los correos
+Outlook declara `iso-8859-1` pero manda `windows-1252`: los bytes 0x80-0x9F (comillas “ ”, raya –, …) quedan como controles C1 y se ven como □. `normalizeMailText()` (`mail-text.util.ts`) los convierte al ingresar, en bridge, IMAP y PST.
+
+### No leídos
+`MAIL_UNREAD_SINCE` (ISO 8601): lo ingresado antes cuenta como leído para todos. Lo importado desde PST nunca cuenta como no leído.
 
 ### Árbol de referencias
 CTE recursiva con límite de profundidad < 10 + tracking de path para evitar ciclos infinitos.

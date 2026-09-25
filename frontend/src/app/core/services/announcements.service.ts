@@ -15,8 +15,8 @@ export class AnnouncementsService {
   private readonly authService = inject(AuthService);
   private readonly http = inject(HttpClient);
   private socket: Socket | null = null;
-  private dismissTimer: ReturnType<typeof setTimeout> | null = null;
-  private fadeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Solo para la animación de salida; el aviso no se oculta por sí solo. */
+  private hideTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly current = signal<Announcement | null>(null);
   readonly fading = signal(false);
@@ -36,18 +36,20 @@ export class AnnouncementsService {
     });
   }
 
+  /**
+   * El aviso queda visible hasta que el usuario lo cierra con la X. Son
+   * comunicados de servicio (cortes programados, mantenimiento): si se
+   * ocultaran solos, quien no estuviera mirando la pantalla en ese momento
+   * nunca se enteraría.
+   */
   private showAnnouncement(data: Announcement): void {
-    if (this.fadeTimer) clearTimeout(this.fadeTimer);
-    if (this.dismissTimer) clearTimeout(this.dismissTimer);
+    if (this.hideTimer) clearTimeout(this.hideTimer);
     this.fading.set(false);
     this.current.set(data);
-    this.fadeTimer = setTimeout(() => this.fading.set(true), 9500);
-    this.dismissTimer = setTimeout(() => this.current.set(null), 10000);
   }
 
   disconnect(): void {
-    if (this.fadeTimer) clearTimeout(this.fadeTimer);
-    if (this.dismissTimer) clearTimeout(this.dismissTimer);
+    if (this.hideTimer) clearTimeout(this.hideTimer);
     this.socket?.disconnect();
     this.socket = null;
     this.current.set(null);
@@ -55,10 +57,12 @@ export class AnnouncementsService {
   }
 
   dismiss(): void {
-    if (this.fadeTimer) clearTimeout(this.fadeTimer);
-    if (this.dismissTimer) clearTimeout(this.dismissTimer);
+    if (this.hideTimer) clearTimeout(this.hideTimer);
     this.fading.set(true);
-    setTimeout(() => { this.current.set(null); this.fading.set(false); }, 500);
+    this.hideTimer = setTimeout(() => {
+      this.current.set(null);
+      this.fading.set(false);
+    }, 500);
   }
 
   send(message: string): Observable<{ ok: boolean }> {

@@ -503,7 +503,7 @@ import { HttpClient } from '@angular/common/http';
     }
 
     <!-- ── Cierre de sesión por inactividad ──────────────
-         El anillo se vacía en 60 s y el reloj del centro marca los segundos.
+         El anillo se vacía en 15 s y la aguja del reloj da una vuelta completa.
          Por encima de todo lo demás (z-index mayor que los anuncios). -->
     @let idleSecs = idleTimeoutService.secondsLeft();
     @if (idleSecs !== null) {
@@ -522,7 +522,7 @@ import { HttpClient } from '@angular/common/http';
             <div class="absolute inset-0 flex flex-col items-center justify-center" [style.color]="idleColor(idleSecs)">
               <svg class="h-8 w-8 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="9.5" />
-                <line x1="12" y1="12" x2="12" y2="5.5" [attr.transform]="'rotate(' + (60 - idleSecs) * 6 + ' 12 12)'" />
+                <line x1="12" y1="12" x2="12" y2="5.5" [attr.transform]="'rotate(' + idleHandAngle(idleSecs) + ' 12 12)'" />
                 <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
               </svg>
               <span class="text-5xl font-bold tabular-nums leading-none">{{ idleSecs }}</span>
@@ -839,9 +839,14 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     return this.IDLE_RING * (1 - Math.max(0, secs - 1) / IDLE_WARNING_SECONDS);
   }
 
-  /** Verde, ámbar en los últimos 20 s y rojo en los últimos 10 s. */
+  /** La aguja da una vuelta completa durante la cuenta regresiva. */
+  idleHandAngle(secs: number): number {
+    return ((IDLE_WARNING_SECONDS - secs) * 360) / IDLE_WARNING_SECONDS;
+  }
+
+  /** Verde, ámbar en los últimos 10 s y rojo en los últimos 5 s. */
   idleColor(secs: number): string {
-    return secs <= 10 ? '#EF4444' : secs <= 20 ? '#F59E0B' : '#14B8A5';
+    return secs <= 5 ? '#EF4444' : secs <= 10 ? '#F59E0B' : '#14B8A5';
   }
 
   // Announcements

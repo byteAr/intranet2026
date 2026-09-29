@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { ACTIVITY_KEY, AuthService, USER_KEY } from './auth.service';
 
 /** Duración de la cuenta regresiva previa al cierre. */
-export const IDLE_WARNING_SECONDS = 60;
+export const IDLE_WARNING_SECONDS = 15;
 
 const DEFAULT_IDLE_MINUTES = 30;
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'wheel', 'touchstart', 'scroll'];
@@ -13,7 +13,7 @@ const WRITE_THROTTLE_MS = 1000;
 
 /**
  * Cierra la sesión tras SESSION_IDLE_MINUTES sin actividad (lo informa el
- * backend; 30 por defecto), con un aviso de 60 segundos antes.
+ * backend; 30 por defecto), con un aviso de 15 segundos antes.
  *
  * La última actividad vive en localStorage, compartida por todas las pestañas:
  * trabajar en una mantiene vivas las demás, y todas cierran juntas. Se compara

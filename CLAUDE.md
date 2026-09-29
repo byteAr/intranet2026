@@ -46,7 +46,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build fr
 - Rol legado `AYUDANTIA` mapea a `AYUDANTIADIREDTOS`.
 - Error AD 773 (must change password) → `LdapAuthGuard` retorna mensaje claro al usuario.
 - Sockets: el JWT se verifica solo en el handshake → `scheduleSocketExpiry()` (`socket-token.util.ts`) los corta al vencer. El frontend detecta el corte (`io server disconnect`) en `/announcements` y va al login.
-- Inactividad: `SESSION_IDLE_MINUTES` (default 30, vía `GET /api/auth/session-config`). `IdleTimeoutService` avisa 60 s antes (anillo en `main-layout`) y hace logout. Última actividad en `localStorage` `pac_last_activity`, compartida entre pestañas; al reabrir el navegador pasado el límite, cierra aunque la cookie siga viva.
+- Inactividad: `SESSION_IDLE_MINUTES` (default 30, vía `GET /api/auth/session-config`). `IdleTimeoutService` avisa 15 s antes (anillo en `main-layout`) y hace logout. Última actividad en `localStorage` `pac_last_activity`, compartida entre pestañas; al reabrir el navegador pasado el límite, cierra aunque la cookie siga viva.
 - AD Bridge interno (`http://ad-bridge:3002`) para ops de AD; Kerberos/GSSAPI; `svc-pac` debe ser Domain Admin.
 
 ### ldapjs 3.x — CRÍTICO

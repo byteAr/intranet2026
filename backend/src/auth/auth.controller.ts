@@ -86,7 +86,7 @@ export class AuthController {
 
   /**
    * Minutos sin actividad antes de cerrar la sesión (SESSION_IDLE_MINUTES,
-   * 30 por defecto). El navegador avisa 60 segundos antes y hace el logout.
+   * 30 por defecto). El navegador avisa 15 segundos antes y hace el logout.
    */
   @Get('session-config')
   sessionConfig() {

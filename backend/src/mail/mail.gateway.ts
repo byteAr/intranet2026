@@ -6,7 +6,7 @@ import {
 } from '@nestjs/websockets';
 import { Logger, OnModuleInit } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
-import { extractSocketToken } from '../common/utils/socket-token.util';
+import { extractSocketToken, scheduleSocketExpiry } from '../common/utils/socket-token.util';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Email } from './entities/email.entity';
@@ -49,8 +49,10 @@ export class MailGateway
           sub: string;
           username: string;
           displayName?: string;
+          exp?: number;
         }>(token, { secret: this.configService.get<string>('jwt.secret') });
         socket.data.user = payload;
+        scheduleSocketExpiry(socket, payload.exp);
         return next();
       } catch {
         return next(new Error('Invalid token'));

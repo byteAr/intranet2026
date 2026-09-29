@@ -5,7 +5,12 @@ import { tap } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 import { User } from '../models/user.model';
 
-const USER_KEY = 'pac_user';
+export const USER_KEY = 'pac_user';
+/** Última actividad del usuario (ms), compartida entre pestañas. Ver IdleTimeoutService. */
+export const ACTIVITY_KEY = 'pac_last_activity';
+
+/** Motivo del cierre, que la pantalla de login le explica al usuario. */
+export type SessionEndReason = 'idle' | 'session_expired';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -22,6 +27,8 @@ export class AuthService {
       .post<{ user: User }>('/api/auth/login', { username, password }, { withCredentials: true })
       .pipe(
         tap((res) => {
+          // Sin esto, la marca vieja de la sesión anterior cerraría esta al instante.
+          localStorage.setItem(ACTIVITY_KEY, String(Date.now()));
           localStorage.setItem(USER_KEY, JSON.stringify(res.user));
           this._user.set(res.user);
         }),
@@ -35,18 +42,22 @@ export class AuthService {
     this._logoutCallbacks.add(cb);
   }
 
-  logout(): void {
-    this._logoutCallbacks.forEach((cb) => cb());
+  logout(reason?: SessionEndReason): void {
     // Tell backend to clear cookie and blacklist token
     this.http.post('/api/auth/logout', {}, { withCredentials: true }).subscribe({ error: () => {} });
-    this.clearSession();
+    this.clearSession(reason);
   }
 
-  /** Clear local session state (called on logout or 401) */
-  clearSession(): void {
+  /**
+   * Clear local session state (called on logout, 401 or expired socket).
+   * También corta los sockets: sin eso, tras un 401 el usuario seguía
+   * figurando en línea y recibiendo eventos.
+   */
+  clearSession(reason?: SessionEndReason): void {
+    this._logoutCallbacks.forEach((cb) => cb());
     localStorage.removeItem(USER_KEY);
     this._user.set(null);
-    void this.router.navigate(['/auth/login']);
+    void this.router.navigate(['/auth/login'], reason ? { queryParams: { reason } } : {});
   }
 
   // Token is in httpOnly cookie — not accessible from JS

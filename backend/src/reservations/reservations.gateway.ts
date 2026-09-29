@@ -5,7 +5,7 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { extractSocketToken } from '../common/utils/socket-token.util';
+import { extractSocketToken, scheduleSocketExpiry } from '../common/utils/socket-token.util';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
@@ -44,8 +44,10 @@ export class ReservationsGateway
           sub: string;
           username: string;
           displayName?: string;
+          exp?: number;
         }>(token, { secret: this.configService.get<string>('jwt.secret') });
         socket.data.user = payload;
+        scheduleSocketExpiry(socket, payload.exp);
         return next();
       } catch {
         return next(new Error('Invalid token'));

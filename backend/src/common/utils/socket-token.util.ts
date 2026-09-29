@@ -20,3 +20,21 @@ export function extractSocketToken(socket: Socket): string | null {
 
   return null;
 }
+
+/** Máximo que admite setTimeout (~24,8 días); más allá dispara al instante. */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
+/**
+ * Corta el socket cuando vence el JWT con el que se autenticó.
+ *
+ * El token solo se verifica en el handshake: sin esto, una conexión abierta
+ * sobrevive al vencimiento de la sesión y el usuario sigue "en línea" y
+ * recibiendo mensajes indefinidamente. El cliente recibe el corte con
+ * motivo `io server disconnect` y no reintenta solo.
+ */
+export function scheduleSocketExpiry(socket: Socket, exp?: number): void {
+  if (!exp) return;
+  const ms = Math.max(0, exp * 1000 - Date.now());
+  const timer = setTimeout(() => socket.disconnect(), Math.min(ms, MAX_TIMEOUT_MS));
+  socket.once('disconnect', () => clearTimeout(timer));
+}

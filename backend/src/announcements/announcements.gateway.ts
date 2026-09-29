@@ -1,7 +1,7 @@
 import { WebSocketGateway, WebSocketServer, OnGatewayInit } from '@nestjs/websockets';
 import { Injectable } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
-import { extractSocketToken } from '../common/utils/socket-token.util';
+import { extractSocketToken, scheduleSocketExpiry } from '../common/utils/socket-token.util';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -25,9 +25,11 @@ export class AnnouncementsGateway implements OnGatewayInit {
       const token = extractSocketToken(socket);
       if (!token) return next(new Error('No token'));
       try {
-        socket.data.user = this.jwtService.verify(token, {
+        const payload = this.jwtService.verify(token, {
           secret: this.configService.get<string>('jwt.secret'),
         });
+        socket.data.user = payload;
+        scheduleSocketExpiry(socket, payload.exp);
         return next();
       } catch {
         return next(new Error('Invalid token'));

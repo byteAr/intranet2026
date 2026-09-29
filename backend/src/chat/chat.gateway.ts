@@ -8,7 +8,7 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { extractSocketToken } from '../common/utils/socket-token.util';
+import { extractSocketToken, scheduleSocketExpiry } from '../common/utils/socket-token.util';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ChatService } from './chat.service';
@@ -59,8 +59,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           sub: string;
           username: string;
           displayName?: string;
+          exp?: number;
         }>(token, { secret: this.configService.get<string>('jwt.secret') });
         socket.data.user = payload;
+        scheduleSocketExpiry(socket, payload.exp);
         console.log('[Chat] socket auth ok:', payload.username, socket.id);
         return next();
       } catch (err) {

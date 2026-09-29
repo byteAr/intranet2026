@@ -34,6 +34,12 @@ export class AnnouncementsService {
     this.socket.on('announcement', (data: Announcement) => {
       this.showAnnouncement(data);
     });
+    // El servidor solo corta este socket cuando vence el JWT; como este
+    // namespace está abierto en todas las pantallas, sirve de aviso de que
+    // la sesión terminó aunque el usuario no haga ninguna petición HTTP.
+    this.socket.on('disconnect', (reason) => {
+      if (reason === 'io server disconnect') this.authService.clearSession('session_expired');
+    });
   }
 
   /**

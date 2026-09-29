@@ -15,6 +15,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { PermissionsService } from '../../core/services/permissions.service';
 import { AnnouncementsService } from '../../core/services/announcements.service';
 import { AppVersionService } from '../../core/services/app-version.service';
+import { IdleTimeoutService, IDLE_WARNING_SECONDS } from '../../core/services/idle-timeout.service';
 import { HttpClient } from '@angular/common/http';
 
 @Component({
@@ -501,6 +502,55 @@ import { HttpClient } from '@angular/common/http';
       </div>
     }
 
+    <!-- ── Cierre de sesión por inactividad ──────────────
+         El anillo se vacía en 60 s y el reloj del centro marca los segundos.
+         Por encima de todo lo demás (z-index mayor que los anuncios). -->
+    @let idleSecs = idleTimeoutService.secondsLeft();
+    @if (idleSecs !== null) {
+      <div class="fixed inset-0 z-[100000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+           role="alertdialog" aria-modal="true" aria-labelledby="idle-title" aria-describedby="idle-desc">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-100 dark:border-zinc-700 px-6 pt-7 pb-6 text-center">
+          <div class="relative mx-auto h-44 w-44">
+            <svg class="h-44 w-44 -rotate-90" viewBox="0 0 120 120" aria-hidden="true">
+              <circle cx="60" cy="60" r="52" fill="none" stroke-width="8" class="stroke-gray-200 dark:stroke-zinc-700" />
+              <circle cx="60" cy="60" r="52" fill="none" stroke-width="8" stroke-linecap="round"
+                      [attr.stroke]="idleColor(idleSecs)"
+                      [attr.stroke-dasharray]="IDLE_RING"
+                      [style.stroke-dashoffset]="idleRingOffset(idleSecs)"
+                      style="transition: stroke-dashoffset 1s linear, stroke 0.5s" />
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center" [style.color]="idleColor(idleSecs)">
+              <svg class="h-8 w-8 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9.5" />
+                <line x1="12" y1="12" x2="12" y2="5.5" [attr.transform]="'rotate(' + (60 - idleSecs) * 6 + ' 12 12)'" />
+                <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+              </svg>
+              <span class="text-5xl font-bold tabular-nums leading-none">{{ idleSecs }}</span>
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-zinc-400 mt-1.5">segundos</span>
+            </div>
+          </div>
+
+          <h2 id="idle-title" class="mt-5 text-lg font-semibold text-gray-900 dark:text-zinc-100">¿Seguís ahí?</h2>
+          <p id="idle-desc" class="mt-1 text-sm text-gray-600 dark:text-zinc-400">
+            Por inactividad, tu sesión se va a cerrar en {{ idleSecs }} {{ idleSecs === 1 ? 'segundo' : 'segundos' }}.
+          </p>
+
+          <div class="mt-6 flex gap-3">
+            <button (click)="authService.logout()"
+              class="flex-1 py-2.5 px-4 border border-gray-300 dark:border-zinc-700 rounded-lg text-sm font-medium
+                     text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors">
+              Cerrar sesión
+            </button>
+            <button (click)="idleTimeoutService.keepAlive()"
+              class="flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+              style="background: linear-gradient(to right, #14B8A5, #22C562)">
+              Seguir conectado
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
     <!-- ── Broadcast DM modal (solo mlopez) ────────────── -->
     @if (showBroadcastDmModal()) {
       <div class="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -739,6 +789,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly pushService = inject(PushNotificationService);
   readonly announcementsService = inject(AnnouncementsService);
   readonly appVersionService = inject(AppVersionService);
+  readonly idleTimeoutService = inject(IdleTimeoutService);
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -776,6 +827,22 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   readonly isTicom = computed(() => this.authService.currentUser()?.roles?.includes('TICOM') ?? false);
   readonly isMlopez = computed(() => this.authService.currentUser()?.username === 'mlopez');
+
+  // Aviso de cierre por inactividad: perímetro del anillo (r = 52)
+  readonly IDLE_RING = 2 * Math.PI * 52;
+
+  /**
+   * Apunta a lo que quedará al final del segundo en curso: la transición CSS
+   * de 1 s recorre ese segundo, así el anillo llega a vacío justo al cierre.
+   */
+  idleRingOffset(secs: number): number {
+    return this.IDLE_RING * (1 - Math.max(0, secs - 1) / IDLE_WARNING_SECONDS);
+  }
+
+  /** Verde, ámbar en los últimos 20 s y rojo en los últimos 10 s. */
+  idleColor(secs: number): string {
+    return secs <= 10 ? '#EF4444' : secs <= 20 ? '#F59E0B' : '#14B8A5';
+  }
 
   // Announcements
   readonly showAnnouncementModal = signal(false);
@@ -862,6 +929,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.reservationsService.loadReservations(this.reservationsService.hasPrivilegedView ? false : true);
     this.announcementsService.connect();
     void this.appVersionService.iniciar();
+    void this.idleTimeoutService.start();
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
     this.isOnMailPage.set(this.router.url === '/correo');
     this.routerSub = this.router.events

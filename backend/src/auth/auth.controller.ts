@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Request, Response, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Get, Post, Request, Response, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { Response as ExpressResponse } from 'express';
 import { AuthService } from './auth.service';
 import { PasswordResetService } from './password-reset.service';
@@ -82,6 +82,16 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.passwordResetService.resetPassword(dto.username, dto.otp, dto.newPassword);
     return { message: 'Contraseña restablecida exitosamente' };
+  }
+
+  /**
+   * Minutos sin actividad antes de cerrar la sesión (SESSION_IDLE_MINUTES,
+   * 30 por defecto). El navegador avisa 60 segundos antes y hace el logout.
+   */
+  @Get('session-config')
+  sessionConfig() {
+    const minutos = Number(process.env.SESSION_IDLE_MINUTES);
+    return { idleMinutes: Number.isFinite(minutos) && minutos >= 1 ? minutos : 30 };
   }
 
   @HttpCode(HttpStatus.OK)

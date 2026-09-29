@@ -5,12 +5,17 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { AuthService } from '../../../core/services/auth.service';
+import { AuthService, SessionEndReason } from '../../../core/services/auth.service';
 import { ThemeService } from '../../../core/services/theme.service';
 
 type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
+
+const SESSION_END_MESSAGES: Record<string, string> = {
+  idle: 'Tu sesión se cerró por inactividad. Volvé a ingresar para continuar.',
+  session_expired: 'Tu sesión expiró. Volvé a ingresar para continuar.',
+} satisfies Record<SessionEndReason, string>;
 
 @Component({
   selector: 'app-login',
@@ -57,6 +62,19 @@ type Step = 'login' | 'forgot-username' | 'forgot-otp' | 'forgot-newpass';
             <p class="mt-2 text-sm text-gray-600 dark:text-zinc-400">Paso 3 de 3 — Establece tu nueva contraseña</p>
           }
         </div>
+
+        <!-- Motivo del cierre de la sesión anterior -->
+        @if (infoMessage()) {
+          <div class="rounded-md bg-amber-50 dark:bg-amber-950/30 p-4 border border-amber-200 dark:border-amber-900">
+            <div class="flex">
+              <svg class="h-5 w-5 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="9" />
+                <path stroke-linecap="round" d="M12 7v5l3 2" />
+              </svg>
+              <p class="ml-3 text-sm text-amber-800 dark:text-amber-300">{{ infoMessage() }}</p>
+            </div>
+          </div>
+        }
 
         <!-- Alert -->
         @if (errorMessage()) {
@@ -453,6 +471,9 @@ export class LoginComponent {
   loading = signal(false);
   errorMessage = signal<string | null>(null);
   successMessage = signal<string | null>(null);
+  infoMessage = signal<string | null>(
+    SESSION_END_MESSAGES[inject(ActivatedRoute).snapshot.queryParamMap.get('reason') ?? ''] ?? null,
+  );
   showPassword = signal(false);
   throttleCountdown = signal(0);
   private countdownInterval: ReturnType<typeof setInterval> | null = null;
@@ -491,6 +512,7 @@ export class LoginComponent {
   }
 
   private clearMessages(): void {
+    this.infoMessage.set(null);
     this.errorMessage.set(null);
     this.successMessage.set(null);
   }

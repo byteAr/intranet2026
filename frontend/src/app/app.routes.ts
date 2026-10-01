@@ -106,6 +106,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'carpetas',
+        loadComponent: () =>
+          import('./features/shared-folders/shared-folders.component').then(
+            (m) => m.SharedFoldersComponent,
+          ),
+      },
+      {
         path: 'admin',
         loadComponent: () =>
           import('./features/admin/admin.component').then(

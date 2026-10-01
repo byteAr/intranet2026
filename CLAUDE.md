@@ -184,7 +184,7 @@ Regex PON en body → `requiresEncryption = true` automático. Override manual c
 `primera_letra_nombre + apellido` (ej: `mlopez`). Si existe → segundo nombre (`mmlopez`). Mismo en AD y `@iugna.edu.ar`.
 
 ### Módulos configurables por grupo
-`chat`, `incidencias`, `reservas`, `correo`, `redactar-mto`
+`chat`, `incidencias`, `reservas`, `correo`, `redactar-mto`, `parte-diario`, `carpetas`
 - Sin config explícita → acceso total (backward compatible).
 - Items TICOM (PST import, Para enviar, Autorizadores, Admin) no son configurables.
 
@@ -197,6 +197,19 @@ Regex PON en body → `requiresEncryption = true` automático. Override manual c
 - JSON key en `/run/secrets/google-workspace-key.json` (bind mount `./secrets:/run/secrets:ro`).
 - Email ya existente en Google → error 409 bloqueante (puede ser de otro usuario).
 - Email de bienvenida: imágenes inline (CID) pasos 1-7 desde `backend/assets/sfainstruction/`.
+
+---
+
+## Módulo Carpetas compartidas (`shared-folders/`, ruta `/carpetas`)
+
+- Una **unidad compartida** de Google Drive por oficina (grupo AD con `category='oficina'`), nombre `Intranet - <GRUPO>`. Se crea al primer acceso; tabla `office_drives` (se crea sola al arrancar aunque `synchronize` esté apagado).
+- Dueña/organizadora: `GOOGLE_DRIVE_OWNER_EMAIL` (o `GOOGLE_WORKSPACE_ADMIN_EMAIL`). Restricción `domainUsersOnly`.
+- Miembros = integrantes **habilitados del grupo en el AD** (vía `AdminService.listAdUsers()`) con cuenta Google activa, rol `fileOrganizer`. Cron cada 30 min + `POST /api/shared-folders/sync` (TICOM). Los `organizer` no se tocan.
+- Cuenta Google de un usuario: su `mail` del AD si es `@iugna.edu.ar`, si no `username@iugna.edu.ar`.
+- Las operaciones se hacen **en nombre del usuario** (delegación de dominio) para que Drive registre al autor; si no tiene cuenta o Drive le niega acceso, se reintenta como la cuenta dueña. La intranet valida siempre oficina + que el archivo pertenezca a la unidad (`driveId`).
+- Docs/Sheets/Slides nativos se descargan exportados (docx/xlsx/pptx; límite de export de Google: 10 MB).
+- Requiere el scope `https://www.googleapis.com/auth/drive` en la delegación de dominio y la Drive API habilitada en el proyecto de la cuenta de servicio.
+- Módulo `carpetas` en permisos por grupo (TICOM lo ve siempre).
 
 ---
 

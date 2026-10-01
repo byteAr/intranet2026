@@ -211,6 +211,19 @@ import { HttpClient } from '@angular/common/http';
           </a>
           }
 
+          @if (permissionsService.isAllowed('carpetas')) {
+          <a routerLink="/carpetas" routerLinkActive="active-nav"
+            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
+            [title]="collapsed() ? 'Carpetas compartidas' : ''">
+            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM15 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM6.5 17a2.5 2.5 0 015 0M12.5 17a2.5 2.5 0 015 0" />
+            </svg>
+            @if (!collapsed()) { <span class="ml-3">Carpetas compartidas</span> }
+          </a>
+          }
+
           @if (permissionsService.isAllowed('reservas')) {
           <a routerLink="/reservas" routerLinkActive="active-nav"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"

@@ -14,5 +14,6 @@ import { MailModule } from '../mail/mail.module';
   imports: [TypeOrmModule.forFeature([User, AdminAuditLog, GroupPermission]), MailModule],
   controllers: [AdminController, PermissionsController],
   providers: [AdminService, GoogleWorkspaceService, WelcomeEmailService],
+  exports: [AdminService],
 })
 export class AdminModule {}

@@ -40,7 +40,7 @@ export interface AdGroupMember {
   enabled: boolean;
 }
 
-interface AdUserEntry {
+export interface AdUserEntry {
   username: string;
   displayName: string;
   firstName: string;
@@ -336,6 +336,12 @@ export class AdminService implements OnApplicationBootstrap {
     await this.audit(actor, `Modificó el usuario ${username}${changes.length ? ` (${changes.join(', ')})` : ''}`);
   }
 
+  /** Usuarios del AD con sus grupos, tal como los devuelve el bridge. */
+  async listAdUsers(): Promise<AdUserEntry[]> {
+    const data = (await this.callBridgeGet('/list-users')) as { users: AdUserEntry[] };
+    return data.users ?? [];
+  }
+
   async listUsers(): Promise<object[]> {
     // Fetch all users from AD and office group names in parallel
     const [bridgeResult, officePerms] = await Promise.all([
@@ -452,7 +458,7 @@ export class AdminService implements OnApplicationBootstrap {
 
   // ─── Module permissions ──────────────────────────────────────────────────────
 
-  static readonly ALL_MODULES = ['chat', 'incidencias', 'reservas', 'correo', 'redactar-mto', 'parte-diario'] as const;
+  static readonly ALL_MODULES = ['chat', 'incidencias', 'reservas', 'correo', 'redactar-mto', 'parte-diario', 'carpetas'] as const;
 
   async getModulePermissions(): Promise<{ groupName: string; allowedModules: string[]; category: string }[]> {
     const dbPerms = await this.groupPermRepo.find();

@@ -54,14 +54,26 @@ interface AdUserEntry {
 }
 
 const OFFICE_GROUPS: readonly string[] = [
-  'TICOM', 'CENEDIS', 'LEGAL Y TÉCNICA', 'AYUDANTIADIREDTOS',
-  'AYUDANTIARECTORADO', 'DOCENTES', 'CURSOS', 'PERSONAL',
+  'TICOM', 'CENEDIS', 'LEGAL Y TÉCNICA', 'DOCENTES', 'CURSOS', 'PERSONAL',
   'SAF', 'LOGISTICA', 'CAMAREROS', 'DESARROLLO',
 ];
 
+/**
+ * Grupos de permiso, no oficinas. Las ayudantías autorizan las reservas de
+ * equipos: AYUDANTIA (grupo original) y AYUDANTIA DIREDTOS → piso 8,
+ * AYUDANTIA RECTORADO → piso 6.
+ */
 const SPECIAL_GROUPS: readonly string[] = [
   'CIVILES', 'ENCRIPTADO', 'RECTOR', 'DIRECTORES', 'CIVILES_CON_MTO',
+  'AYUDANTIA', 'AYUDANTIA DIREDTOS', 'AYUDANTIA RECTORADO',
 ];
+
+/**
+ * Nombres sin espacio que usa Reservas como rol (alias que agrega el login,
+ * ver ROLE_ALIASES en auth.service). No existen en el AD: no se muestran ni
+ * cuentan como oficina.
+ */
+const HIDDEN_GROUPS: readonly string[] = ['AYUDANTIADIREDTOS', 'AYUDANTIARECTORADO'];
 
 const MINIMAL_MODULES: readonly string[] = ['chat', 'incidencias', 'reservas'];
 
@@ -98,6 +110,7 @@ export class AdminService implements OnApplicationBootstrap {
     const allSeed = [
       ...OFFICE_GROUPS.map(name => ({ groupName: name, category: 'oficina' })),
       ...SPECIAL_GROUPS.map(name => ({ groupName: name, category: 'especial' })),
+      ...HIDDEN_GROUPS.map(name => ({ groupName: name, category: 'oculto' })),
     ];
     for (const { groupName, category } of allSeed) {
       const existing = await this.groupPermRepo.findOne({ where: { groupName } });

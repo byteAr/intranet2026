@@ -8,6 +8,15 @@ import { User } from '../users/entities/user.entity';
 import { GroupPermission } from '../admin/entities/group-permission.entity';
 import { TokenBlacklistService } from './token-blacklist.service';
 
+/**
+ * Grupo AD (sin espacios, en mayúsculas) → rol que usa la aplicación.
+ * Los grupos de ayudantía tienen espacio en el AD; Reservas los busca juntos.
+ */
+const ROLE_ALIASES: Record<string, string> = {
+  AYUDANTIADIREDTOS: 'AYUDANTIADIREDTOS',
+  AYUDANTIARECTORADO: 'AYUDANTIARECTORADO',
+};
+
 /** Shape of the LDAP/AD entry returned by passport-ldapauth */
 interface LdapEntry {
   dn?: string;
@@ -126,11 +135,19 @@ export class AuthService {
   private extractRoles(memberOf?: string | string[]): string[] {
     if (!memberOf) return [];
     const groups = Array.isArray(memberOf) ? memberOf : [memberOf];
-    return groups
+    const roles = groups
       .map((dn) => {
         const match = /^CN=([^,]+)/i.exec(dn);
         return match ? match[1] : null;
       })
       .filter((r): r is string => r !== null);
+
+    // En el AD los grupos se llaman "AYUDANTIA DIREDTOS" / "AYUDANTIA RECTORADO",
+    // pero Reservas autoriza por el nombre sin espacio: se agrega ese alias.
+    for (const role of [...roles]) {
+      const alias = ROLE_ALIASES[role.replace(/\s+/g, '').toUpperCase()];
+      if (alias && !roles.includes(alias)) roles.push(alias);
+    }
+    return roles;
   }
 }

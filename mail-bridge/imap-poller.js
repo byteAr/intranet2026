@@ -181,7 +181,17 @@ class ImapPoller {
       await this._fetchFromSent(client);
       await client.logout();
     } catch (err) {
-      this.log(`IMAP poll error: ${err.message} | stack: ${err.stack}`);
+      // imapflow informa cualquier NO/BAD del servidor como "Command failed":
+      // el motivo real está en estos campos. executedCommand no se registra
+      // entero porque en un LOGIN incluye la contraseña; solo su nombre.
+      const detalle = [
+        err.authenticationFailed && 'LOGIN RECHAZADO: revisar usuario/contraseña de la cuenta en el .env',
+        err.responseStatus && `estado: ${err.responseStatus}`,
+        err.responseText && `servidor: ${err.responseText}`,
+        err.serverResponseCode && `código: ${err.serverResponseCode}`,
+        err.executedCommand && `comando: ${String(err.executedCommand).split(' ')[1] || '?'}`,
+      ].filter(Boolean).join(' | ');
+      this.log(`IMAP poll error: ${err.message}${detalle ? ` | ${detalle}` : ''} | stack: ${err.stack}`);
       try { await client.logout(); } catch { /* ignore */ }
     }
 

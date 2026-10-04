@@ -369,8 +369,22 @@ export class SharedFoldersComponent implements OnInit {
     });
   }
 
-  private reload(): void {
-    this.load(this.currentFolderId() ?? undefined);
+  /**
+   * Incorpora a la lista los archivos que devolvió una subida, una carpeta
+   * nueva o un cambio de nombre. No se vuelve a pedir la lista a Drive porque
+   * su búsqueda tarda unos segundos en incluir lo recién creado.
+   * Si el usuario ya está en otra carpeta, no toca nada.
+   */
+  private mergeFiles(changed: SharedFile[], folderId: string): void {
+    if (this.currentFolderId() !== folderId || !changed.length) return;
+    const ids = new Set(changed.map((f) => f.id));
+    this.files.update((list) =>
+      [...list.filter((f) => !ids.has(f.id)), ...changed].sort(
+        (a, b) =>
+          Number(b.isFolder) - Number(a.isFolder) ||
+          a.name.localeCompare(b.name, 'es', { numeric: true, sensitivity: 'base' }),
+      ),
+    );
   }
 
   // ─── Subida ─────────────────────────────────────────────────────────────────
@@ -426,7 +440,7 @@ export class SharedFoldersComponent implements OnInit {
         } else if (ev.type === HttpEventType.Response) {
           this.uploadProgress.set(100);
           this.finishUpload();
-          this.reload();
+          this.mergeFiles(ev.body ?? [], folderId);
         }
       },
       error: (err) => {
@@ -484,10 +498,10 @@ export class SharedFoldersComponent implements OnInit {
       ? this.service.createFolder(office, folderId, name)
       : this.service.rename(office, d.file!.id, name);
     req.subscribe({
-      next: () => {
+      next: (file) => {
         this.busy.set(false);
         this.nameDialog.set(null);
-        this.reload();
+        this.mergeFiles([file], folderId);
       },
       error: (err) => {
         this.busy.set(false);

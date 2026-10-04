@@ -15,6 +15,8 @@ import { HttpClient } from '@angular/common/http';
 export interface AttachmentPreviewRequest {
   url: string;
   filename: string;
+  /** Aviso opcional que se muestra arriba del documento. */
+  note?: string;
 }
 
 @Component({
@@ -48,6 +50,15 @@ export interface AttachmentPreviewRequest {
               </svg>
             </button>
           </div>
+
+          @if (note()) {
+            <div class="flex items-center gap-2 px-5 py-2 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 flex-shrink-0">
+              <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="9" /><path stroke-linecap="round" d="M12 8v4m0 4h.01" />
+              </svg>
+              <span>{{ note() }}</span>
+            </div>
+          }
 
           <!-- Content -->
           <div class="flex-1 overflow-hidden relative bg-gray-100 dark:bg-zinc-950">
@@ -117,6 +128,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
   readonly error = signal(false);
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly currentFilename = signal('');
+  readonly note = signal<string | null>(null);
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['request'] && this.request) {
@@ -126,6 +138,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
 
   private open(req: AttachmentPreviewRequest): void {
     this.currentFilename.set(req.filename);
+    this.note.set(req.note ?? null);
     this.visible.set(true);
     this.loading.set(true);
     this.error.set(false);

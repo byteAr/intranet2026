@@ -568,7 +568,15 @@ export class SharedFoldersComponent implements OnInit {
       this.filter.set('');
       this.load(f.id);
     } else if (f.previewable) {
-      this.previewRequest.set({ url: this.folders.previewUrl(this.scopeFor(row), f.id), filename: f.name });
+      this.previewRequest.set({
+        url: this.folders.previewUrl(this.scopeFor(row), f.id),
+        filename: f.name,
+        // Google guarda el archivo al cerrarlo o al rato: mientras alguien lo
+        // edita, lo último puede no verse todavía (comprobado en staging).
+        note: f.googleUrl
+          ? `Si alguien lo está editando en ${this.editorName(f)}, los últimos cambios aparecen acá unos minutos después de que cierre el documento.`
+          : undefined,
+      });
     } else if (f.downloadable) {
       this.download(row);
     }

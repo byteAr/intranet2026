@@ -17,7 +17,7 @@ import { NewBadgeComponent } from '../new-badge/new-badge.component';
 <div class="relative flex items-center gap-1.5">
   <app-new-badge feature="notificaciones" />
   <button (click)="toggle(); $event.stopPropagation()"
-    class="relative h-9 w-9 flex items-center justify-center rounded-lg transition-colors text-gray-500 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-gray-800 dark:hover:text-zinc-100"
+    class="relative h-9 w-9 flex items-center justify-center rounded-lg transition-colors text-gray-500 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-gray-800 dark:hover:text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
     [ngClass]="{ 'bg-gray-100 dark:bg-zinc-800 text-gray-800 dark:text-zinc-100': open() }"
     [attr.aria-label]="notifications.unread() ? 'Notificaciones, ' + notifications.unread() + ' sin leer' : 'Notificaciones'"
     aria-haspopup="dialog" [attr.aria-expanded]="open()">
@@ -32,7 +32,8 @@ import { NewBadgeComponent } from '../new-badge/new-badge.component';
   </button>
 
   @if (open()) {
-    <div class="panel-in absolute right-0 top-full mt-2 w-[23rem] max-w-[calc(100vw-2rem)] z-[1000] overflow-hidden rounded-2xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl"
+    <!-- Por encima del cartel de anuncios (z-[99998]) -->
+    <div class="panel-in absolute right-0 top-full mt-2 w-[23rem] max-w-[calc(100vw-2rem)] z-[99999] overflow-hidden rounded-2xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl"
          (click)="$event.stopPropagation()" role="dialog" aria-label="Notificaciones">
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-zinc-800">
         <h2 class="text-sm font-semibold text-gray-900 dark:text-zinc-100">Notificaciones</h2>

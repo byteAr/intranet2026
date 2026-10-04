@@ -201,14 +201,15 @@ import { HttpClient } from '@angular/common/http';
             </svg>
             @if (!collapsed()) {
               <span class="ml-3 flex-1 truncate">Archivos compartidos</span>
-              <!-- No entran los dos: lo compartido sin ver tiene prioridad sobre NUEVO -->
+              <!-- NUEVO va como insignia en la esquina para que el nombre entre completo;
+                   lo compartido sin ver tiene prioridad -->
               @if (sharedFoldersService.unseenShares() > 0) {
                 <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center"
                       [title]="sharedFoldersService.unseenShares() + ' compartidos nuevos'">
                   {{ sharedFoldersService.unseenShares() }}
                 </span>
               } @else {
-                <app-new-badge feature="archivos-compartidos" class="ml-1.5 flex-shrink-0" />
+                <app-new-badge feature="archivos-compartidos" class="absolute top-0.5 right-1.5" />
               }
             } @else if (sharedFoldersService.unseenShares() > 0) {
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>

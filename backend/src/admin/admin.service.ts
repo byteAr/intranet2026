@@ -75,7 +75,11 @@ const SPECIAL_GROUPS: readonly string[] = [
  */
 const HIDDEN_GROUPS: readonly string[] = ['AYUDANTIADIREDTOS', 'AYUDANTIARECTORADO'];
 
-const MINIMAL_MODULES: readonly string[] = ['chat', 'incidencias', 'reservas'];
+/**
+ * Siempre disponibles para todos. Archivos compartidos también: cada uno ve la
+ * unidad de su propia oficina, y sin el módulo no podría compartir nada.
+ */
+const MINIMAL_MODULES: readonly string[] = ['chat', 'incidencias', 'reservas', 'carpetas'];
 
 @Injectable()
 export class AdminService implements OnApplicationBootstrap {

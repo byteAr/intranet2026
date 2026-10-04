@@ -234,7 +234,7 @@ Toda funcionalidad nueva visible lleva la etiqueta **NUEVO** una semana desde su
 - **Vista previa** (`preview.util.ts`): PDF/imágenes/video en línea, texto como `text/plain` (nunca HTML/SVG en línea), Docs de Google exportados a PDF, Office convertido con LibreOffice (perfil temporal propio por conversión). Máx. 100 MB. Usa el mismo visor que los adjuntos de MTO.
 - El ítem del menú aparece también para quien solo recibió algo compartido; badge con lo no visto (consulta cada 60 s).
 - Requiere el scope `https://www.googleapis.com/auth/drive` en la delegación de dominio y la Drive API habilitada en el proyecto de la cuenta de servicio.
-- Módulo `carpetas` en permisos por grupo (TICOM lo ve siempre).
+- Módulo `carpetas`: siempre disponible para todos (`MINIMAL_MODULES` en `admin.service.ts`), como chat/incidencias/reservas.
 
 ---
 

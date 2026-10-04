@@ -560,7 +560,7 @@ const RANK_GROUPS = [
       @if (activeTab() === 'permissions') {
         <div>
           <p class="text-sm text-gray-500 dark:text-zinc-400 mb-4">
-            Controlá qué módulos puede ver cada grupo. Los usuarios siempre tienen acceso a Conversaciones, Ayuda técnica y Reservas. Los módulos adicionales (MTO's, Redactar MTO, Archivos compartidos) se habilitan por grupo. Nota: los miembros de CIVILES no pueden ver MTO's ni Redactar MTO a menos que también estén en CIVILES_CON_MTO.
+            Controlá qué módulos puede ver cada grupo. Los usuarios siempre tienen acceso a Conversaciones, Ayuda técnica, Reservas y Archivos compartidos. Los módulos adicionales (MTO's, Redactar MTO) se habilitan por grupo. Nota: los miembros de CIVILES no pueden ver MTO's ni Redactar MTO a menos que también estén en CIVILES_CON_MTO.
           </p>
 
           @if (loadingPerms()) {

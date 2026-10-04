@@ -19,7 +19,7 @@ import { Readable } from 'stream';
 import * as fs from 'fs/promises';
 import { OfficeDrive } from './entities/office-drive.entity';
 import { SharedItem } from './entities/shared-item.entity';
-import { MAX_PREVIEW_BYTES, convertToPdf, previewKind } from './preview.util';
+import { MAX_PREVIEW_BYTES, convertToPdf, googleEditUrl, previewKind } from './preview.util';
 import { GroupPermission } from '../admin/entities/group-permission.entity';
 import { User } from '../users/entities/user.entity';
 import { AdminService } from '../admin/admin.service';
@@ -59,6 +59,8 @@ export interface SharedFile {
   isGoogleDoc: boolean;
   downloadable: boolean;
   previewable: boolean;
+  /** Para editarlo en Documentos/Hojas/Presentaciones de Google; null si no aplica. */
+  googleUrl: string | null;
   size: number | null;
   modifiedTime: string | null;
   modifiedBy: string | null;
@@ -145,10 +147,12 @@ export class SharedFoldersService implements OnApplicationBootstrap {
         "sharedBy" varchar NOT NULL,
         "sharedByName" varchar NOT NULL,
         "role" varchar NOT NULL DEFAULT 'reader',
+        "drivePermissionId" varchar NULL,
         "seenAt" timestamp NULL,
         "createdAt" timestamp NOT NULL DEFAULT now(),
         UNIQUE ("fileId", "sharedWith")
       )`);
+    await this.dataSource.query(`ALTER TABLE "shared_items" ADD COLUMN IF NOT EXISTS "drivePermissionId" varchar NULL`);
   }
 
   // ─── Oficinas y acceso ──────────────────────────────────────────────────────
@@ -158,9 +162,25 @@ export class SharedFoldersService implements OnApplicationBootstrap {
    * hay ninguna, pero igual puede ver lo que le compartieron.
    */
   async myOffices(user: CurrentUser) {
-    if (!this.gdrive.isConfigured) return { configured: false, offices: [] };
+    if (!this.gdrive.isConfigured) return { configured: false, offices: [], googleEmail: null };
     const { allowedModules } = await this.adminService.getEffectiveModules(user.roles ?? []);
-    return { configured: true, offices: allowedModules.includes('carpetas') ? await this.userOffices(user) : [] };
+    return {
+      configured: true,
+      offices: allowedModules.includes('carpetas') ? await this.userOffices(user) : [],
+      // Para abrir en Documentos de Google con esa cuenta (authuser).
+      googleEmail: await this.googleEmailOf(user.username, user.email),
+    };
+  }
+
+  /** Cuenta @iugna.edu.ar activa de un usuario, o null si no tiene. */
+  async googleEmailOf(username: string, mail?: string | null): Promise<string | null> {
+    try {
+      const email = this.gdrive.emailFor(username, mail);
+      return (await this.gdrive.domainAccounts()).has(email) ? email : null;
+    } catch (err) {
+      this.logger.warn(`No se pudo consultar las cuentas del dominio: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   /** Si quien tiene esos roles es de la oficina: ya ve toda su unidad, no hace falta compartirle. */
@@ -181,13 +201,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   }
 
   private async hasGoogleAccount(user: CurrentUser): Promise<boolean> {
-    try {
-      const accounts = await this.gdrive.domainAccounts();
-      return accounts.has(this.gdrive.emailFor(user.username, user.email));
-    } catch (err) {
-      this.logger.warn(`No se pudo consultar las cuentas del dominio: ${(err as Error).message}`);
-      return false;
-    }
+    return (await this.googleEmailOf(user.username, user.email)) !== null;
   }
 
   /** Verifica que el usuario pertenezca a la oficina y devuelve su unidad (la crea la primera vez). */
@@ -480,6 +494,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       isGoogleDoc,
       downloadable: !isFolder && (!isGoogleDoc || !!GOOGLE_EXPORTS[mimeType]),
       previewable: !isFolder && previewKind(mimeType, name) !== 'none',
+      googleUrl: googleEditUrl(f.id!, mimeType, name),
       size: f.size ? Number(f.size) : null,
       modifiedTime: f.modifiedTime ?? null,
       modifiedBy: f.lastModifyingUser?.displayName ?? null,

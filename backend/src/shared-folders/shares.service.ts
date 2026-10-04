@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { GoogleDriveService } from './google-drive.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { SharedItem, ShareRole } from './entities/shared-item.entity';
@@ -19,10 +20,13 @@ function fullName(u: Pick<User, 'displayName' | 'firstName' | 'lastName' | 'user
  */
 @Injectable()
 export class SharesService {
+  private readonly logger = new Logger(SharesService.name);
+
   constructor(
     @InjectRepository(SharedItem) private readonly shareRepo: Repository<SharedItem>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly folders: SharedFoldersService,
+    private readonly gdrive: GoogleDriveService,
   ) {}
 
   // ─── Desde la oficina que comparte ─────────────────────────────────────────
@@ -69,12 +73,12 @@ export class SharesService {
       throw new BadRequestException(`${fullName(target)} es de ${scope.office.groupName} y ya tiene acceso.`);
     }
 
-    const existing = await this.shareRepo.findOne({ where: { fileId, sharedWith: username } });
-    if (existing) {
-      existing.role = role;
-      await this.shareRepo.save(existing);
+    let saved = await this.shareRepo.findOne({ where: { fileId, sharedWith: username } });
+    if (saved) {
+      saved.role = role;
+      saved = await this.shareRepo.save(saved);
     } else {
-      await this.shareRepo.save(
+      saved = await this.shareRepo.save(
         this.shareRepo.create({
           driveId: scope.office.driveId,
           groupName: scope.office.groupName,
@@ -89,6 +93,7 @@ export class SharesService {
         }),
       );
     }
+    await this.syncDriveAccess(saved, target?.email);
     return this.listForItem(user, groupName, fileId);
   }
 
@@ -96,7 +101,37 @@ export class SharesService {
     const scope = await this.folders.officeScope(user, groupName);
     const share = await this.shareRepo.findOne({ where: { id: shareId, driveId: scope.office.driveId } });
     if (!share) throw new NotFoundException('Ya no estaba compartido.');
+    if (share.drivePermissionId) {
+      await this.gdrive.revoke(share.fileId, share.drivePermissionId).catch((err: Error) =>
+        this.logger.warn(`No se pudo quitar el acceso en Drive a ${share.sharedWith}: ${err.message}`),
+      );
+    }
     await this.shareRepo.delete(share.id);
+  }
+
+  /**
+   * Replica el permiso en Drive para la cuenta @iugna.edu.ar de quien lo
+   * recibe, así puede abrirlo en Documentos de Google. Si no tiene cuenta, o
+   * Drive falla, lo compartido igual funciona desde la intranet.
+   */
+  private async syncDriveAccess(share: SharedItem, mail?: string | null): Promise<void> {
+    try {
+      if (share.drivePermissionId) {
+        try {
+          await this.gdrive.changeGrant(share.fileId, share.drivePermissionId, share.role);
+          return;
+        } catch {
+          // El permiso ya no existe en Drive (lo quitaron a mano): se vuelve a dar.
+          share.drivePermissionId = null;
+        }
+      }
+      const email = await this.folders.googleEmailOf(share.sharedWith, mail);
+      if (!email) return;
+      share.drivePermissionId = await this.gdrive.grant(share.fileId, email, share.role);
+      await this.shareRepo.save(share);
+    } catch (err) {
+      this.logger.warn(`No se pudo dar acceso en Drive a ${share.sharedWith}: ${(err as Error).message}`);
+    }
   }
 
   // ─── Para quien recibe ─────────────────────────────────────────────────────
@@ -114,6 +149,8 @@ export class SharesService {
       shares.map(async (s) => {
         const file = await this.folders.currentFile(s.fileId);
         if (!file || file.driveId !== s.driveId) return null;
+        // Compartidos antes de tener cuenta de Google (o antes de este cambio).
+        if (!s.drivePermissionId) await this.syncDriveAccess(s, user.email);
         return {
           shareId: s.id,
           role: s.role,

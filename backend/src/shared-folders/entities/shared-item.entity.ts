@@ -45,6 +45,13 @@ export class SharedItem {
   @Column({ type: 'varchar', default: 'reader' })
   role: ShareRole;
 
+  /**
+   * Permiso equivalente en Drive para la cuenta de Google de quien lo recibe,
+   * así puede abrirlo en Documentos/Hojas de Google. Null si no tiene cuenta.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  drivePermissionId: string | null;
+
   /** Cuándo lo vio quien lo recibe; null = cuenta para el badge. */
   @Column({ type: 'timestamp', nullable: true })
   seenAt: Date | null;

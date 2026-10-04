@@ -27,7 +27,7 @@ const MENU_WIDTH = 220;
 const MENU_HEIGHT = 250;
 
 type IconKind = 'folder' | 'pdf' | 'doc' | 'sheet' | 'slides' | 'image' | 'archive' | 'file';
-type MenuAction = 'open' | 'download' | 'share' | 'rename' | 'delete';
+type MenuAction = 'open' | 'google' | 'download' | 'share' | 'rename' | 'delete';
 
 interface Crumb { id: string; name: string; }
 interface NameDialog { mode: 'folder' | 'rename'; file?: SharedFile; value: string; }
@@ -233,6 +233,16 @@ interface UserHit { username: string; displayName: string; }
                 }
               </span>
 
+              @if (googleUrlFor(row.file)) {
+                <button (click)="openInGoogle(row.file)"
+                  class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors"
+                  [class]="editorClass(row.file)"
+                  [title]="'Abrir en ' + editorName(row.file) + ' para trabajar en conjunto'">
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+                  {{ canEditInGoogle(row) ? 'Editar' : 'Abrir' }}
+                </button>
+              }
+
               <button (click)="openMenu($event, row); $event.stopPropagation()"
                 class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
                 title="Más opciones" aria-label="Más opciones" aria-haspopup="menu">
@@ -272,6 +282,10 @@ interface UserHit { username: string; displayName: string; }
           @case ('open') {
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
             {{ m.row.file.isFolder ? 'Abrir' : 'Ver' }}
+          }
+          @case ('google') {
+            <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+            {{ canEditInGoogle(m.row) ? 'Editar' : 'Abrir' }} en {{ editorName(m.row.file) }}
           }
           @case ('download') {
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>
@@ -514,7 +528,7 @@ export class SharedFoldersComponent implements OnInit {
         this.selectTab(valid ? last! : info.offices[0] ?? SHARED_TAB);
       },
       error: () => {
-        this.info.set({ configured: false, offices: [] });
+        this.info.set({ configured: false, offices: [], googleEmail: null });
         this.loadingInfo.set(false);
       },
     });
@@ -626,6 +640,7 @@ export class SharedFoldersComponent implements OnInit {
     const f = row.file;
     const actions: MenuAction[] = [];
     if (f.isFolder || f.previewable) actions.push('open');
+    if (this.googleUrlFor(f)) actions.push('google');
     if (f.downloadable) actions.push('download');
     if (!this.isSharedTab()) actions.push('share');
     if (!row.item && this.canWrite()) actions.push('rename', 'delete');
@@ -636,10 +651,51 @@ export class SharedFoldersComponent implements OnInit {
     this.menu.set(null);
     switch (action) {
       case 'open': return this.open(row);
+      case 'google': return this.openInGoogle(row.file);
       case 'download': return this.download(row);
       case 'share': return this.openShare(row.file);
       case 'rename': return this.nameDialog.set({ mode: 'rename', file: row.file, value: row.file.name });
       case 'delete': return this.toDelete.set(row.file);
+    }
+  }
+
+  // ─── Documentos de Google ───────────────────────────────────────────────────
+
+  /**
+   * Enlace para trabajar el archivo en Google entre varios. Necesita que el
+   * usuario tenga cuenta @iugna.edu.ar: con ella es miembro de la unidad de su
+   * oficina, o recibe el permiso en Drive cuando se lo comparten.
+   */
+  googleUrlFor(f: SharedFile): string | null {
+    const email = this.info()?.googleEmail;
+    if (!f.googleUrl || !email) return null;
+    // authuser hace que Google use esa cuenta aunque haya otra abierta en el navegador.
+    return `${f.googleUrl}${f.googleUrl.includes('?') ? '&' : '?'}authuser=${encodeURIComponent(email)}`;
+  }
+
+  openInGoogle(f: SharedFile): void {
+    const url = this.googleUrlFor(f);
+    if (url) window.open(url, '_blank', 'noopener');
+  }
+
+  /** En lo compartido con "Puede ver", Google lo abre en modo lectura. */
+  canEditInGoogle(row: Row): boolean {
+    return row.item ? row.item.role === 'writer' : this.canWrite();
+  }
+
+  editorName(f: SharedFile): string {
+    switch (this.iconKind(f)) {
+      case 'sheet': return 'Hojas de cálculo de Google';
+      case 'slides': return 'Presentaciones de Google';
+      default: return 'Documentos de Google';
+    }
+  }
+
+  editorClass(f: SharedFile): string {
+    switch (this.iconKind(f)) {
+      case 'sheet': return 'border-green-200 text-green-700 hover:bg-green-50 dark:border-green-900 dark:text-green-400 dark:hover:bg-green-950/40';
+      case 'slides': return 'border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-900 dark:text-orange-400 dark:hover:bg-orange-950/40';
+      default: return 'border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-950/40';
     }
   }
 

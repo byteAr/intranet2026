@@ -35,6 +35,30 @@ const OFFICE_EXT = new Set([
 
 export type PreviewKind = 'inline' | 'text' | 'google-pdf' | 'convert' | 'none';
 
+/** Editor de Google (segmento de la URL de docs.google.com) por tipo de archivo. */
+const GOOGLE_NATIVE_EDITOR: Record<string, string> = {
+  'application/vnd.google-apps.document': 'document',
+  'application/vnd.google-apps.spreadsheet': 'spreadsheets',
+  'application/vnd.google-apps.presentation': 'presentation',
+};
+const OFFICE_EDITOR: Record<string, string> = {
+  '.docx': 'document', '.doc': 'document',
+  '.xlsx': 'spreadsheets', '.xls': 'spreadsheets',
+  '.pptx': 'presentation', '.ppt': 'presentation',
+};
+
+/**
+ * URL para editar el archivo en Documentos/Hojas/Presentaciones de Google.
+ * Los de Office se abren en "modo de edición de Office" (rtpof=true): se
+ * editan entre varios sin convertirlos y siguen siendo .docx/.xlsx/.pptx.
+ */
+export function googleEditUrl(id: string, mimeType: string, name: string): string | null {
+  const native = GOOGLE_NATIVE_EDITOR[mimeType];
+  if (native) return `https://docs.google.com/${native}/d/${id}/edit`;
+  const office = OFFICE_EDITOR[extname(name).toLowerCase()];
+  return office ? `https://docs.google.com/${office}/d/${id}/edit?rtpof=true&sd=true` : null;
+}
+
 export function previewKind(mimeType: string, name: string): PreviewKind {
   if (GOOGLE_TO_PDF.has(mimeType)) return 'google-pdf';
   if (INLINE.test(mimeType)) return 'inline';

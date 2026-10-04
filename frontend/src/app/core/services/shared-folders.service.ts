@@ -10,6 +10,8 @@ export interface SharedFile {
   isGoogleDoc: boolean;
   downloadable: boolean;
   previewable: boolean;
+  /** Para editarlo en Documentos/Hojas/Presentaciones de Google; null si no aplica. */
+  googleUrl: string | null;
   size: number | null;
   modifiedTime: string | null;
   modifiedBy: string | null;
@@ -18,6 +20,8 @@ export interface SharedFile {
 export interface OfficesInfo {
   configured: boolean;
   offices: string[];
+  /** Cuenta @iugna.edu.ar del usuario; sin ella no puede abrir en Google. */
+  googleEmail: string | null;
 }
 
 export interface FolderListing {

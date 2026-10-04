@@ -166,6 +166,28 @@ export class GoogleDriveService {
     await this.drive().permissions.delete({ fileId: driveId, permissionId, supportsAllDrives: true });
   }
 
+  // ─── Acceso a un archivo o carpeta puntual (lo compartido) ──────────────────
+
+  /** Da acceso en Drive a una cuenta sobre un elemento; devuelve el id del permiso. */
+  async grant(fileId: string, email: string, role: 'reader' | 'writer'): Promise<string> {
+    const res = await this.drive().permissions.create({
+      fileId,
+      supportsAllDrives: true,
+      sendNotificationEmail: false,
+      requestBody: { type: 'user', role, emailAddress: email },
+      fields: 'id',
+    });
+    return res.data.id!;
+  }
+
+  async changeGrant(fileId: string, permissionId: string, role: 'reader' | 'writer'): Promise<void> {
+    await this.drive().permissions.update({ fileId, permissionId, supportsAllDrives: true, requestBody: { role } });
+  }
+
+  async revoke(fileId: string, permissionId: string): Promise<void> {
+    await this.drive().permissions.delete({ fileId, permissionId, supportsAllDrives: true });
+  }
+
   // ─── Archivos (en nombre de quien opera) ────────────────────────────────────
 
   async listChildren(actAs: string, driveId: string, folderId: string): Promise<drive_v3.Schema$File[]> {

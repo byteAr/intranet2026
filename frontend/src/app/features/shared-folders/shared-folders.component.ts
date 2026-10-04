@@ -17,6 +17,7 @@ import {
   AttachmentPreviewModalComponent,
   AttachmentPreviewRequest,
 } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
+import { FileIconComponent } from './file-icon.component';
 
 const LAST_TAB_KEY = 'pac_shared_folders_office';
 /** Pestaña "Compartidos conmigo" (no puede coincidir con un grupo del AD). */
@@ -39,13 +40,15 @@ interface UserHit { username: string; displayName: string; }
 @Component({
   selector: 'app-shared-folders',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent],
+  // La página ocupa todo el alto del <main> para que la tarjeta se estire hasta abajo.
+  host: { class: 'flex flex-col min-h-full' },
   template: `
-<div class="space-y-5">
+<div class="flex flex-col gap-5 flex-1">
 
   <!-- Header -->
   <div>
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-zinc-100">Carpetas compartidas</h1>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-zinc-100">Archivos compartidos</h1>
     <p class="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">Archivos de tu oficina y lo que otros compartieron con vos.</p>
   </div>
 
@@ -58,7 +61,7 @@ interface UserHit { username: string; displayName: string; }
     </div>
   } @else if (!info()?.configured) {
     <div class="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-6 text-sm text-amber-800 dark:text-amber-300">
-      Las carpetas compartidas todavía no están configuradas. Avisá a TICOM.
+      Los archivos compartidos todavía no están configurados. Avisá a TICOM.
     </div>
   } @else {
 
@@ -87,7 +90,7 @@ interface UserHit { username: string; displayName: string; }
       </button>
     </div>
 
-    <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm relative"
+    <div class="flex-1 flex flex-col min-h-[24rem] bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm relative"
          (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
 
       <!-- Barra: ruta + acciones -->
@@ -163,17 +166,23 @@ interface UserHit { username: string; displayName: string; }
 
       <!-- Lista -->
       @if (loading()) {
-        <div class="flex justify-center py-16">
+        <div class="flex-1 flex items-center justify-center py-16">
           <svg class="animate-spin h-7 w-7 text-teal-600" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
           </svg>
         </div>
       } @else if (!rows().length) {
-        <div class="py-16 text-center px-4">
-          <svg class="h-12 w-12 mx-auto text-gray-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
-          </svg>
+        <div class="flex-1 flex flex-col items-center justify-center py-16 text-center px-4">
+          @if (atSharedRoot()) {
+            <svg class="h-14 w-14 text-gray-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M21.5 20a6.5 6.5 0 00-4-6"/>
+            </svg>
+          } @else {
+            <svg class="h-14 w-14 text-gray-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 15V5M8 9l4-4 4 4"/><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/>
+            </svg>
+          }
           @if (filter().trim()) {
             <p class="mt-3 text-sm text-gray-500 dark:text-zinc-400">Nada coincide con "{{ filter().trim() }}".</p>
           } @else if (atSharedRoot()) {
@@ -187,26 +196,21 @@ interface UserHit { username: string; displayName: string; }
           }
         </div>
       } @else {
+        <!-- Columnas fijas: nombre | fecha | acciones. Las acciones reservan
+             siempre el mismo ancho, haya o no botón Editar, así no se corre nada. -->
+        <div class="hidden md:grid grid-cols-[minmax(0,1fr)_13rem_7.5rem] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-zinc-500 border-b border-gray-100 dark:border-zinc-800">
+          <span>Nombre</span>
+          <span class="text-right">{{ atSharedRoot() ? 'Compartido' : 'Última modificación' }}</span>
+          <span></span>
+        </div>
         <ul class="divide-y divide-gray-100 dark:divide-zinc-800">
           @for (row of rows(); track row.item?.shareId ?? row.file.id) {
-            <li class="group flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800/60 cursor-default"
+            <li class="group grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_13rem_7.5rem] items-center gap-4 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800/60 cursor-default"
                 [ngClass]="{ 'bg-teal-50 dark:bg-zinc-800': menu()?.row === row }"
                 (contextmenu)="openMenu($event, row)">
-              <button (click)="open(row)" class="flex items-center gap-3 min-w-0 flex-1 text-left"
+              <button (click)="open(row)" class="flex items-center gap-3 min-w-0 text-left"
                       [title]="row.file.isFolder ? 'Abrir carpeta' : (row.file.previewable ? 'Ver' : 'Descargar')">
-                <span class="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0" [class]="iconBg(row.file)">
-                  @switch (iconKind(row.file)) {
-                    @case ('folder') {
-                      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
-                    }
-                    @case ('image') {
-                      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                    }
-                    @default {
-                      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/></svg>
-                    }
-                  }
-                </span>
+                <app-file-icon [file]="row.file" />
                 <span class="min-w-0">
                   <span class="flex items-center gap-2">
                     <span class="text-sm font-medium text-gray-900 dark:text-zinc-100 truncate">{{ row.file.name }}</span>
@@ -216,7 +220,8 @@ interface UserHit { username: string; displayName: string; }
                   </span>
                   <span class="block text-xs text-gray-500 dark:text-zinc-400 truncate">
                     @if (row.item; as item) {
-                      {{ item.sharedByName }} · {{ item.groupName }} · {{ item.role === 'writer' ? 'Puede editar' : 'Puede ver' }}
+                      {{ item.groupName }} · {{ item.role === 'writer' ? 'Puede editar' : 'Puede ver' }}
+                      <span class="md:hidden">· {{ item.sharedByName }}</span>
                     } @else {
                       {{ typeLabel(row.file) }}@if (row.file.size !== null) { · {{ formatSize(row.file.size) }} }
                     }
@@ -224,30 +229,32 @@ interface UserHit { username: string; displayName: string; }
                 </span>
               </button>
 
-              <span class="hidden md:block w-56 text-xs text-gray-500 dark:text-zinc-400 truncate text-right">
+              <span class="hidden md:block text-xs text-gray-500 dark:text-zinc-400 text-right min-w-0">
                 @if (row.item; as item) {
-                  Compartido el {{ formatDate(item.sharedAt) }}
+                  <span class="block truncate">{{ formatDate(item.sharedAt) }}</span>
+                  <span class="block truncate text-gray-400 dark:text-zinc-500">{{ item.sharedByName }}</span>
                 } @else {
-                  @if (row.file.modifiedTime) { {{ formatDate(row.file.modifiedTime) }} }
-                  @if (row.file.modifiedBy) { <span class="block truncate">{{ row.file.modifiedBy }}</span> }
+                  @if (row.file.modifiedTime) { <span class="block truncate">{{ formatDate(row.file.modifiedTime) }}</span> }
+                  @if (row.file.modifiedBy) { <span class="block truncate text-gray-400 dark:text-zinc-500">{{ row.file.modifiedBy }}</span> }
                 }
               </span>
 
-              @if (googleUrlFor(row.file)) {
-                <button (click)="openInGoogle(row.file)"
-                  class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors"
-                  [class]="editorClass(row.file)"
-                  [title]="'Abrir en ' + editorName(row.file) + ' para trabajar en conjunto'">
-                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
-                  {{ canEditInGoogle(row) ? 'Editar' : 'Abrir' }}
+              <div class="flex items-center justify-end gap-1">
+                @if (googleUrlFor(row.file)) {
+                  <button (click)="openInGoogle(row.file)"
+                    class="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold border transition-colors"
+                    [class]="editorClass(row.file)"
+                    [title]="(canEditInGoogle(row) ? 'Editar' : 'Abrir') + ' en ' + editorName(row.file) + ', en conjunto con los demás'">
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+                    {{ canEditInGoogle(row) ? 'Editar' : 'Abrir' }}
+                  </button>
+                }
+                <button (click)="openMenu($event, row); $event.stopPropagation()"
+                  class="h-8 w-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
+                  title="Más opciones" aria-label="Más opciones" aria-haspopup="menu">
+                  <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="10" cy="16" r="1.6"/></svg>
                 </button>
-              }
-
-              <button (click)="openMenu($event, row); $event.stopPropagation()"
-                class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
-                title="Más opciones" aria-label="Más opciones" aria-haspopup="menu">
-                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="10" cy="16" r="1.6"/></svg>
-              </button>
+              </div>
             </li>
           }
         </ul>
@@ -973,19 +980,6 @@ export class SharedFoldersComponent implements OnInit {
     if (m.includes('presentation') || m.includes('powerpoint') || /\.(pptx?|odp)$/.test(n)) return 'slides';
     if (/zip|rar|7z|compressed|tar/.test(m)) return 'archive';
     return 'file';
-  }
-
-  iconBg(f: SharedFile): string {
-    switch (this.iconKind(f)) {
-      case 'folder': return 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400';
-      case 'pdf': return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400';
-      case 'doc': return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'sheet': return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400';
-      case 'slides': return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400';
-      case 'image': return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400';
-      case 'archive': return 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-300';
-      default: return 'bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-zinc-400';
-    }
   }
 
   typeLabel(f: SharedFile): string {

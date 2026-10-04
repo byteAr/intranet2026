@@ -17,12 +17,13 @@ import { AnnouncementsService } from '../../core/services/announcements.service'
 import { AppVersionService } from '../../core/services/app-version.service';
 import { IdleTimeoutService, IDLE_WARNING_SECONDS } from '../../core/services/idle-timeout.service';
 import { SharedFoldersService } from '../../core/services/shared-folders.service';
+import { NewBadgeComponent } from '../new-badge/new-badge.component';
 import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, NewBadgeComponent],
   template: `
     <div class="flex h-screen bg-gray-100 dark:bg-zinc-950">
 
@@ -111,13 +112,13 @@ import { HttpClient } from '@angular/common/http';
           @if (permissionsService.isAllowed('correo')) {
           <a routerLink="/correo" routerLinkActive="active-nav" [routerLinkActiveOptions]="{exact: true}"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
-            [title]="collapsed() ? 'Correo' : ''">
+            [title]="collapsed() ? mtosLabel : ''">
             <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
             @if (!collapsed()) {
-              <span class="ml-3 flex-1">Correo</span>
+              <span class="ml-3 flex-1">MTO's</span>
               @if (mailService.unreadCount() > 0 && !isOnMailPage()) {
                 <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
                   {{ mailService.unreadCount() }}
@@ -187,6 +188,34 @@ import { HttpClient } from '@angular/common/http';
             </a>
           }
 
+          @if (permissionsService.isAllowed('carpetas') || sharedFoldersService.totalShares() > 0) {
+          <a routerLink="/archivos" routerLinkActive="active-nav"
+            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
+            [title]="collapsed() ? 'Archivos compartidos' : ''">
+            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM15 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM6.5 17a2.5 2.5 0 015 0M12.5 17a2.5 2.5 0 015 0" />
+            </svg>
+            @if (!collapsed()) {
+              <span class="ml-3 flex-1 truncate">Archivos compartidos</span>
+              <!-- No entran los dos: lo compartido sin ver tiene prioridad sobre NUEVO -->
+              @if (sharedFoldersService.unseenShares() > 0) {
+                <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center"
+                      [title]="sharedFoldersService.unseenShares() + ' compartidos nuevos'">
+                  {{ sharedFoldersService.unseenShares() }}
+                </span>
+              } @else {
+                <app-new-badge feature="archivos-compartidos" class="ml-1.5 flex-shrink-0" />
+              }
+            } @else if (sharedFoldersService.unseenShares() > 0) {
+              <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+            } @else {
+              <app-new-badge feature="archivos-compartidos" [dot]="true" class="absolute top-1 right-1" />
+            }
+          </a>
+          }
+
           @if (isTicom()) {
             <a routerLink="/admin" routerLinkActive="active-nav"
               class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
@@ -209,29 +238,6 @@ import { HttpClient } from '@angular/common/http';
                 d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
             </svg>
             @if (!collapsed()) { <span class="ml-3">Parte Diario</span> }
-          </a>
-          }
-
-          @if (permissionsService.isAllowed('carpetas') || sharedFoldersService.totalShares() > 0) {
-          <a routerLink="/carpetas" routerLinkActive="active-nav"
-            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
-            [title]="collapsed() ? 'Carpetas compartidas' : ''">
-            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM15 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM6.5 17a2.5 2.5 0 015 0M12.5 17a2.5 2.5 0 015 0" />
-            </svg>
-            @if (!collapsed()) {
-              <span class="ml-3 flex-1">Carpetas compartidas</span>
-              @if (sharedFoldersService.unseenShares() > 0) {
-                <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center"
-                      [title]="sharedFoldersService.unseenShares() + ' compartidos nuevos'">
-                  {{ sharedFoldersService.unseenShares() }}
-                </span>
-              }
-            } @else if (sharedFoldersService.unseenShares() > 0) {
-              <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-            }
           </a>
           }
 
@@ -815,6 +821,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly appVersionService = inject(AppVersionService);
   readonly idleTimeoutService = inject(IdleTimeoutService);
   readonly sharedFoldersService = inject(SharedFoldersService);
+  /** Mensajes de Tráfico Oficial (antes "Correo"). */
+  readonly mtosLabel = "MTO's";
   /** Revisa cada minuto si compartieron algo nuevo (badge de Carpetas). */
   private sharesTimer: ReturnType<typeof setInterval> | null = null;
   private readonly http = inject(HttpClient);

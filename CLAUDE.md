@@ -201,7 +201,15 @@ Regex PON en body → `requiresEncryption = true` automático. Override manual c
 
 ---
 
-## Módulo Carpetas compartidas (`shared-folders/`, ruta `/carpetas`)
+## ⚠️ Funcionalidades nuevas — etiqueta NUEVO
+
+Toda funcionalidad nueva visible lleva la etiqueta **NUEVO** una semana desde su pase a producción: registrarla en `frontend/src/app/shared/new-badge/new-features.ts` (clave + fecha) y poner `<app-new-badge feature="...">` donde aparece (`[dot]="true"` en el menú contraído). Se oculta sola.
+
+---
+
+## Módulo Archivos compartidos (`shared-folders/`, ruta `/archivos`; `/carpetas` redirige)
+
+- En el menú va justo debajo de los ítems de MTO. "Correo" se llama ahora **MTO's** (Mensajes de Tráfico Oficial); el módulo de permisos sigue siendo `correo`.
 
 - Una **unidad compartida** de Google Drive por oficina (grupo AD con `category='oficina'`), nombre `Intranet - <GRUPO>`. Se crea al primer acceso; tabla `office_drives` (se crea sola al arrancar aunque `synchronize` esté apagado).
 - Dueña/organizadora: `GOOGLE_DRIVE_OWNER_EMAIL` (o `GOOGLE_WORKSPACE_ADMIN_EMAIL`). Restricción `domainUsersOnly`.

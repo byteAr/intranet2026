@@ -125,6 +125,16 @@ export class NotificationsService implements OnApplicationBootstrap {
   /** A dónde lleva la notificación push al tocarla. */
   private linkFor(n: Notification): string {
     if (n.type === 'share') return `/archivos?compartido=${n.data['shareId']}&notificacion=${n.id}`;
+    if (n.type === 'upload') {
+      const fileIds = (n.data['fileIds'] as string[] | undefined) ?? [];
+      const params = new URLSearchParams({
+        oficina: String(n.data['groupName'] ?? ''),
+        carpeta: String(n.data['folderId'] ?? ''),
+        archivo: fileIds[0] ?? '',
+        notificacion: n.id,
+      });
+      return `/archivos?${params.toString()}`;
+    }
     return `/cuenta?notificacion=${n.id}`;
   }
 

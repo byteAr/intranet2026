@@ -117,7 +117,7 @@ export class SharedFoldersController {
     @Query('folderId') folderId: string | undefined,
     @UploadedFiles() files: UploadedFile[],
   ) {
-    return this.service.upload(await this.scopeOrCleanup(() => this.service.shareScope(req.user, shareId), files), folderId, files);
+    return this.service.upload(await this.scopeOrCleanup(() => this.service.shareScope(req.user, shareId), files), folderId, files, req.user);
   }
 
   @Patch('shares/:shareId/files/:id')
@@ -161,8 +161,13 @@ export class SharedFoldersController {
   // ─── Unidad de la oficina ──────────────────────────────────────────────────
 
   @Get(':office/files')
-  async list(@Request() req: AuthRequest, @Param('office') office: string, @Query('folderId') folderId?: string) {
-    return this.service.list(await this.service.officeScope(req.user, office), folderId);
+  async list(
+    @Request() req: AuthRequest,
+    @Param('office') office: string,
+    @Query('folderId') folderId?: string,
+    @Query('path') path?: string,
+  ) {
+    return this.service.list(await this.service.officeScope(req.user, office), folderId, path === '1');
   }
 
   @Post(':office/folders')
@@ -182,7 +187,7 @@ export class SharedFoldersController {
     @Query('folderId') folderId: string | undefined,
     @UploadedFiles() files: UploadedFile[],
   ) {
-    return this.service.upload(await this.scopeOrCleanup(() => this.service.officeScope(req.user, office), files), folderId, files);
+    return this.service.upload(await this.scopeOrCleanup(() => this.service.officeScope(req.user, office), files), folderId, files, req.user);
   }
 
   @Patch(':office/files/:id')

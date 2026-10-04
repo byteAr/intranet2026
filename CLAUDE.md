@@ -61,7 +61,7 @@ Afecta: `ldap-search.service.ts`, `password-reset.service.ts`.
 ### Angular 20
 - Componente raíz: `app.ts` (NO `app.component.ts`).
 - Standalone components, sin NgModules.
-- Tailwind CSS 4: usar `@use 'tailwindcss/...'` (NO directivas `@tailwind`).
+- Tailwind CSS **3.4** (`tailwind.config.js` + directivas `@tailwind` en `styles.scss`; `@tailwindcss/postcss` v4 está instalado pero no se usa). Sin consultas de contenedor (`@container`, `@lg:`): escribirlas en CSS del componente.
 - Indicador de carga estándar: `<app-comet-spinner>` (`shared/comet-spinner`), no `animate-spin`. Los logos PNG tienen fondo opaco: sobre otros fondos usar `mix-blend-mode` (`multiply` en claro con el logo claro, `screen` en oscuro con el oscuro).
 
 ### Límites de archivo

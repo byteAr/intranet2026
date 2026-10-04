@@ -19,6 +19,7 @@ import {
   AttachmentPreviewRequest,
 } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 import { FileIconComponent } from './file-icon.component';
+import { NotificationsService } from '../../core/services/notifications.service';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
 
 const LAST_TAB_KEY = 'pac_shared_folders_office';
@@ -98,7 +99,7 @@ interface UploadState {
       </button>
     </div>
 
-    <div class="flex-1 flex flex-col min-h-[24rem] bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm relative"
+    <div class="files-card flex-1 flex flex-col min-h-[24rem] bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm relative"
          (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
 
       <!-- Barra: ruta + acciones -->
@@ -137,7 +138,7 @@ interface UploadState {
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M12 11v5M9.5 13.5h5"/>
               </svg>
-              <span class="hidden sm:inline">Nueva carpeta</span>
+              <span class="files-label hidden whitespace-nowrap">Nueva carpeta</span>
             </button>
             <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white shadow-sm cursor-pointer transition-opacity hover:opacity-90"
                    [class.opacity-50]="busy()" [class.pointer-events-none]="busy()"
@@ -217,7 +218,7 @@ interface UploadState {
             </div>
 
             @if (up.phase === 'sending') {
-              <span class="hidden sm:block text-2xl font-bold tabular-nums text-teal-700 dark:text-teal-300">{{ up.percent }}%</span>
+              <span class="files-pct hidden text-2xl font-bold tabular-nums text-teal-700 dark:text-teal-300">{{ up.percent }}%</span>
             }
           </div>
         </div>
@@ -262,15 +263,15 @@ interface UploadState {
       } @else {
         <!-- Columnas fijas: nombre | fecha | acciones. Las acciones reservan
              siempre el mismo ancho, haya o no botón Editar, así no se corre nada. -->
-        <div class="hidden md:grid grid-cols-[minmax(0,1fr)_13rem_7.5rem] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-zinc-500 border-b border-gray-100 dark:border-zinc-800">
+        <div class="files-head hidden grid-cols-[minmax(0,1fr)_13rem_7.5rem] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-zinc-500 border-b border-gray-100 dark:border-zinc-800">
           <span>Nombre</span>
           <span class="text-right">{{ atSharedRoot() ? 'Compartido' : 'Última modificación' }}</span>
           <span></span>
         </div>
         <ul class="divide-y divide-gray-100 dark:divide-zinc-800">
           @for (row of rows(); track row.item?.shareId ?? row.file.id) {
-            <li class="group grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_13rem_7.5rem] items-center gap-4 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800/60 cursor-default"
-                [attr.id]="row.item ? 'share-' + row.item.shareId : null"
+            <li class="group files-row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800/60 cursor-default"
+                [attr.id]="row.item ? 'share-' + row.item.shareId : 'file-' + row.file.id"
                 [ngClass]="{
                   'bg-teal-50 dark:bg-zinc-800': menu()?.row === row,
                   'row-fresh': freshIds().has(row.file.id),
@@ -290,7 +291,7 @@ interface UploadState {
                   <span class="block text-xs text-gray-500 dark:text-zinc-400 truncate">
                     @if (row.item; as item) {
                       {{ item.groupName }} · {{ item.role === 'writer' ? 'Puede editar' : 'Puede ver' }}
-                      <span class="md:hidden">· {{ item.sharedByName }}</span>
+                      <span class="files-by">· {{ item.sharedByName }}</span>
                     } @else {
                       {{ typeLabel(row.file) }}@if (row.file.size !== null) { · {{ formatSize(row.file.size) }} }
                     }
@@ -298,7 +299,7 @@ interface UploadState {
                 </span>
               </button>
 
-              <span class="hidden md:block text-xs text-gray-500 dark:text-zinc-400 text-right min-w-0">
+              <span class="files-date hidden text-xs text-gray-500 dark:text-zinc-400 text-right min-w-0">
                 @if (row.item; as item) {
                   <span class="block truncate">{{ formatDate(item.sharedAt) }}</span>
                   <span class="block truncate text-gray-400 dark:text-zinc-500">{{ item.sharedByName }}</span>
@@ -311,7 +312,7 @@ interface UploadState {
               <div class="flex items-center justify-end gap-1">
                 @if (googleUrlFor(row.file)) {
                   <button (click)="openInGoogle(row.file)"
-                    class="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold border transition-colors"
+                    class="files-edit hidden items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold border transition-colors"
                     [class]="editorClass(row.file)"
                     [title]="(canEditInGoogle(row) ? 'Editar' : 'Abrir') + ' en ' + editorName(row.file) + ', en conjunto con los demás'">
                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
@@ -518,6 +519,27 @@ interface UploadState {
 <app-attachment-preview-modal [request]="previewRequest()" (closed)="previewRequest.set(null)" />
   `,
   styles: [`
+    /*
+     * Las columnas dependen del ancho de la tarjeta, no de la pantalla: con el
+     * menú abierto en una ventana angosta, las columnas fijas de fecha y
+     * acciones dejaban el nombre en "n..". Tailwind 3 no trae consultas de
+     * contenedor, por eso van acá.
+     */
+    .files-card { container-type: inline-size; }
+    @container (min-width: 32rem) {
+      .files-edit { display: inline-flex; }
+      .files-pct { display: block; }
+    }
+    @container (min-width: 36rem) {
+      .files-label { display: inline; }
+    }
+    @container (min-width: 42rem) {
+      .files-head { display: grid; }
+      .files-row { grid-template-columns: minmax(0, 1fr) 13rem 7.5rem; }
+      .files-date { display: block; }
+      .files-by { display: none; }
+    }
+
     /* ── Panel de subida ── */
     .upload-panel { animation: panel-in .45s cubic-bezier(.2, .9, .3, 1.2) both; }
     .upload-out { animation: panel-out .4s ease-in forwards; }
@@ -585,8 +607,11 @@ export class SharedFoldersComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly notifications = inject(NotificationsService);
   /** Elemento compartido al que hay que llevar al usuario (?compartido=). */
   readonly focusShareId = signal<string | null>(null);
+  /** Carpeta y archivo de una subida a la que hay que llevar al usuario (?oficina=). */
+  private readonly focusUpload = signal<{ office: string; folderId?: string; fileId?: string } | null>(null);
 
   readonly SHARED_TAB = SHARED_TAB;
   readonly tabOn = 'bg-white dark:bg-zinc-700 text-gray-900 dark:text-zinc-100 shadow-sm';
@@ -662,12 +687,29 @@ export class SharedFoldersComponent implements OnInit {
         this.shareResults.set(this.shareTarget() ? [] : hits.filter((h) => !already.has(h.username.toLowerCase())));
       });
 
-    // ?compartido=<id> (desde la campanita o una push): ir a ese elemento.
+    // Desde la campanita o una push:
+    //   ?compartido=<shareId>                      → ese elemento en "Compartidos conmigo"
+    //   ?oficina=<grupo>&carpeta=<id>&archivo=<id> → esa carpeta de la oficina, con el archivo resaltado
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       const shareId = params.get('compartido');
-      if (!shareId) return;
-      this.focusShareId.set(shareId);
-      if (this.info()?.configured) this.selectTab(SHARED_TAB);
+      const office = params.get('oficina');
+      if (shareId) {
+        this.focusShareId.set(shareId);
+        if (this.info()?.configured) this.selectTab(SHARED_TAB);
+      } else if (office) {
+        this.focusUpload.set({ office, folderId: params.get('carpeta') || undefined, fileId: params.get('archivo') || undefined });
+        if (this.info()?.configured) this.openFocusedUpload();
+      }
+    });
+
+    // Lo que suben otros integrantes aparece solo si se está mirando esa carpeta.
+    this.notifications.incoming.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((n) => {
+      if (n.type !== 'upload') return;
+      const d = n.data as { groupName?: string; folderId?: string; files?: SharedFile[] };
+      const scope = this.scope();
+      if (scope?.kind === 'office' && scope.office.toUpperCase() === d.groupName?.toUpperCase() && d.folderId && d.files?.length) {
+        this.mergeFiles(d.files, d.folderId);
+      }
     });
   }
 
@@ -680,6 +722,10 @@ export class SharedFoldersComponent implements OnInit {
         if (!info.configured) return;
         if (this.focusShareId()) {
           this.selectTab(SHARED_TAB);
+          return;
+        }
+        if (this.focusUpload()) {
+          this.openFocusedUpload();
           return;
         }
         let last: string | null = null;
@@ -789,6 +835,58 @@ export class SharedFoldersComponent implements OnInit {
   }
 
   /**
+   * Abre la carpeta de una subida (aunque sea una subcarpeta: el backend
+   * devuelve la ruta), resalta el archivo y quita los parámetros de la URL.
+   */
+  private openFocusedUpload(): void {
+    const focus = this.focusUpload();
+    const info = this.info();
+    if (!focus || !info) return;
+    this.focusUpload.set(null);
+    this.clearQueryParams(['oficina', 'carpeta', 'archivo']);
+    if (!info.offices.includes(focus.office)) {
+      this.selectTab(info.offices[0] ?? SHARED_TAB);
+      return;
+    }
+    const scope: FolderScope = { kind: 'office', office: focus.office };
+    this.tab.set(focus.office);
+    try { localStorage.setItem(LAST_TAB_KEY, focus.office); } catch { /* sin storage */ }
+    this.filter.set('');
+    this.scope.set(scope);
+    this.path.set([]);
+    this.loading.set(true);
+    this.error.set(null);
+    this.folders.list(scope, focus.folderId, true).subscribe({
+      next: (res) => {
+        this.files.set(res.files);
+        this.canWrite.set(res.canWrite);
+        this.path.set([{ id: res.rootId, name: focus.office }, ...(res.path ?? [])]);
+        this.loading.set(false);
+        if (focus.fileId) {
+          const ids = new Set([focus.fileId]);
+          this.freshIds.set(ids);
+          setTimeout(() => document.getElementById(`file-${focus.fileId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+          setTimeout(() => {
+            if (this.freshIds() === ids) this.freshIds.set(new Set());
+          }, 2800);
+        }
+      },
+      error: (err) => {
+        this.files.set([]);
+        this.loading.set(false);
+        void this.showError(err);
+      },
+    });
+  }
+
+  private clearQueryParams(names: string[]): void {
+    const tree = this.router.parseUrl(this.router.url);
+    if (!names.some((n) => n in tree.queryParams)) return;
+    for (const n of names) delete tree.queryParams[n];
+    void this.router.navigateByUrl(tree, { replaceUrl: true });
+  }
+
+  /**
    * Lleva la vista al elemento pedido por ?compartido=, lo resalta unos
    * segundos y quita el parámetro de la URL.
    */
@@ -799,9 +897,7 @@ export class SharedFoldersComponent implements OnInit {
     setTimeout(() => {
       if (this.focusShareId() === shareId) this.focusShareId.set(null);
     }, 3200);
-    const tree = this.router.parseUrl(this.router.url);
-    delete tree.queryParams['compartido'];
-    void this.router.navigateByUrl(tree, { replaceUrl: true });
+    this.clearQueryParams(['compartido']);
   }
 
   // ─── Menú contextual ────────────────────────────────────────────────────────

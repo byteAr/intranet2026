@@ -24,6 +24,7 @@ import { GroupPermission } from '../admin/entities/group-permission.entity';
 import { User } from '../users/entities/user.entity';
 import { AdminService } from '../admin/admin.service';
 import { GoogleDriveService, isDriveId } from './google-drive.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const DRIVE_NAME_PREFIX = 'Intranet - ';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -95,6 +96,7 @@ export interface UploadedFile {
 }
 
 export type CurrentUser = Pick<User, 'username' | 'email' | 'roles'>;
+export type Uploader = Pick<User, 'username' | 'displayName' | 'firstName' | 'lastName'>;
 
 /** Código HTTP de un error de la API de Google. */
 function googleStatus(err: unknown): number | undefined {
@@ -118,6 +120,8 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     private readonly gdrive: GoogleDriveService,
     private readonly adminService: AdminService,
     private readonly dataSource: DataSource,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -508,16 +512,40 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     return clean;
   }
 
-  async list(scope: AccessScope, folderId?: string) {
+  /**
+   * Contenido de una carpeta. Con withPath devuelve además la ruta desde la
+   * raíz del ámbito (sin incluirla), para abrir una subcarpeta directamente
+   * desde una notificación.
+   */
+  async list(scope: AccessScope, folderId?: string, withPath = false) {
     return this.as(scope, async (actAs) => {
       const folder = await this.folderIn(actAs, scope, folderId);
-      const files = await this.gdrive.listChildren(actAs, scope.office.driveId, folder.id!);
+      const [files, path] = await Promise.all([
+        this.gdrive.listChildren(actAs, scope.office.driveId, folder.id!),
+        withPath ? this.pathTo(actAs, scope, folder) : Promise.resolve(undefined),
+      ]);
       return {
         folder: { id: folder.id!, name: folder.name ?? scope.rootName },
+        rootId: scope.rootId,
         canWrite: scope.canWrite,
         files: files.map((f) => this.toShared(f)),
+        path,
       };
     });
+  }
+
+  /** Carpetas desde la raíz del ámbito (excluida) hasta `folder` (incluida). */
+  private async pathTo(actAs: string, scope: AccessScope, folder: drive_v3.Schema$File): Promise<{ id: string; name: string }[]> {
+    const chain: { id: string; name: string }[] = [];
+    let current = folder;
+    for (let depth = 0; depth < MAX_FOLDER_DEPTH; depth++) {
+      if (!current.id || current.id === scope.rootId || current.id === scope.office.driveId) break;
+      chain.unshift({ id: current.id, name: current.name ?? '' });
+      const parent = current.parents?.[0];
+      if (!parent) break;
+      current = await this.gdrive.getFile(actAs, parent);
+    }
+    return chain;
   }
 
   async createFolder(scope: AccessScope, parentId: string | undefined, name: string) {
@@ -529,11 +557,11 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     });
   }
 
-  async upload(scope: AccessScope, parentId: string | undefined, files: UploadedFile[]) {
+  async upload(scope: AccessScope, parentId: string | undefined, files: UploadedFile[], uploader: Uploader) {
     try {
       this.assertWritable(scope);
       if (!files?.length) throw new BadRequestException('No se recibió ningún archivo.');
-      return await this.as(scope, async (actAs) => {
+      const { parent, uploaded } = await this.as(scope, async (actAs) => {
         const parent = await this.folderIn(actAs, scope, parentId);
         const uploaded: SharedFile[] = [];
         for (const f of files) {
@@ -545,10 +573,52 @@ export class SharedFoldersService implements OnApplicationBootstrap {
           });
           uploaded.push(this.toShared(created));
         }
-        return uploaded;
+        return { parent, uploaded };
       });
+      void this.notifyUpload(scope, parent, uploaded, uploader);
+      return uploaded;
     } finally {
       await this.discardUploads(files);
+    }
+  }
+
+  /**
+   * Avisa a los demás integrantes de la oficina: una notificación por subida
+   * aunque sean varios archivos. Lleva los archivos para que quien tenga esa
+   * carpeta abierta los vea aparecer sin recargar.
+   */
+  private async notifyUpload(scope: AccessScope, parent: drive_v3.Schema$File, files: SharedFile[], uploader: Uploader): Promise<void> {
+    try {
+      const group = scope.office.groupName;
+      const members = await this.userRepo
+        .createQueryBuilder('u')
+        .select(['u.username'])
+        .where('u.isActive = true')
+        .andWhere('LOWER(u.username) <> :me', { me: uploader.username.toLowerCase() })
+        .andWhere(`EXISTS (SELECT 1 FROM unnest(string_to_array(u.roles, ',')) r WHERE UPPER(r) = UPPER(:group))`, { group })
+        .getMany();
+      if (!members.length) return;
+
+      const who = [uploader.firstName, uploader.lastName].filter(Boolean).join(' ') || uploader.displayName || uploader.username;
+      const n = files.length;
+      const names = files.slice(0, 3).map((f) => f.name).join(', ');
+      await this.notifications.notify(
+        members.map((m) => m.username),
+        {
+          type: 'upload',
+          title: `${who} subió ${n === 1 ? 'un archivo' : `${n} archivos`} a ${group}`,
+          body: n > 3 ? `${names} y ${n - 3} más` : names,
+          data: {
+            groupName: group,
+            folderId: parent.id,
+            folderName: parent.id === scope.office.driveId ? group : parent.name,
+            fileIds: files.map((f) => f.id),
+            files,
+          },
+        },
+      );
+    } catch (err) {
+      this.logger.warn(`No se pudo avisar la subida a ${scope.office.groupName}: ${(err as Error).message}`);
     }
   }
 

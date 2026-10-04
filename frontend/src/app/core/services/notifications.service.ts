@@ -1,9 +1,10 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Subject } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
 
-export type NotificationType = 'announcement' | 'share';
+export type NotificationType = 'announcement' | 'share' | 'upload';
 
 export interface AppNotification {
   id: string;
@@ -36,6 +37,8 @@ export class NotificationsService {
   readonly ring = signal(0);
   /** Anuncio abierto en el modal (desde la campanita o desde una push). */
   readonly openAnnouncement = signal<AnnouncementData | null>(null);
+  /** Cada notificación que llega en vivo (Archivos la usa para mostrar subidas sin recargar). */
+  readonly incoming = new Subject<AppNotification>();
 
   constructor() {
     this.authService.onBeforeLogout(() => this.disconnect());
@@ -50,6 +53,7 @@ export class NotificationsService {
       this.unread.update((u) => u + 1);
       this.ring.update((r) => r + 1);
       this.chime();
+      this.incoming.next(n);
     });
   }
 

@@ -64,6 +64,12 @@ import { NewBadgeComponent } from '../new-badge/new-badge.component';
                       <path d="M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM16 8a5 5 0 010 8M19 5a9 9 0 010 14" />
                     </svg>
                   </span>
+                } @else if (n.type === 'upload') {
+                  <span class="h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
+                    <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3" />
+                    </svg>
+                  </span>
                 } @else {
                   <span class="h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
                     <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -177,6 +183,11 @@ export class NotificationBellComponent {
       this.notifications.showAnnouncement(n);
     } else if (n.type === 'share') {
       void this.router.navigate(['/archivos'], { queryParams: { compartido: n.data['shareId'] } });
+    } else if (n.type === 'upload') {
+      const fileIds = (n.data['fileIds'] as string[] | undefined) ?? [];
+      void this.router.navigate(['/archivos'], {
+        queryParams: { oficina: n.data['groupName'], carpeta: n.data['folderId'], archivo: fileIds[0] },
+      });
     }
   }
 

@@ -26,8 +26,12 @@ export interface OfficesInfo {
 
 export interface FolderListing {
   folder: { id: string; name: string };
+  /** Raíz del ámbito: la unidad de la oficina o lo compartido. */
+  rootId: string;
   canWrite: boolean;
   files: SharedFile[];
+  /** Con withPath: carpetas desde la raíz (excluida) hasta la pedida. */
+  path?: { id: string; name: string }[];
 }
 
 export type ShareRole = 'reader' | 'writer';
@@ -84,8 +88,9 @@ export class SharedFoldersService {
 
   // ─── Archivos ───────────────────────────────────────────────────────────────
 
-  list(scope: FolderScope, folderId?: string): Observable<FolderListing> {
+  list(scope: FolderScope, folderId?: string, withPath = false): Observable<FolderListing> {
     const params: Record<string, string> = folderId ? { folderId } : {};
+    if (withPath) params['path'] = '1';
     return this.http.get<FolderListing>(`${this.prefix(scope)}/files`, { params });
   }
 

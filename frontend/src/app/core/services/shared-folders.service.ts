@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpEvent } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
@@ -9,72 +9,151 @@ export interface SharedFile {
   isFolder: boolean;
   isGoogleDoc: boolean;
   downloadable: boolean;
+  previewable: boolean;
   size: number | null;
   modifiedTime: string | null;
   modifiedBy: string | null;
-  webViewLink: string | null;
 }
 
 export interface OfficesInfo {
   configured: boolean;
-  hasGoogleAccount: boolean;
   offices: string[];
 }
 
 export interface FolderListing {
-  driveId: string;
   folder: { id: string; name: string };
+  canWrite: boolean;
   files: SharedFile[];
 }
+
+export type ShareRole = 'reader' | 'writer';
+
+/** Algo compartido con el usuario. */
+export interface SharedWithMe {
+  shareId: string;
+  role: ShareRole;
+  groupName: string;
+  sharedByName: string;
+  sharedAt: string;
+  isNew: boolean;
+  file: SharedFile;
+}
+
+/** Con quién está compartido un archivo o carpeta de la oficina. */
+export interface ShareEntry {
+  id: string;
+  username: string;
+  name: string;
+  role: ShareRole;
+  sharedByName: string;
+  createdAt: string;
+}
+
+/**
+ * Dónde se opera: la unidad de una oficina o algo compartido con el usuario.
+ * El backend expone las mismas rutas en los dos casos; solo cambia el prefijo.
+ */
+export type FolderScope = { kind: 'office'; office: string } | { kind: 'share'; shareId: string };
 
 @Injectable({ providedIn: 'root' })
 export class SharedFoldersService {
   private readonly http = inject(HttpClient);
   private readonly base = '/api/shared-folders';
 
-  private office(office: string): string {
-    return `${this.base}/${encodeURIComponent(office)}`;
+  /** Para el badge de "Compartidos conmigo" y del menú. */
+  readonly unseenShares = signal(0);
+  readonly totalShares = signal(0);
+
+  private prefix(scope: FolderScope): string {
+    return scope.kind === 'office'
+      ? `${this.base}/${encodeURIComponent(scope.office)}`
+      : `${this.base}/shares/${encodeURIComponent(scope.shareId)}`;
+  }
+
+  private fileUrl(scope: FolderScope, fileId: string): string {
+    return `${this.prefix(scope)}/files/${encodeURIComponent(fileId)}`;
   }
 
   offices(): Observable<OfficesInfo> {
     return this.http.get<OfficesInfo>(`${this.base}/offices`);
   }
 
-  list(office: string, folderId?: string): Observable<FolderListing> {
+  // ─── Archivos ───────────────────────────────────────────────────────────────
+
+  list(scope: FolderScope, folderId?: string): Observable<FolderListing> {
     const params: Record<string, string> = folderId ? { folderId } : {};
-    return this.http.get<FolderListing>(`${this.office(office)}/files`, { params });
+    return this.http.get<FolderListing>(`${this.prefix(scope)}/files`, { params });
   }
 
-  createFolder(office: string, parentId: string, name: string): Observable<SharedFile> {
-    return this.http.post<SharedFile>(`${this.office(office)}/folders`, { parentId, name });
+  createFolder(scope: FolderScope, parentId: string, name: string): Observable<SharedFile> {
+    return this.http.post<SharedFile>(`${this.prefix(scope)}/folders`, { parentId, name });
   }
 
   /** Sube con eventos de progreso. */
-  upload(office: string, folderId: string, files: File[]): Observable<HttpEvent<SharedFile[]>> {
+  upload(scope: FolderScope, folderId: string, files: File[]): Observable<HttpEvent<SharedFile[]>> {
     const fd = new FormData();
     for (const f of files) fd.append('files', f, f.name);
-    return this.http.post<SharedFile[]>(`${this.office(office)}/upload`, fd, {
+    return this.http.post<SharedFile[]>(`${this.prefix(scope)}/upload`, fd, {
       params: { folderId },
       reportProgress: true,
       observe: 'events',
     });
   }
 
-  rename(office: string, fileId: string, name: string): Observable<SharedFile> {
-    return this.http.patch<SharedFile>(`${this.office(office)}/files/${encodeURIComponent(fileId)}`, { name });
+  rename(scope: FolderScope, fileId: string, name: string): Observable<SharedFile> {
+    return this.http.patch<SharedFile>(this.fileUrl(scope, fileId), { name });
   }
 
-  trash(office: string, fileId: string): Observable<void> {
-    return this.http.delete<void>(`${this.office(office)}/files/${encodeURIComponent(fileId)}`);
+  trash(scope: FolderScope, fileId: string): Observable<void> {
+    return this.http.delete<void>(this.fileUrl(scope, fileId));
   }
 
   /** Descarga vía blob con la sesión (nunca un <a href> directo a la API). */
-  download(office: string, fileId: string): Observable<HttpEvent<Blob>> {
-    return this.http.get(`${this.office(office)}/files/${encodeURIComponent(fileId)}/download`, {
+  download(scope: FolderScope, fileId: string): Observable<HttpEvent<Blob>> {
+    return this.http.get(`${this.fileUrl(scope, fileId)}/download`, {
       responseType: 'blob',
-      reportProgress: true,
       observe: 'events',
     });
+  }
+
+  /** URL para el visor de adjuntos (lo pide como blob con la sesión). */
+  previewUrl(scope: FolderScope, fileId: string): string {
+    return `${this.fileUrl(scope, fileId)}/preview`;
+  }
+
+  // ─── Compartir ──────────────────────────────────────────────────────────────
+
+  sharedWithMe(): Observable<SharedWithMe[]> {
+    return this.http.get<SharedWithMe[]>(`${this.base}/shares`);
+  }
+
+  refreshCounts(): void {
+    this.http.get<{ total: number; unseen: number }>(`${this.base}/shares/count`).subscribe({
+      next: (c) => {
+        this.totalShares.set(c.total);
+        this.unseenShares.set(c.unseen);
+      },
+      error: () => {
+        /* sin carpetas configuradas o sin red: el badge queda como estaba */
+      },
+    });
+  }
+
+  markSeen(): void {
+    this.unseenShares.set(0);
+    this.http.post<void>(`${this.base}/shares/seen`, {}).subscribe({ error: () => this.refreshCounts() });
+  }
+
+  listShares(office: string, fileId: string): Observable<ShareEntry[]> {
+    return this.http.get<ShareEntry[]>(`${this.fileUrl({ kind: 'office', office }, fileId)}/shares`);
+  }
+
+  share(office: string, fileId: string, body: { username: string; name: string; role: ShareRole }): Observable<ShareEntry[]> {
+    return this.http.post<ShareEntry[]>(`${this.fileUrl({ kind: 'office', office }, fileId)}/shares`, body);
+  }
+
+  unshare(office: string, shareId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${encodeURIComponent(office)}/shares/${encodeURIComponent(shareId)}`);
   }
 
   sync(): Observable<{ groupName: string; lastSyncAt: string | null; lastSyncError: string | null }[]> {

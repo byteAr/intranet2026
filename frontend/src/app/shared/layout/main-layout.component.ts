@@ -16,6 +16,7 @@ import { PermissionsService } from '../../core/services/permissions.service';
 import { AnnouncementsService } from '../../core/services/announcements.service';
 import { AppVersionService } from '../../core/services/app-version.service';
 import { IdleTimeoutService, IDLE_WARNING_SECONDS } from '../../core/services/idle-timeout.service';
+import { SharedFoldersService } from '../../core/services/shared-folders.service';
 import { HttpClient } from '@angular/common/http';
 
 @Component({
@@ -211,16 +212,26 @@ import { HttpClient } from '@angular/common/http';
           </a>
           }
 
-          @if (permissionsService.isAllowed('carpetas')) {
+          @if (permissionsService.isAllowed('carpetas') || sharedFoldersService.totalShares() > 0) {
           <a routerLink="/carpetas" routerLinkActive="active-nav"
-            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
+            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Carpetas compartidas' : ''">
             <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM15 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM6.5 17a2.5 2.5 0 015 0M12.5 17a2.5 2.5 0 015 0" />
             </svg>
-            @if (!collapsed()) { <span class="ml-3">Carpetas compartidas</span> }
+            @if (!collapsed()) {
+              <span class="ml-3 flex-1">Carpetas compartidas</span>
+              @if (sharedFoldersService.unseenShares() > 0) {
+                <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center"
+                      [title]="sharedFoldersService.unseenShares() + ' compartidos nuevos'">
+                  {{ sharedFoldersService.unseenShares() }}
+                </span>
+              }
+            } @else if (sharedFoldersService.unseenShares() > 0) {
+              <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+            }
           </a>
           }
 
@@ -803,6 +814,9 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly announcementsService = inject(AnnouncementsService);
   readonly appVersionService = inject(AppVersionService);
   readonly idleTimeoutService = inject(IdleTimeoutService);
+  readonly sharedFoldersService = inject(SharedFoldersService);
+  /** Revisa cada minuto si compartieron algo nuevo (badge de Carpetas). */
+  private sharesTimer: ReturnType<typeof setInterval> | null = null;
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -948,6 +962,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.announcementsService.connect();
     void this.appVersionService.iniciar();
     void this.idleTimeoutService.start();
+    this.sharedFoldersService.refreshCounts();
+    this.sharesTimer = setInterval(() => this.sharedFoldersService.refreshCounts(), 60_000);
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
     this.isOnMailPage.set(this.router.url === '/correo');
     this.routerSub = this.router.events
@@ -975,6 +991,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.routerSub?.unsubscribe();
+    if (this.sharesTimer) clearInterval(this.sharesTimer);
   }
 
   toggleChatPopup(): void { this.chatPopupOpen.update((v) => !v); }

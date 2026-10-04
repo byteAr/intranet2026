@@ -6,7 +6,10 @@ import {
   Logger,
   NotFoundException,
   OnApplicationBootstrap,
+  PayloadTooLargeException,
   ServiceUnavailableException,
+  UnprocessableEntityException,
+  UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
@@ -15,6 +18,8 @@ import { drive_v3 } from 'googleapis';
 import { Readable } from 'stream';
 import * as fs from 'fs/promises';
 import { OfficeDrive } from './entities/office-drive.entity';
+import { SharedItem } from './entities/shared-item.entity';
+import { MAX_PREVIEW_BYTES, convertToPdf, previewKind } from './preview.util';
 import { GroupPermission } from '../admin/entities/group-permission.entity';
 import { User } from '../users/entities/user.entity';
 import { AdminService } from '../admin/admin.service';
@@ -25,6 +30,9 @@ const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const GOOGLE_APPS_PREFIX = 'application/vnd.google-apps.';
 /** "Administrador de contenido": sube, edita, mueve y borra; no maneja miembros. */
 const MEMBER_ROLE = 'fileOrganizer';
+/** Tope al subir por los padres de un archivo; Drive no permite más de 100 niveles. */
+const MAX_FOLDER_DEPTH = 100;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Los archivos nativos de Google se descargan convertidos a formato Office/PDF. */
 const GOOGLE_EXPORTS: Record<string, { mimeType: string; ext: string }> = {
@@ -50,10 +58,32 @@ export interface SharedFile {
   isFolder: boolean;
   isGoogleDoc: boolean;
   downloadable: boolean;
+  previewable: boolean;
   size: number | null;
   modifiedTime: string | null;
   modifiedBy: string | null;
-  webViewLink: string | null;
+}
+
+export interface FileStream {
+  stream: Readable;
+  name: string;
+  mimeType: string;
+  size: number | null;
+}
+
+/**
+ * Hasta dónde llega el acceso de quien opera: toda la unidad de su oficina, o
+ * solo algo que le compartieron (y su contenido, si es una carpeta).
+ */
+export interface AccessScope {
+  office: OfficeDrive;
+  /** Cuenta en cuyo nombre se opera en Drive. */
+  actor: string;
+  rootId: string;
+  rootName: string;
+  canWrite: boolean;
+  /** Presente cuando el acceso es por algo compartido. */
+  share?: SharedItem;
 }
 
 export interface UploadedFile {
@@ -62,7 +92,7 @@ export interface UploadedFile {
   path: string;
 }
 
-type CurrentUser = Pick<User, 'username' | 'email' | 'roles'>;
+export type CurrentUser = Pick<User, 'username' | 'email' | 'roles'>;
 
 /** Código HTTP de un error de la API de Google. */
 function googleStatus(err: unknown): number | undefined {
@@ -82,6 +112,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   constructor(
     @InjectRepository(OfficeDrive) private readonly driveRepo: Repository<OfficeDrive>,
     @InjectRepository(GroupPermission) private readonly groupRepo: Repository<GroupPermission>,
+    @InjectRepository(SharedItem) private readonly shareRepo: Repository<SharedItem>,
     private readonly gdrive: GoogleDriveService,
     private readonly adminService: AdminService,
     private readonly dataSource: DataSource,
@@ -101,14 +132,42 @@ export class SharedFoldersService implements OnApplicationBootstrap {
         "lastSyncError" text NULL,
         "createdAt" timestamp NOT NULL DEFAULT now()
       )`);
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS "shared_items" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "driveId" varchar NOT NULL,
+        "groupName" varchar NOT NULL,
+        "fileId" varchar NOT NULL,
+        "fileName" varchar NOT NULL,
+        "isFolder" boolean NOT NULL DEFAULT false,
+        "sharedWith" varchar NOT NULL,
+        "sharedWithName" varchar NULL,
+        "sharedBy" varchar NOT NULL,
+        "sharedByName" varchar NOT NULL,
+        "role" varchar NOT NULL DEFAULT 'reader',
+        "seenAt" timestamp NULL,
+        "createdAt" timestamp NOT NULL DEFAULT now(),
+        UNIQUE ("fileId", "sharedWith")
+      )`);
   }
 
   // ─── Oficinas y acceso ──────────────────────────────────────────────────────
 
+  /**
+   * Oficinas cuya unidad puede abrir el usuario. Sin el módulo "carpetas" no
+   * hay ninguna, pero igual puede ver lo que le compartieron.
+   */
   async myOffices(user: CurrentUser) {
-    if (!this.gdrive.isConfigured) return { configured: false, hasGoogleAccount: false, offices: [] };
-    const [offices, hasGoogleAccount] = await Promise.all([this.userOffices(user), this.hasGoogleAccount(user)]);
-    return { configured: true, hasGoogleAccount, offices };
+    if (!this.gdrive.isConfigured) return { configured: false, offices: [] };
+    const { allowedModules } = await this.adminService.getEffectiveModules(user.roles ?? []);
+    return { configured: true, offices: allowedModules.includes('carpetas') ? await this.userOffices(user) : [] };
+  }
+
+  /** Si quien tiene esos roles es de la oficina: ya ve toda su unidad, no hace falta compartirle. */
+  async isOfficeMember(roles: string[] | null | undefined, groupName: string): Promise<boolean> {
+    return (await this.userOffices({ roles: roles ?? [] } as CurrentUser)).some(
+      (o) => o.toUpperCase() === groupName.toUpperCase(),
+    );
   }
 
   /** Oficinas (grupos AD con category='oficina') a las que pertenece el usuario. */
@@ -250,6 +309,51 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     }));
   }
 
+  // ─── Ámbitos de acceso ─────────────────────────────────────────────────────
+
+  /** Acceso de un integrante a toda la unidad de su oficina. */
+  async officeScope(user: CurrentUser, groupName: string): Promise<AccessScope> {
+    const office = await this.officeDrive(user, groupName);
+    return {
+      office,
+      actor: await this.actorFor(user, office),
+      rootId: office.driveId,
+      rootName: office.groupName,
+      canWrite: true,
+    };
+  }
+
+  /**
+   * Acceso a algo compartido con el usuario. Se opera como la cuenta dueña:
+   * quien lo recibe no es miembro de la unidad en Drive, el permiso es de la
+   * intranet. No exige el módulo "carpetas": cualquiera puede recibir.
+   */
+  async shareScope(user: CurrentUser, shareId: string): Promise<AccessScope> {
+    if (!this.gdrive.isConfigured) {
+      throw new ServiceUnavailableException('Las carpetas compartidas no están configuradas.');
+    }
+    const share = UUID.test(shareId ?? '')
+      ? await this.shareRepo.findOne({ where: { id: shareId, sharedWith: user.username.toLowerCase() } })
+      : null;
+    const office = share ? await this.driveRepo.findOne({ where: { driveId: share.driveId } }) : null;
+    if (!share || !office) throw new NotFoundException('Ya no está compartido con vos.');
+    return {
+      office,
+      actor: this.gdrive.ownerEmail,
+      rootId: share.fileId,
+      rootName: share.fileName,
+      canWrite: share.role === 'writer',
+      share,
+    };
+  }
+
+  private assertWritable(scope: AccessScope, fileId?: string): void {
+    if (!scope.canWrite) throw new ForbiddenException('Solo tenés permiso para ver lo que te compartieron.');
+    if (scope.share && fileId === scope.rootId) {
+      throw new BadRequestException('Lo que te compartieron no se puede renombrar ni borrar; solo su contenido.');
+    }
+  }
+
   // ─── Operaciones con archivos ──────────────────────────────────────────────
 
   /**
@@ -265,20 +369,19 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   }
 
   /**
-   * Ejecuta la operación como el usuario; si Google le niega el acceso (p. ej.
-   * el permiso recién agregado todavía no se propagó) la reintenta como la
-   * cuenta dueña. Traduce los errores de Google a respuestas HTTP claras.
+   * Ejecuta la operación en nombre de scope.actor; si Google le niega el
+   * acceso (p. ej. el permiso recién agregado todavía no se propagó) la
+   * reintenta como la cuenta dueña. Traduce los errores de Google a HTTP.
    */
-  private async as<T>(user: CurrentUser, office: OfficeDrive, op: (actAs: string) => Promise<T>): Promise<T> {
-    const actor = await this.actorFor(user, office);
+  private async as<T>(scope: AccessScope, op: (actAs: string) => Promise<T>): Promise<T> {
     return this.run(async () => {
       try {
-        return await op(actor);
+        return await op(scope.actor);
       } catch (err) {
         if (err instanceof HttpException) throw err;
         const status = googleStatus(err);
-        if (actor !== this.gdrive.ownerEmail && (status === 403 || status === 404)) {
-          this.logger.warn(`Drive negó el acceso a ${actor} en ${office.groupName}; reintento como la cuenta dueña`);
+        if (scope.actor !== this.gdrive.ownerEmail && (status === 403 || status === 404)) {
+          this.logger.warn(`Drive negó el acceso a ${scope.actor} en ${scope.office.groupName}; reintento como la cuenta dueña`);
           return op(this.gdrive.ownerEmail);
         }
         throw err;
@@ -300,7 +403,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
         );
       }
       if (/exportSizeLimitExceeded|too large to be exported/i.test(message)) {
-        throw new BadRequestException('El documento es demasiado grande para descargarlo convertido. Abrilo en Google Drive.');
+        throw new BadRequestException('El documento es demasiado grande para convertirlo.');
       }
       if (status === 404) throw new NotFoundException('El archivo no existe o fue borrado.');
       this.logger.error(`Error de Google Drive: ${message}`);
@@ -308,44 +411,78 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     }
   }
 
-  private assertInDrive(file: drive_v3.Schema$File, office: OfficeDrive): void {
-    if (!file || file.driveId !== office.driveId || file.trashed) {
-      throw new NotFoundException('El archivo no existe o fue borrado.');
+  /**
+   * El archivo tiene que estar en la unidad y fuera de la papelera. Si el
+   * acceso es por algo compartido, además tiene que estar dentro de eso: se
+   * sube por los padres hasta encontrarlo o llegar a la raíz de la unidad.
+   */
+  private async assertInScope(actAs: string, scope: AccessScope, file: drive_v3.Schema$File): Promise<void> {
+    const notFound = new NotFoundException('El archivo no existe o fue borrado.');
+    if (!file || file.driveId !== scope.office.driveId || file.trashed) throw notFound;
+    if (scope.rootId === scope.office.driveId) return;
+    let current = file;
+    for (let depth = 0; depth < MAX_FOLDER_DEPTH; depth++) {
+      if (current.id === scope.rootId) return;
+      const parent = current.parents?.[0];
+      if (!parent || parent === scope.office.driveId) break;
+      current = await this.gdrive.getFile(actAs, parent);
+      if (current.trashed) break;
     }
+    throw notFound;
   }
 
-  /** Carpeta destino validada: la raíz de la unidad o una carpeta dentro de ella. */
-  private async folderIn(actAs: string, office: OfficeDrive, folderId?: string): Promise<drive_v3.Schema$File> {
-    if (!folderId || folderId === office.driveId) return { id: office.driveId, name: office.groupName };
-    if (!isDriveId(folderId)) throw new NotFoundException('La carpeta no existe.');
-    const folder = await this.gdrive.getFile(actAs, folderId);
-    this.assertInDrive(folder, office);
+  /** Carpeta validada: la indicada o, sin indicar, la raíz del ámbito. */
+  private async folderIn(actAs: string, scope: AccessScope, folderId?: string): Promise<drive_v3.Schema$File> {
+    const id = folderId || scope.rootId;
+    if (id === scope.office.driveId) {
+      if (scope.rootId !== scope.office.driveId) throw new NotFoundException('La carpeta no existe.');
+      return { id, name: scope.rootName };
+    }
+    if (!isDriveId(id)) throw new NotFoundException('La carpeta no existe.');
+    const folder = await this.gdrive.getFile(actAs, id);
+    await this.assertInScope(actAs, scope, folder);
     if (folder.mimeType !== FOLDER_MIME) throw new BadRequestException('No es una carpeta.');
     return folder;
   }
 
-  private async fileIn(actAs: string, office: OfficeDrive, fileId: string): Promise<drive_v3.Schema$File> {
-    if (!isDriveId(fileId) || fileId === office.driveId) throw new NotFoundException('El archivo no existe.');
+  private async fileIn(actAs: string, scope: AccessScope, fileId: string): Promise<drive_v3.Schema$File> {
+    if (!isDriveId(fileId) || fileId === scope.office.driveId) throw new NotFoundException('El archivo no existe.');
     const file = await this.gdrive.getFile(actAs, fileId);
-    this.assertInDrive(file, office);
+    await this.assertInScope(actAs, scope, file);
     return file;
   }
 
-  private toShared(f: drive_v3.Schema$File): SharedFile {
+  /** Un archivo o carpeta validado dentro del ámbito (para compartirlo). */
+  fileInScope(scope: AccessScope, fileId: string): Promise<drive_v3.Schema$File> {
+    return this.as(scope, (actAs) => this.fileIn(actAs, scope, fileId));
+  }
+
+  /** Metadatos actuales de un archivo, como la cuenta dueña; null si ya no existe. */
+  async currentFile(fileId: string): Promise<drive_v3.Schema$File | null> {
+    try {
+      const file = await this.gdrive.getFile(this.gdrive.ownerEmail, fileId);
+      return file.trashed ? null : file;
+    } catch {
+      return null;
+    }
+  }
+
+  toShared(f: drive_v3.Schema$File): SharedFile {
     const mimeType = f.mimeType ?? '';
     const isFolder = mimeType === FOLDER_MIME;
     const isGoogleDoc = !isFolder && mimeType.startsWith(GOOGLE_APPS_PREFIX);
+    const name = f.name ?? '';
     return {
       id: f.id!,
-      name: f.name ?? '',
+      name,
       mimeType,
       isFolder,
       isGoogleDoc,
       downloadable: !isFolder && (!isGoogleDoc || !!GOOGLE_EXPORTS[mimeType]),
+      previewable: !isFolder && previewKind(mimeType, name) !== 'none',
       size: f.size ? Number(f.size) : null,
       modifiedTime: f.modifiedTime ?? null,
       modifiedBy: f.lastModifyingUser?.displayName ?? null,
-      webViewLink: f.webViewLink ?? null,
     };
   }
 
@@ -356,34 +493,33 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     return clean;
   }
 
-  async list(user: CurrentUser, groupName: string, folderId?: string) {
-    const office = await this.officeDrive(user, groupName);
-    return this.as(user, office, async (actAs) => {
-      const folder = await this.folderIn(actAs, office, folderId);
-      const files = await this.gdrive.listChildren(actAs, office.driveId, folder.id!);
+  async list(scope: AccessScope, folderId?: string) {
+    return this.as(scope, async (actAs) => {
+      const folder = await this.folderIn(actAs, scope, folderId);
+      const files = await this.gdrive.listChildren(actAs, scope.office.driveId, folder.id!);
       return {
-        driveId: office.driveId,
-        folder: { id: folder.id!, name: folder.name ?? office.groupName },
+        folder: { id: folder.id!, name: folder.name ?? scope.rootName },
+        canWrite: scope.canWrite,
         files: files.map((f) => this.toShared(f)),
       };
     });
   }
 
-  async createFolder(user: CurrentUser, groupName: string, parentId: string | undefined, name: string) {
-    const office = await this.officeDrive(user, groupName);
+  async createFolder(scope: AccessScope, parentId: string | undefined, name: string) {
+    this.assertWritable(scope);
     const clean = this.cleanName(name);
-    return this.as(user, office, async (actAs) => {
-      const parent = await this.folderIn(actAs, office, parentId);
+    return this.as(scope, async (actAs) => {
+      const parent = await this.folderIn(actAs, scope, parentId);
       return this.toShared(await this.gdrive.createFolder(actAs, parent.id!, clean));
     });
   }
 
-  async upload(user: CurrentUser, groupName: string, parentId: string | undefined, files: UploadedFile[]) {
+  async upload(scope: AccessScope, parentId: string | undefined, files: UploadedFile[]) {
     try {
+      this.assertWritable(scope);
       if (!files?.length) throw new BadRequestException('No se recibió ningún archivo.');
-      const office = await this.officeDrive(user, groupName);
-      return await this.as(user, office, async (actAs) => {
-        const parent = await this.folderIn(actAs, office, parentId);
+      return await this.as(scope, async (actAs) => {
+        const parent = await this.folderIn(actAs, scope, parentId);
         const uploaded: SharedFile[] = [];
         for (const f of files) {
           const created = await this.gdrive.upload(actAs, parent.id!, {
@@ -397,40 +533,40 @@ export class SharedFoldersService implements OnApplicationBootstrap {
         return uploaded;
       });
     } finally {
-      await Promise.all((files ?? []).map((f) => fs.unlink(f.path).catch(() => undefined)));
+      await this.discardUploads(files);
     }
   }
 
-  async rename(user: CurrentUser, groupName: string, fileId: string, name: string) {
-    const office = await this.officeDrive(user, groupName);
+  /** Borra los temporales que dejó multer. */
+  async discardUploads(files: UploadedFile[] | undefined): Promise<void> {
+    await Promise.all((files ?? []).map((f) => fs.unlink(f.path).catch(() => undefined)));
+  }
+
+  async rename(scope: AccessScope, fileId: string, name: string) {
+    this.assertWritable(scope, fileId);
     const clean = this.cleanName(name);
-    return this.as(user, office, async (actAs) => {
-      await this.fileIn(actAs, office, fileId);
+    return this.as(scope, async (actAs) => {
+      await this.fileIn(actAs, scope, fileId);
       return this.toShared(await this.gdrive.rename(actAs, fileId, clean));
     });
   }
 
-  async trash(user: CurrentUser, groupName: string, fileId: string): Promise<void> {
-    const office = await this.officeDrive(user, groupName);
-    await this.as(user, office, async (actAs) => {
-      await this.fileIn(actAs, office, fileId);
+  async trash(scope: AccessScope, fileId: string): Promise<void> {
+    this.assertWritable(scope, fileId);
+    await this.as(scope, async (actAs) => {
+      await this.fileIn(actAs, scope, fileId);
       await this.gdrive.trash(actAs, fileId);
     });
   }
 
-  async download(
-    user: CurrentUser,
-    groupName: string,
-    fileId: string,
-  ): Promise<{ stream: Readable; name: string; mimeType: string; size: number | null }> {
-    const office = await this.officeDrive(user, groupName);
-    return this.as(user, office, async (actAs) => {
-      const file = await this.fileIn(actAs, office, fileId);
+  async download(scope: AccessScope, fileId: string): Promise<FileStream> {
+    return this.as(scope, async (actAs) => {
+      const file = await this.fileIn(actAs, scope, fileId);
       const mimeType = file.mimeType ?? 'application/octet-stream';
       if (mimeType === FOLDER_MIME) throw new BadRequestException('Las carpetas no se pueden descargar.');
       if (mimeType.startsWith(GOOGLE_APPS_PREFIX)) {
         const exp = GOOGLE_EXPORTS[mimeType];
-        if (!exp) throw new BadRequestException('Este tipo de archivo solo se puede abrir en Google Drive.');
+        if (!exp) throw new BadRequestException('Este tipo de archivo de Google no se puede descargar.');
         return {
           stream: await this.gdrive.exportAs(actAs, fileId, exp.mimeType),
           name: `${file.name}.${exp.ext}`,
@@ -444,6 +580,37 @@ export class SharedFoldersService implements OnApplicationBootstrap {
         mimeType,
         size: file.size ? Number(file.size) : null,
       };
+    });
+  }
+
+  /** Vista previa dentro de la intranet, como los adjuntos de MTO. */
+  async preview(scope: AccessScope, fileId: string): Promise<FileStream> {
+    return this.as(scope, async (actAs) => {
+      const file = await this.fileIn(actAs, scope, fileId);
+      const mimeType = file.mimeType ?? '';
+      const name = file.name ?? 'archivo';
+      if (file.size && Number(file.size) > MAX_PREVIEW_BYTES) {
+        throw new PayloadTooLargeException('Es demasiado grande para verlo acá. Descargalo.');
+      }
+      const pdf = { name: `${name}.pdf`, mimeType: 'application/pdf', size: null };
+      switch (previewKind(mimeType, name)) {
+        case 'inline':
+          return { stream: await this.gdrive.download(actAs, fileId), name, mimeType, size: null };
+        case 'text':
+          return { stream: await this.gdrive.download(actAs, fileId), name, mimeType: 'text/plain; charset=utf-8', size: null };
+        case 'google-pdf':
+          return { ...pdf, stream: await this.gdrive.exportAs(actAs, fileId, 'application/pdf') };
+        case 'convert': {
+          const source = await this.gdrive.download(actAs, fileId);
+          const stream = await convertToPdf(source, name).catch((err: Error) => {
+            this.logger.warn(`No se pudo convertir ${name} a PDF: ${err.message}`);
+            throw new UnprocessableEntityException('No se pudo generar la vista previa de este documento. Descargalo.');
+          });
+          return { ...pdf, stream };
+        }
+        default:
+          throw new UnsupportedMediaTypeException('Este tipo de archivo no tiene vista previa. Descargalo.');
+      }
     });
   }
 }

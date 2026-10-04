@@ -209,6 +209,10 @@ Regex PON en body → `requiresEncryption = true` automático. Override manual c
 - Cuenta Google de un usuario: su `mail` del AD si es `@iugna.edu.ar`, si no `username@iugna.edu.ar`.
 - Las operaciones se hacen **en nombre del usuario** (delegación de dominio) para que Drive registre al autor; si no tiene cuenta o Drive le niega acceso, se reintenta como la cuenta dueña. La intranet valida siempre oficina + que el archivo pertenezca a la unidad (`driveId`).
 - Docs/Sheets/Slides nativos se descargan exportados (docx/xlsx/pptx; límite de export de Google: 10 MB).
+- **Ámbito de acceso** (`AccessScope`): toda la unidad (`/shared-folders/:office/...`) o algo compartido (`/shared-folders/shares/:shareId/...`), con las mismas rutas. En lo compartido se verifica subiendo por `parents` que el archivo esté dentro de lo compartido; se opera como la cuenta dueña.
+- **Compartir** es permiso de la intranet, no de Drive: tabla `shared_items` (`sharedWith` = username en minúsculas, rol `reader`/`writer`, `seenAt` para el badge). No se puede compartir con alguien de la misma oficina. Lo compartido en sí no se renombra ni borra desde quien lo recibe.
+- **Vista previa** (`preview.util.ts`): PDF/imágenes/video en línea, texto como `text/plain` (nunca HTML/SVG en línea), Docs de Google exportados a PDF, Office convertido con LibreOffice (perfil temporal propio por conversión). Máx. 100 MB. Usa el mismo visor que los adjuntos de MTO.
+- El ítem del menú aparece también para quien solo recibió algo compartido; badge con lo no visto (consulta cada 60 s).
 - Requiere el scope `https://www.googleapis.com/auth/drive` en la delegación de dominio y la Drive API habilitada en el proyecto de la cuenta de servicio.
 - Módulo `carpetas` en permisos por grupo (TICOM lo ve siempre).
 

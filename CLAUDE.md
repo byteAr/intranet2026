@@ -62,6 +62,7 @@ Afecta: `ldap-search.service.ts`, `password-reset.service.ts`.
 - Componente raíz: `app.ts` (NO `app.component.ts`).
 - Standalone components, sin NgModules.
 - Tailwind CSS 4: usar `@use 'tailwindcss/...'` (NO directivas `@tailwind`).
+- Indicador de carga estándar: `<app-comet-spinner>` (`shared/comet-spinner`), no `animate-spin`. Los logos PNG tienen fondo opaco: sobre otros fondos usar `mix-blend-mode` (`multiply` en claro con el logo claro, `screen` en oscuro con el oscuro).
 
 ### Límites de archivo
 - Avatar: 6MB (base64 en DB, servido en `/api/users/:id/avatar` — público)

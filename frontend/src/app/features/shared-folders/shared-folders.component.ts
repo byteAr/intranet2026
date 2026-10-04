@@ -18,6 +18,7 @@ import {
   AttachmentPreviewRequest,
 } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 import { FileIconComponent } from './file-icon.component';
+import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
 
 const LAST_TAB_KEY = 'pac_shared_folders_office';
 /** Pestaña "Compartidos conmigo" (no puede coincidir con un grupo del AD). */
@@ -36,11 +37,20 @@ interface NameDialog { mode: 'folder' | 'rename'; file?: SharedFile; value: stri
 interface Row { file: SharedFile; item?: SharedWithMe; }
 interface ContextMenu { x: number; y: number; row: Row; }
 interface UserHit { username: string; displayName: string; }
+/** Subida en curso: enviando al servidor → el servidor lo pasa a Drive → listo. */
+interface UploadState {
+  phase: 'sending' | 'saving' | 'done';
+  percent: number;
+  loaded: number;
+  total: number;
+  files: { name: string; mimeType: string; isFolder: false }[];
+  leaving: boolean;
+}
 
 @Component({
   selector: 'app-shared-folders',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent],
   // La página ocupa todo el alto del <main> para que la tarjeta se estire hasta abajo.
   host: { class: 'flex flex-col min-h-full' },
   template: `
@@ -53,11 +63,8 @@ interface UserHit { username: string; displayName: string; }
   </div>
 
   @if (loadingInfo()) {
-    <div class="flex justify-center py-16">
-      <svg class="animate-spin h-8 w-8 text-teal-600" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-      </svg>
+    <div class="flex-1 flex items-center justify-center py-16">
+      <app-comet-spinner [size]="64" />
     </div>
   } @else if (!info()?.configured) {
     <div class="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-6 text-sm text-amber-800 dark:text-amber-300">
@@ -144,15 +151,73 @@ interface UserHit { username: string; displayName: string; }
         </div>
       </div>
 
-      <!-- Progreso de subida -->
-      @if (uploadProgress() !== null) {
-        <div class="px-4 py-2.5 border-b border-gray-100 dark:border-zinc-800 bg-teal-50/60 dark:bg-teal-950/20">
-          <div class="flex justify-between text-xs font-medium text-teal-800 dark:text-teal-300 mb-1.5">
-            <span>{{ uploadLabel() }}</span>
-            <span class="tabular-nums">{{ uploadProgress() }}%</span>
-          </div>
-          <div class="h-1.5 rounded-full bg-teal-100 dark:bg-teal-900/50 overflow-hidden">
-            <div class="h-full bg-teal-500 transition-all duration-300" [style.width.%]="uploadProgress()"></div>
+      <!-- Subida: enviando → guardando en Drive → listo -->
+      @if (upload(); as up) {
+        <div class="upload-panel relative mx-4 mt-3 overflow-hidden rounded-2xl border border-teal-200/80 dark:border-teal-900/70
+                    bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-950/50 dark:to-emerald-950/40"
+             [class.upload-out]="up.leaving" role="status" aria-live="polite">
+          <!-- El panel se llena de color a medida que avanza -->
+          <div class="absolute inset-y-0 left-0 bg-teal-100/70 dark:bg-teal-900/30 transition-[width] duration-300 ease-out"
+               [style.width.%]="up.phase === 'sending' ? up.percent : 100"></div>
+          @if (up.phase !== 'done') { <span class="shimmer"></span> }
+
+          <div class="relative flex items-center gap-4 px-4 py-3">
+            <div class="relative h-14 w-14 flex-shrink-0 flex items-center justify-center">
+              @switch (up.phase) {
+                @case ('sending') {
+                  <svg class="absolute inset-0 -rotate-90" viewBox="0 0 56 56" aria-hidden="true">
+                    <defs>
+                      <linearGradient id="upload-ring" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stop-color="#14B8A5" /><stop offset="1" stop-color="#22C562" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="28" cy="28" r="24" fill="none" stroke-width="5" class="stroke-teal-100 dark:stroke-teal-900/70" />
+                    <circle cx="28" cy="28" r="24" fill="none" stroke-width="5" stroke-linecap="round" stroke="url(#upload-ring)"
+                            [attr.stroke-dasharray]="UPLOAD_RING" [attr.stroke-dashoffset]="UPLOAD_RING * (1 - up.percent / 100)"
+                            style="transition: stroke-dashoffset .3s ease-out" />
+                  </svg>
+                  <svg class="up-bob h-6 w-6 text-teal-600 dark:text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 19V6M6.5 11.5L12 6l5.5 5.5" />
+                  </svg>
+                }
+                @case ('saving') {
+                  <app-comet-spinner class="absolute inset-0" [size]="56" [thickness]="7" />
+                  <svg class="h-5 w-5 text-teal-600 dark:text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M7 18a4.5 4.5 0 01-.6-8.96A6 6 0 0118 10a4 4 0 01-1 7.87" /><path d="M12 13v6M9.5 15.5L12 13l2.5 2.5" />
+                  </svg>
+                }
+                @case ('done') {
+                  <span class="check-pop absolute inset-1 rounded-full bg-gradient-to-br from-teal-500 to-emerald-500 shadow-lg shadow-emerald-500/30"></span>
+                  <svg class="check-draw relative h-7 w-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1" />
+                  </svg>
+                  @for (p of BURST; track $index) {
+                    <span class="burst" [style]="{ '--a': p.angle + 'deg', background: p.color, 'animation-delay': p.delay + 'ms' }"></span>
+                  }
+                }
+              }
+            </div>
+
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold text-gray-900 dark:text-zinc-100 truncate">{{ uploadTitle(up) }}</p>
+              <p class="text-xs text-gray-600 dark:text-zinc-400 tabular-nums">{{ uploadSubtitle(up) }}</p>
+              <div class="mt-2 flex items-center gap-2 overflow-hidden">
+                @for (f of up.files.slice(0, 4); track $index) {
+                  <span class="chip-in flex items-center gap-1.5 max-w-[12rem] rounded-lg border border-white/80 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900/70 pl-1 pr-2 py-0.5 shadow-sm"
+                        [style.animation-delay.ms]="$index * 90">
+                    <app-file-icon [file]="f" [size]="22" />
+                    <span class="truncate text-xs text-gray-700 dark:text-zinc-300">{{ f.name }}</span>
+                  </span>
+                }
+                @if (up.files.length > 4) {
+                  <span class="chip-in text-xs font-medium text-teal-700 dark:text-teal-300" [style.animation-delay.ms]="360">+{{ up.files.length - 4 }} más</span>
+                }
+              </div>
+            </div>
+
+            @if (up.phase === 'sending') {
+              <span class="hidden sm:block text-2xl font-bold tabular-nums text-teal-700 dark:text-teal-300">{{ up.percent }}%</span>
+            }
           </div>
         </div>
       }
@@ -166,11 +231,9 @@ interface UserHit { username: string; displayName: string; }
 
       <!-- Lista -->
       @if (loading()) {
-        <div class="flex-1 flex items-center justify-center py-16">
-          <svg class="animate-spin h-7 w-7 text-teal-600" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-          </svg>
+        <div class="flex-1 flex flex-col items-center justify-center gap-3 py-16">
+          <app-comet-spinner [size]="56" />
+          <p class="text-sm text-gray-400 dark:text-zinc-500">Cargando archivos</p>
         </div>
       } @else if (!rows().length) {
         <div class="flex-1 flex flex-col items-center justify-center py-16 text-center px-4">
@@ -206,7 +269,7 @@ interface UserHit { username: string; displayName: string; }
         <ul class="divide-y divide-gray-100 dark:divide-zinc-800">
           @for (row of rows(); track row.item?.shareId ?? row.file.id) {
             <li class="group grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_13rem_7.5rem] items-center gap-4 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800/60 cursor-default"
-                [ngClass]="{ 'bg-teal-50 dark:bg-zinc-800': menu()?.row === row }"
+                [ngClass]="{ 'bg-teal-50 dark:bg-zinc-800': menu()?.row === row, 'row-fresh': freshIds().has(row.file.id) }"
                 (contextmenu)="openMenu($event, row)">
               <button (click)="open(row)" class="flex items-center gap-3 min-w-0 text-left"
                       [title]="row.file.isFolder ? 'Abrir carpeta' : (row.file.previewable ? 'Ver' : 'Descargar')">
@@ -264,7 +327,7 @@ interface UserHit { username: string; displayName: string; }
       @if (dragOver()) {
         <div class="absolute inset-0 rounded-2xl border-2 border-dashed border-teal-500 bg-teal-50/90 dark:bg-teal-950/80
                     flex flex-col items-center justify-center pointer-events-none">
-          <svg class="h-10 w-10 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg class="up-bob h-10 w-10 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>
           </svg>
           <p class="mt-2 text-sm font-semibold text-teal-800 dark:text-teal-200">Soltá para subir a «{{ path()[path().length - 1].name }}»</p>
@@ -448,6 +511,60 @@ interface UserHit { username: string; displayName: string; }
 <!-- Vista previa, el mismo visor de los adjuntos de MTO -->
 <app-attachment-preview-modal [request]="previewRequest()" (closed)="previewRequest.set(null)" />
   `,
+  styles: [`
+    /* ── Panel de subida ── */
+    .upload-panel { animation: panel-in .45s cubic-bezier(.2, .9, .3, 1.2) both; }
+    .upload-out { animation: panel-out .4s ease-in forwards; }
+    @keyframes panel-in { from { opacity: 0; transform: translateY(-10px) scale(.97); } to { opacity: 1; transform: none; } }
+    @keyframes panel-out { to { opacity: 0; transform: translateY(-8px) scale(.98); } }
+
+    /* Brillo que recorre el panel mientras sube */
+    .shimmer {
+      position: absolute; inset: 0; pointer-events: none;
+      background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, .6) 50%, transparent 60%);
+      background-size: 250% 100%;
+      animation: shimmer 1.8s linear infinite;
+    }
+    :host-context(.dark) .shimmer {
+      background-image: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, .07) 50%, transparent 60%);
+    }
+    @keyframes shimmer { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+
+    /* Flecha que sube y baja */
+    .up-bob { animation: bob 1s ease-in-out infinite; }
+    @keyframes bob { 0%, 100% { transform: translateY(2px); } 50% { transform: translateY(-3px); } }
+
+    /* Fichas de los archivos, entrando una tras otra */
+    .chip-in { animation: chip-in .45s cubic-bezier(.2, .9, .3, 1.3) both; }
+    @keyframes chip-in { from { opacity: 0; transform: translateY(10px) scale(.85); } to { opacity: 1; transform: none; } }
+
+    /* Listo: círculo que aparece, tilde que se dibuja y estallido de partículas */
+    .check-pop { animation: pop .45s cubic-bezier(.2, .9, .3, 1.5) both; }
+    @keyframes pop { from { transform: scale(.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .check-draw path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw .4s .2s ease-out forwards; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    .burst {
+      position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 9999px;
+      opacity: 0; animation: burst .8s cubic-bezier(.1, .8, .3, 1) forwards;
+    }
+    @keyframes burst {
+      0% { opacity: 1; transform: rotate(var(--a)) translateY(-14px) scale(1); }
+      100% { opacity: 0; transform: rotate(var(--a)) translateY(-42px) scale(.3); }
+    }
+
+    /* Archivos recién subidos: entran con un destello */
+    .row-fresh { animation: fresh 2.6s ease-out; }
+    @keyframes fresh {
+      0% { background-color: rgba(20, 184, 165, .25); transform: translateX(-8px); opacity: .3; }
+      15% { transform: none; opacity: 1; }
+      100% { background-color: transparent; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .upload-panel, .upload-out, .shimmer, .up-bob, .chip-in, .check-pop, .burst, .row-fresh { animation: none !important; }
+      .check-draw path { stroke-dashoffset: 0; }
+    }
+  `],
 })
 export class SharedFoldersComponent implements OnInit {
   readonly folders = inject(SharedFoldersService);
@@ -471,8 +588,15 @@ export class SharedFoldersComponent implements OnInit {
   readonly loading = signal(false);
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
-  readonly uploadProgress = signal<number | null>(null);
-  readonly uploadLabel = signal('');
+  readonly upload = signal<UploadState | null>(null);
+  /** Archivos recién subidos o creados: entran a la lista con un destello. */
+  readonly freshIds = signal<ReadonlySet<string>>(new Set());
+  readonly UPLOAD_RING = 2 * Math.PI * 24;
+  readonly BURST = Array.from({ length: 10 }, (_, i) => ({
+    angle: i * 36,
+    color: ['#14B8A5', '#22C562', '#F59E0B', '#3B82F6', '#EC4899'][i % 5],
+    delay: (i % 2) * 60,
+  }));
   readonly dragOver = signal(false);
   readonly filter = signal('');
   readonly menu = signal<ContextMenu | null>(null);
@@ -720,7 +844,7 @@ export class SharedFoldersComponent implements OnInit {
     const input = event.target as HTMLInputElement;
     const files = Array.from(input.files ?? []);
     input.value = '';
-    this.upload(files);
+    this.startUpload(files);
   }
 
   onDragOver(event: DragEvent): void {
@@ -738,10 +862,10 @@ export class SharedFoldersComponent implements OnInit {
     if (!this.dragOver()) return;
     event.preventDefault();
     this.dragOver.set(false);
-    this.upload(Array.from(event.dataTransfer?.files ?? []));
+    this.startUpload(Array.from(event.dataTransfer?.files ?? []));
   }
 
-  private upload(files: File[]): void {
+  private startUpload(files: File[]): void {
     const scope = this.scope();
     const folderId = this.currentFolderId();
     if (!scope || !folderId || !files.length || this.busy()) return;
@@ -758,29 +882,59 @@ export class SharedFoldersComponent implements OnInit {
 
     this.busy.set(true);
     this.error.set(null);
-    this.uploadLabel.set(files.length === 1 ? `Subiendo ${files[0].name}` : `Subiendo ${files.length} archivos`);
-    this.uploadProgress.set(0);
+    const total = files.reduce((sum, f) => sum + f.size, 0);
+    this.upload.set({
+      phase: 'sending',
+      percent: 0,
+      loaded: 0,
+      total,
+      files: files.map((f) => ({ name: f.name, mimeType: f.type, isFolder: false as const })),
+      leaving: false,
+    });
     this.folders.upload(scope, folderId, files).subscribe({
       next: (ev) => {
-        if (ev.type === HttpEventType.UploadProgress && ev.total) {
-          // El 100 % llega cuando el backend termina de pasarlo a Drive, no al terminar de enviarlo.
-          this.uploadProgress.set(Math.min(95, Math.round((ev.loaded / ev.total) * 95)));
+        if (ev.type === HttpEventType.UploadProgress) {
+          const sent = ev.total ? ev.loaded / ev.total : 0;
+          // Enviado todo, falta que el servidor lo pase a Drive: el anillo pasa a ser el cometa.
+          this.upload.update((u) => u && {
+            ...u,
+            phase: sent >= 1 ? 'saving' : 'sending',
+            percent: Math.round(sent * 100),
+            loaded: ev.loaded,
+            total: ev.total ?? u.total,
+          });
         } else if (ev.type === HttpEventType.Response) {
-          this.uploadProgress.set(100);
-          this.finishUpload();
+          this.busy.set(false);
+          this.upload.update((u) => u && { ...u, phase: 'done', percent: 100 });
           this.mergeFiles(ev.body ?? [], folderId);
+          // Se ve el festejo y el panel se va solo.
+          setTimeout(() => this.upload.update((u) => u && { ...u, leaving: true }), 2200);
+          setTimeout(() => this.upload.set(null), 2600);
         }
       },
       error: (err) => {
-        this.finishUpload();
+        this.busy.set(false);
+        this.upload.set(null);
         void this.showError(err);
       },
     });
   }
 
-  private finishUpload(): void {
-    this.busy.set(false);
-    setTimeout(() => this.uploadProgress.set(null), 600);
+  uploadTitle(up: UploadState): string {
+    const n = up.files.length;
+    switch (up.phase) {
+      case 'sending': return n === 1 ? `Subiendo «${up.files[0].name}»` : `Subiendo ${n} archivos`;
+      case 'saving': return 'Guardando en la carpeta…';
+      case 'done': return n === 1 ? '¡Listo! Archivo subido' : `¡Listo! ${n} archivos subidos`;
+    }
+  }
+
+  uploadSubtitle(up: UploadState): string {
+    switch (up.phase) {
+      case 'sending': return `${this.formatSize(up.loaded)} de ${this.formatSize(up.total)}`;
+      case 'saving': return 'Ya casi: lo estamos pasando a Google Drive';
+      case 'done': return up.files.length === 1 ? 'Ya está disponible en la carpeta' : 'Ya están disponibles en la carpeta';
+    }
   }
 
   /**
@@ -792,6 +946,10 @@ export class SharedFoldersComponent implements OnInit {
   private mergeFiles(changed: SharedFile[], folderId: string): void {
     if (this.currentFolderId() !== folderId || !changed.length) return;
     const ids = new Set(changed.map((f) => f.id));
+    this.freshIds.set(ids);
+    setTimeout(() => {
+      if (this.freshIds() === ids) this.freshIds.set(new Set());
+    }, 2800);
     this.files.update((list) =>
       [...list.filter((f) => !ids.has(f.id)), ...changed].sort(
         (a, b) =>

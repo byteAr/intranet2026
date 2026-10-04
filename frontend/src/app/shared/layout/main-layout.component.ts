@@ -18,12 +18,14 @@ import { AppVersionService } from '../../core/services/app-version.service';
 import { IdleTimeoutService, IDLE_WARNING_SECONDS } from '../../core/services/idle-timeout.service';
 import { SharedFoldersService } from '../../core/services/shared-folders.service';
 import { NewBadgeComponent } from '../new-badge/new-badge.component';
+import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
+import { NotificationsService } from '../../core/services/notifications.service';
 import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, NewBadgeComponent],
+  imports: [CommonModule, RouterModule, FormsModule, NewBadgeComponent, NotificationBellComponent],
   template: `
     <div class="flex h-screen bg-gray-100 dark:bg-zinc-950">
 
@@ -316,7 +318,8 @@ import { HttpClient } from '@angular/common/http';
       <div class="flex flex-col flex-1 overflow-hidden">
 
         <!-- Topbar with dark mode toggle -->
-        <header class="flex items-center justify-end px-6 h-14 flex-shrink-0 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800">
+        <header class="flex items-center justify-end gap-2 px-6 h-14 flex-shrink-0 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800">
+          <app-notification-bell />
           <button
             (click)="themeService.toggle()"
             class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800"
@@ -821,6 +824,9 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly appVersionService = inject(AppVersionService);
   readonly idleTimeoutService = inject(IdleTimeoutService);
   readonly sharedFoldersService = inject(SharedFoldersService);
+  private readonly notificationsService = inject(NotificationsService);
+  /** Última notificación abierta desde la URL, para no abrirla dos veces. */
+  private openedFromUrl: string | null = null;
   /** Mensajes de Tráfico Oficial (antes "Correo"). */
   readonly mtosLabel = "MTO's";
   /** Revisa cada minuto si compartieron algo nuevo (badge de Carpetas). */
@@ -919,6 +925,21 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Las notificaciones push abren la intranet con ?notificacion=<id>: se marca
+   * como leída, se abre si es un anuncio y se limpia el parámetro de la URL.
+   */
+  private openNotificationFromUrl(url: string): void {
+    const tree = this.router.parseUrl(url);
+    const id = tree.queryParams['notificacion'] as string | undefined;
+    if (!id || id === this.openedFromUrl) return;
+    this.openedFromUrl = id;
+    this.notificationsService.openById(id);
+    // Misma URL sin ese parámetro (conserva el resto, p. ej. ?compartido=).
+    delete tree.queryParams['notificacion'];
+    void this.router.navigateByUrl(tree, { replaceUrl: true });
+  }
+
   sendAnnouncement(): void {
     const msg = this.announcementText().trim();
     if (!msg || this.sendingAnnouncement()) return;
@@ -972,6 +993,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     void this.idleTimeoutService.start();
     this.sharedFoldersService.refreshCounts();
     this.sharesTimer = setInterval(() => this.sharedFoldersService.refreshCounts(), 60_000);
+    this.notificationsService.connect();
+    this.openNotificationFromUrl(this.router.url);
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
     this.isOnMailPage.set(this.router.url === '/correo');
     this.routerSub = this.router.events
@@ -980,6 +1003,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
         const url = (e as NavigationEnd).urlAfterRedirects;
         this.isOnChatPage.set(url.startsWith('/chat'));
         this.isOnMailPage.set(url === '/correo');
+        this.openNotificationFromUrl(url);
       });
 
     this.popupSearchSubject.pipe(

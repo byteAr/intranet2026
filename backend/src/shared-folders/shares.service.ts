@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { GoogleDriveService } from './google-drive.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { SharedItem, ShareRole } from './entities/shared-item.entity';
@@ -27,6 +28,7 @@ export class SharesService {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly folders: SharedFoldersService,
     private readonly gdrive: GoogleDriveService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─── Desde la oficina que comparte ─────────────────────────────────────────
@@ -74,6 +76,7 @@ export class SharesService {
     }
 
     let saved = await this.shareRepo.findOne({ where: { fileId, sharedWith: username } });
+    const isNewShare = !saved;
     if (saved) {
       saved.role = role;
       saved = await this.shareRepo.save(saved);
@@ -94,6 +97,14 @@ export class SharesService {
       );
     }
     await this.syncDriveAccess(saved, target?.email);
+    if (isNewShare) {
+      void this.notifications.notify([username], {
+        type: 'share',
+        title: `${fullName(user)} compartió ${saved.isFolder ? 'una carpeta' : 'un archivo'} con vos`,
+        body: saved.fileName,
+        data: { shareId: saved.id, fileId: saved.fileId, isFolder: saved.isFolder, groupName: saved.groupName },
+      });
+    }
     return this.listForItem(user, groupName, fileId);
   }
 

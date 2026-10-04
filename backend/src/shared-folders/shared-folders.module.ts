@@ -9,9 +9,10 @@ import { SharedItem } from './entities/shared-item.entity';
 import { GroupPermission } from '../admin/entities/group-permission.entity';
 import { User } from '../users/entities/user.entity';
 import { AdminModule } from '../admin/admin.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([OfficeDrive, SharedItem, GroupPermission, User]), AdminModule],
+  imports: [TypeOrmModule.forFeature([OfficeDrive, SharedItem, GroupPermission, User]), AdminModule, NotificationsModule],
   controllers: [SharedFoldersController],
   providers: [SharedFoldersService, SharesService, GoogleDriveService],
 })

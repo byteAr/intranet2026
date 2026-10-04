@@ -2,6 +2,7 @@ import { Component, DestroyRef, HostListener, OnInit, computed, inject, signal }
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/http';
+import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import {
@@ -269,7 +270,12 @@ interface UploadState {
         <ul class="divide-y divide-gray-100 dark:divide-zinc-800">
           @for (row of rows(); track row.item?.shareId ?? row.file.id) {
             <li class="group grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_13rem_7.5rem] items-center gap-4 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800/60 cursor-default"
-                [ngClass]="{ 'bg-teal-50 dark:bg-zinc-800': menu()?.row === row, 'row-fresh': freshIds().has(row.file.id) }"
+                [attr.id]="row.item ? 'share-' + row.item.shareId : null"
+                [ngClass]="{
+                  'bg-teal-50 dark:bg-zinc-800': menu()?.row === row,
+                  'row-fresh': freshIds().has(row.file.id),
+                  'row-focus': !!row.item && row.item.shareId === focusShareId()
+                }"
                 (contextmenu)="openMenu($event, row)">
               <button (click)="open(row)" class="flex items-center gap-3 min-w-0 text-left"
                       [title]="row.file.isFolder ? 'Abrir carpeta' : (row.file.previewable ? 'Ver' : 'Descargar')">
@@ -560,8 +566,15 @@ interface UploadState {
       100% { background-color: transparent; }
     }
 
+    /* Elemento al que se llegó desde una notificación: late dos veces */
+    .row-focus { animation: focus-pulse 1.4s ease-in-out 2; }
+    @keyframes focus-pulse {
+      0%, 100% { background-color: transparent; box-shadow: inset 3px 0 0 transparent; }
+      50% { background-color: rgba(20, 184, 165, .18); box-shadow: inset 3px 0 0 #14B8A5; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
-      .upload-panel, .upload-out, .shimmer, .up-bob, .chip-in, .check-pop, .burst, .row-fresh { animation: none !important; }
+      .upload-panel, .upload-out, .shimmer, .up-bob, .chip-in, .check-pop, .burst, .row-fresh, .row-focus { animation: none !important; }
       .check-draw path { stroke-dashoffset: 0; }
     }
   `],
@@ -570,6 +583,10 @@ export class SharedFoldersComponent implements OnInit {
   readonly folders = inject(SharedFoldersService);
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  /** Elemento compartido al que hay que llevar al usuario (?compartido=). */
+  readonly focusShareId = signal<string | null>(null);
 
   readonly SHARED_TAB = SHARED_TAB;
   readonly tabOn = 'bg-white dark:bg-zinc-700 text-gray-900 dark:text-zinc-100 shadow-sm';
@@ -644,6 +661,14 @@ export class SharedFoldersComponent implements OnInit {
         const already = new Set(this.shareEntries().map((e) => e.username.toLowerCase()));
         this.shareResults.set(this.shareTarget() ? [] : hits.filter((h) => !already.has(h.username.toLowerCase())));
       });
+
+    // ?compartido=<id> (desde la campanita o una push): ir a ese elemento.
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const shareId = params.get('compartido');
+      if (!shareId) return;
+      this.focusShareId.set(shareId);
+      if (this.info()?.configured) this.selectTab(SHARED_TAB);
+    });
   }
 
   ngOnInit(): void {
@@ -653,6 +678,10 @@ export class SharedFoldersComponent implements OnInit {
         this.info.set(info);
         this.loadingInfo.set(false);
         if (!info.configured) return;
+        if (this.focusShareId()) {
+          this.selectTab(SHARED_TAB);
+          return;
+        }
         let last: string | null = null;
         try { last = localStorage.getItem(LAST_TAB_KEY); } catch { /* sin storage */ }
         const valid = last === SHARED_TAB || (!!last && info.offices.includes(last));
@@ -749,6 +778,7 @@ export class SharedFoldersComponent implements OnInit {
         this.loading.set(false);
         // Lo nuevo queda marcado en esta vista; el badge se apaga.
         if (items.some((i) => i.isNew) || this.folders.unseenShares() > 0) this.folders.markSeen();
+        this.revealFocusedShare();
       },
       error: (err) => {
         this.sharedItems.set([]);
@@ -756,6 +786,22 @@ export class SharedFoldersComponent implements OnInit {
         void this.showError(err);
       },
     });
+  }
+
+  /**
+   * Lleva la vista al elemento pedido por ?compartido=, lo resalta unos
+   * segundos y quita el parámetro de la URL.
+   */
+  private revealFocusedShare(): void {
+    const shareId = this.focusShareId();
+    if (!shareId) return;
+    setTimeout(() => document.getElementById(`share-${shareId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+    setTimeout(() => {
+      if (this.focusShareId() === shareId) this.focusShareId.set(null);
+    }, 3200);
+    const tree = this.router.parseUrl(this.router.url);
+    delete tree.queryParams['compartido'];
+    void this.router.navigateByUrl(tree, { replaceUrl: true });
   }
 
   // ─── Menú contextual ────────────────────────────────────────────────────────

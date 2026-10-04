@@ -208,6 +208,16 @@ Toda funcionalidad nueva visible lleva la etiqueta **NUEVO** una semana desde su
 
 ---
 
+## Notificaciones — campanita (`notifications/`)
+
+- Tabla `notifications`, una fila por destinatario (`username` en minúsculas), tipos `announcement` y `share`. Se borran a los 90 días.
+- `NotificationsService.notify()` guarda, entrega en vivo por el namespace `/notifications` (sala `user:<username>`) y manda push. El service worker (`sw-custom.js`) solo muestra la push si la intranet no está a la vista; al tocarla abre `/cuenta?notificacion=<id>` (anuncio → modal) o `/archivos?compartido=<shareId>&notificacion=<id>`.
+- Los anuncios llegan a todos los usuarios activos; compartir algo nuevo (no un cambio de permiso) notifica a quien lo recibe.
+- ⚠️ `NOTIFICATIONS_ONLY_TO` (staging): limita a quién se notifica. Staging comparte la base con producción, incluidas las suscripciones push.
+- Sonido: "ding" generado con Web Audio en `notifications.service.ts`.
+
+---
+
 ## Módulo Archivos compartidos (`shared-folders/`, ruta `/archivos`; `/carpetas` redirige)
 
 - En el menú va justo debajo de los ítems de MTO. "Correo" se llama ahora **MTO's** (Mensajes de Tráfico Oficial); el módulo de permisos sigue siendo `correo`.

@@ -240,6 +240,42 @@ export class GoogleDriveService {
     return res.data;
   }
 
+  /**
+   * Abre una subida reanudable en Drive y devuelve su URL: el navegador manda
+   * el archivo directo a Google, en partes, sin pasar por este servidor (para
+   * archivos grandes). Con `origin`, Google acepta los pedidos de esa página (CORS).
+   */
+  async createUploadSession(
+    actAs: string,
+    parentId: string,
+    file: { name: string; mimeType: string; size: number },
+    origin?: string,
+  ): Promise<string> {
+    const { token } = await this.credentials([DRIVE_SCOPE], actAs).getAccessToken();
+    const url =
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true' +
+      `&fields=${encodeURIComponent(FILE_FIELDS)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': file.mimeType,
+        'X-Upload-Content-Length': String(file.size),
+        ...(origin ? { Origin: origin } : {}),
+      },
+      body: JSON.stringify({ name: file.name, parents: [parentId] }),
+    });
+    if (!res.ok) {
+      const err = new Error(`Drive no abrió la subida (${res.status}): ${(await res.text()).slice(0, 300)}`) as Error & { code: number };
+      err.code = res.status;
+      throw err;
+    }
+    const location = res.headers.get('location');
+    if (!location) throw new Error('Drive no devolvió la dirección de subida.');
+    return location;
+  }
+
   async rename(actAs: string, fileId: string, name: string): Promise<drive_v3.Schema$File> {
     const res = await this.drive(actAs).files.update({
       fileId,

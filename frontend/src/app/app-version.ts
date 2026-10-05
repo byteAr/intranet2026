@@ -9,5 +9,6 @@
  * 1.1.2 — Candado en el ícono de los adjuntos encriptados (.~00).
  * 1.2.0 — Espacio por oficina (2 GB por integrante), pendrive, subir carpetas; eliminar es definitivo.
  * 1.2.1 — Menú propio con clic derecho en Archivos (actualizar, nueva carpeta, subir); doble clic para subir.
+ * 1.3.0 — Archivos de hasta 10 GB (subida directa a Google) y descargar carpetas enteras en .zip.
  */
-export const APP_VERSION = '1.2.1';
+export const APP_VERSION = '1.3.0';

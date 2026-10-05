@@ -147,6 +147,21 @@ export class SharedFoldersService {
     });
   }
 
+  /** Archivo grande: la intranet abre la subida en Drive y devuelve a dónde mandarlo. */
+  startDirectUpload(scope: FolderScope, folderId: string, file: File): Observable<{ uploadUrl: string }> {
+    return this.http.post<{ uploadUrl: string }>(`${this.prefix(scope)}/upload-session`, {
+      folderId,
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      size: file.size,
+    });
+  }
+
+  /** Cierra la subida directa: registra el espacio y, sin quiet, avisa a la oficina. */
+  finishDirectUpload(scope: FolderScope, fileId: string, quiet: boolean): Observable<SharedFile> {
+    return this.http.post<SharedFile>(`${this.prefix(scope)}/upload-complete`, { fileId, quiet });
+  }
+
   /** Cierra una subida en tandas: un único aviso con lo que quedó en `folderId`. */
   notifyUploaded(scope: FolderScope, folderId: string, itemIds: string[], fileCount: number): Observable<void> {
     return this.http.post<void>(`${this.prefix(scope)}/uploaded`, { folderId, itemIds, fileCount });
@@ -160,12 +175,13 @@ export class SharedFoldersService {
     return this.http.delete<void>(this.fileUrl(scope, fileId));
   }
 
-  /** Descarga vía blob con la sesión (nunca un <a href> directo a la API). */
-  download(scope: FolderScope, fileId: string): Observable<HttpEvent<Blob>> {
-    return this.http.get(`${this.fileUrl(scope, fileId)}/download`, {
-      responseType: 'blob',
-      observe: 'events',
-    });
+  /**
+   * Enlace de descarga de un par de minutos, para que el navegador baje el
+   * archivo por su cuenta (barra de descargas, sin ocupar la memoria de la
+   * página). Una carpeta baja entera, en .zip.
+   */
+  downloadLink(scope: FolderScope, fileId: string): Observable<{ url: string }> {
+    return this.http.post<{ url: string }>(`${this.fileUrl(scope, fileId)}/download-link`, {});
   }
 
   /** URL para el visor de adjuntos (lo pide como blob con la sesión). */

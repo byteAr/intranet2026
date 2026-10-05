@@ -1,4 +1,5 @@
 import { Component, DestroyRef, ElementRef, HostListener, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { AppVersionService } from '../../core/services/app-version.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/http';
@@ -762,6 +763,9 @@ const MAX_FILES_PER_DROP = 1000;
   `],
 })
 export class SharedFoldersComponent implements OnInit {
+  /** No actualizar la intranet con una subida en curso (ver AppVersionService). */
+  private readonly sinRecarga = inject(AppVersionService).holdWhile('subida', () => !!this.upload() && this.upload()!.phase !== 'done');
+
   readonly folders = inject(SharedFoldersService);
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);

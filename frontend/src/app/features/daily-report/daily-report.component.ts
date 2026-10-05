@@ -1,6 +1,7 @@
 import {
   Component, inject, signal, computed, OnInit
 } from '@angular/core';
+import { AppVersionService } from '../../core/services/app-version.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -630,6 +631,9 @@ interface FormEntry extends DailyReportEntry {
   `,
 })
 export class DailyReportComponent implements OnInit {
+  /** No actualizar la intranet con un parte a medio editar (ver AppVersionService). */
+  private readonly sinRecarga = inject(AppVersionService).holdWhile('parte', () => this.editingReportId() !== null);
+
   private readonly svc = inject(DailyReportService);
   private readonly authService = inject(AuthService);
   private readonly http = inject(HttpClient);

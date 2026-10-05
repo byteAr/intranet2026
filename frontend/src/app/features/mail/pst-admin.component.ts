@@ -1,4 +1,5 @@
 import { Component, inject, signal, OnInit, OnDestroy, computed } from '@angular/core';
+import { AppVersionService } from '../../core/services/app-version.service';
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { io, Socket } from 'socket.io-client';
@@ -320,6 +321,9 @@ interface PstComplete {
   `,
 })
 export class PstAdminComponent implements OnInit, OnDestroy {
+  /** No actualizar la intranet con una importación PST en curso (ver AppVersionService). */
+  private readonly sinRecarga = inject(AppVersionService).holdWhile('pst', () => this.uploading());
+
   private readonly http = inject(HttpClient);
   private readonly authService = inject(AuthService);
   private socket: Socket | null = null;

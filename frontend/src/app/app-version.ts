@@ -12,5 +12,6 @@
  * 1.3.0 — Archivos de hasta 10 GB (subida directa a Google) y descargar carpetas enteras en .zip.
  * 1.4.0 — Mis archivos: espacio personal de 10 GB en el Drive de cada uno, aparte del de la oficina.
  * 1.4.1 — Grupo fecha-hora de los MTO y logs en hora de Argentina (antes UTC).
+ * 1.4.2 — La intranet se actualiza sola en un momento seguro, sin recargar a mano.
  */
-export const APP_VERSION = '1.4.1';
+export const APP_VERSION = '1.4.2';

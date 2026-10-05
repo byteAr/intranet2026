@@ -153,6 +153,22 @@ interface UploadState {
         </div>
       </div>
 
+      <!-- Sin cuenta de Google: explica por qué no puede editar en línea -->
+      @if (showGoogleHint()) {
+        <div class="mx-4 mt-3 flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-4 py-3"
+             [class.hint-pulse]="googleHintPulse()" role="note">
+          <svg class="h-5 w-5 flex-shrink-0 text-amber-500 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/>
+          </svg>
+          <p class="flex-1 text-sm text-amber-900 dark:text-amber-200">
+            <span class="font-semibold">No podés editar documentos en Google.</span>
+            Tu usuario no tiene cuenta &#64;iugna.edu.ar, que es la que usa Google para trabajar en conjunto.
+            Igual podés verlos y descargarlos desde acá. Pedile a TICOM que te cree la cuenta.
+          </p>
+          <button (click)="googleHintDismissed.set(true)" class="text-amber-500 hover:text-amber-700 dark:hover:text-amber-300" aria-label="Cerrar aviso">✕</button>
+        </div>
+      }
+
       <!-- Subida: enviando → guardando en Drive → listo -->
       @if (upload(); as up) {
         <div class="upload-panel relative mx-4 mt-3 overflow-hidden rounded-2xl border border-teal-200/80 dark:border-teal-900/70
@@ -318,6 +334,14 @@ interface UploadState {
                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
                     {{ canEditInGoogle(row) ? 'Editar' : 'Abrir' }}
                   </button>
+                } @else if (row.file.googleUrl && !info()?.googleEmail) {
+                  <!-- Editable en Google, pero este usuario no tiene cuenta: explica por qué -->
+                  <button (click)="explainNoGoogle()"
+                    class="files-edit hidden items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold border border-gray-200 dark:border-zinc-700 text-gray-400 dark:text-zinc-500 hover:bg-gray-50 dark:hover:bg-zinc-800"
+                    title="No podés editar en Google: tu usuario no tiene cuenta @iugna.edu.ar">
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+                    Editar
+                  </button>
                 }
                 <button (click)="openMenu($event, row); $event.stopPropagation()"
                   class="h-8 w-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
@@ -431,6 +455,12 @@ interface UploadState {
         @if (shareError()) {
           <p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ shareError() }}</p>
         }
+        @if (shareNotice()) {
+          <div class="mt-3 flex gap-2 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+            <svg class="h-4 w-4 flex-shrink-0 mt-px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>
+            <span>{{ shareNotice() }}</span>
+          </div>
+        }
 
         <button (click)="submitShare()" [disabled]="!shareTarget() || shareSaving()"
           class="mt-3 w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
@@ -452,7 +482,16 @@ interface UploadState {
                 <span class="h-7 w-7 rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-300 text-xs font-bold flex items-center justify-center flex-shrink-0">
                   {{ initials(e.name) }}
                 </span>
-                <span class="flex-1 min-w-0 text-sm text-gray-800 dark:text-zinc-200 truncate" [title]="'Compartido por ' + e.sharedByName">{{ e.name }}</span>
+                <span class="flex-1 min-w-0" [title]="'Compartido por ' + e.sharedByName">
+                  <span class="block text-sm text-gray-800 dark:text-zinc-200 truncate">{{ e.name }}</span>
+                  @if (!e.googleAccount) {
+                    <span class="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400"
+                          title="No tiene cuenta @iugna.edu.ar: puede ver y descargar desde la intranet, pero no editar en Documentos de Google.">
+                      <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>
+                      Sin cuenta &#64;iugna.edu.ar · no puede editar en Google
+                    </span>
+                  }
+                </span>
                 <select [ngModel]="e.role" (ngModelChange)="changeRole(e, $event)" [disabled]="shareSaving()" aria-label="Permiso"
                   class="rounded-md border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-700 dark:text-zinc-200 text-xs py-1 pl-2 pr-7">
                   <option value="reader">Puede ver</option>
@@ -588,6 +627,10 @@ interface UploadState {
       100% { background-color: transparent; }
     }
 
+    /* Aviso "no podés editar en Google": late cuando se toca el Editar bloqueado */
+    .hint-pulse { animation: hint-pulse .6s ease-in-out 2; }
+    @keyframes hint-pulse { 50% { transform: scale(1.015); box-shadow: 0 0 0 4px rgba(245, 158, 11, .25); } }
+
     /* Elemento al que se llegó desde una notificación: late dos veces */
     .row-focus { animation: focus-pulse 1.4s ease-in-out 2; }
     @keyframes focus-pulse {
@@ -596,7 +639,7 @@ interface UploadState {
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .upload-panel, .upload-out, .shimmer, .up-bob, .chip-in, .check-pop, .burst, .row-fresh, .row-focus { animation: none !important; }
+      .upload-panel, .upload-out, .shimmer, .up-bob, .chip-in, .check-pop, .burst, .row-fresh, .row-focus, .hint-pulse { animation: none !important; }
       .check-draw path { stroke-dashoffset: 0; }
     }
   `],
@@ -656,11 +699,24 @@ export class SharedFoldersComponent implements OnInit {
   readonly shareTarget = signal<UserHit | null>(null);
   readonly shareRole = signal<ShareRole>('reader');
   readonly shareError = signal<string | null>(null);
+  /** Aclaración tras compartir (p. ej. que esa persona no puede editar en Google). */
+  readonly shareNotice = signal<string | null>(null);
   private readonly shareSearch$ = new Subject<string>();
 
   readonly isSharedTab = computed(() => this.tab() === SHARED_TAB);
   readonly atSharedRoot = computed(() => this.isSharedTab() && this.scope() === null);
   readonly currentFolderId = computed(() => this.path().at(-1)?.id ?? null);
+
+  /** Aviso para quien no tiene cuenta de Google, si hay algo que se editaría en Google. */
+  readonly googleHintDismissed = signal(false);
+  readonly googleHintPulse = signal(false);
+  readonly showGoogleHint = computed(
+    () =>
+      !!this.info()?.configured &&
+      !this.info()?.googleEmail &&
+      !this.googleHintDismissed() &&
+      this.rows().some((r) => !!r.file.googleUrl),
+  );
 
   readonly rows = computed<Row[]>(() => {
     const q = this.filter().trim().toLowerCase();
@@ -959,6 +1015,13 @@ export class SharedFoldersComponent implements OnInit {
     if (url) window.open(url, '_blank', 'noopener');
   }
 
+  /** Muestra (o vuelve a mostrar y hace latir) el aviso de por qué no puede editar. */
+  explainNoGoogle(): void {
+    this.googleHintDismissed.set(false);
+    this.googleHintPulse.set(false);
+    requestAnimationFrame(() => this.googleHintPulse.set(true));
+  }
+
   /** En lo compartido con "Puede ver", Google lo abre en modo lectura. */
   canEditInGoogle(row: Row): boolean {
     return row.item ? row.item.role === 'writer' : this.canWrite();
@@ -1181,6 +1244,7 @@ export class SharedFoldersComponent implements OnInit {
     this.shareTarget.set(null);
     this.shareRole.set('reader');
     this.shareError.set(null);
+    this.shareNotice.set(null);
     this.shareLoading.set(true);
     this.folders.listShares(office, file.id).subscribe({
       next: (entries) => {
@@ -1230,10 +1294,19 @@ export class SharedFoldersComponent implements OnInit {
     if (!office || !file) return;
     this.shareSaving.set(true);
     this.shareError.set(null);
+    this.shareNotice.set(null);
     this.folders.share(office, file.id, { username, name, role }).subscribe({
       next: (entries) => {
         this.shareEntries.set(entries);
         this.shareSaving.set(false);
+        // "Puede editar" en un archivo es para editarlo en Google: sin cuenta no le sirve.
+        const entry = entries.find((e) => e.username.toLowerCase() === username.toLowerCase());
+        if (entry && !entry.googleAccount && role === 'writer' && !file.isFolder && file.googleUrl) {
+          this.shareNotice.set(
+            `${entry.name} no tiene cuenta @iugna.edu.ar: va a poder ver y descargar este archivo desde la intranet, ` +
+            `pero no editarlo en ${this.editorName(file)}. TICOM puede crearle la cuenta.`,
+          );
+        }
         done?.();
       },
       error: async (err) => {

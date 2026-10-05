@@ -55,6 +55,8 @@ export interface ShareEntry {
   role: ShareRole;
   sharedByName: string;
   createdAt: string;
+  /** Sin cuenta @iugna.edu.ar no puede editar en Documentos de Google. */
+  googleAccount: boolean;
 }
 
 /**

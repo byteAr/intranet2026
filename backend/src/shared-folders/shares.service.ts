@@ -41,14 +41,27 @@ export class SharesService {
       where: { driveId: scope.office.driveId, fileId },
       order: { createdAt: 'ASC' },
     });
-    return shares.map((s) => ({
-      id: s.id,
-      username: s.sharedWith,
-      name: s.sharedWithName ?? s.sharedWith,
-      role: s.role,
-      sharedByName: s.sharedByName,
-      createdAt: s.createdAt,
-    }));
+    // Mail del AD de cada destinatario, para saber si tiene cuenta de Google.
+    const users = shares.length
+      ? await this.userRepo
+          .createQueryBuilder('u')
+          .select(['u.username', 'u.email'])
+          .where('LOWER(u.username) IN (:...names)', { names: shares.map((s) => s.sharedWith) })
+          .getMany()
+      : [];
+    const mailOf = new Map(users.map((u) => [u.username.toLowerCase(), u.email]));
+    return Promise.all(
+      shares.map(async (s) => ({
+        id: s.id,
+        username: s.sharedWith,
+        name: s.sharedWithName ?? s.sharedWith,
+        role: s.role,
+        sharedByName: s.sharedByName,
+        createdAt: s.createdAt,
+        // Sin cuenta @iugna.edu.ar no puede editar en Documentos de Google.
+        googleAccount: (await this.folders.googleEmailOf(s.sharedWith, mailOf.get(s.sharedWith))) !== null,
+      })),
+    );
   }
 
   async share(

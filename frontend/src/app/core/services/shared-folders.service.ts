@@ -132,6 +132,11 @@ export class SharedFoldersService {
     return `${this.fileUrl(scope, fileId)}/preview`;
   }
 
+  /** URL de descarga, para el botón del visor. */
+  downloadUrl(scope: FolderScope, fileId: string): string {
+    return `${this.fileUrl(scope, fileId)}/download`;
+  }
+
   // ─── Compartir ──────────────────────────────────────────────────────────────
 
   sharedWithMe(): Observable<SharedWithMe[]> {

@@ -607,6 +607,7 @@ export class ParaEnviarComponent implements OnInit {
     this.previewRequest.set({
       url: `/api/draft-mail/${draftId}/attachments/${att.id}/preview`,
       filename: att.filename,
+      downloadUrl: `/api/draft-mail/${draftId}/attachments/${att.id}`,
     });
   }
 

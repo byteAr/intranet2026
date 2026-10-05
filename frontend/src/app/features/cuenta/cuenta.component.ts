@@ -1,14 +1,18 @@
 import { Component, inject, signal, computed, effect, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule, FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { OfficeUsage, SharedFoldersService } from '../../core/services/shared-folders.service';
+import { StorageUsageComponent } from '../../shared/storage-usage/storage-usage.component';
+import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
 
 type Panel = 'info' | 'password' | 'recovery' | 'rank';
 
 @Component({
   selector: 'app-cuenta',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, DatePipe],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, DatePipe, RouterLink, StorageUsageComponent, NewBadgeComponent],
   template: `
     <div class="space-y-6 max-w-3xl mx-auto">
 
@@ -70,6 +74,29 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
           }
         </div>
       </div>
+
+      <!-- Espacio de Archivos compartidos -->
+      @if (usages().length) {
+        <div class="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="flex items-center gap-2 min-w-0">
+              <svg class="h-5 w-5 flex-shrink-0 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/><path d="M4 11.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/>
+              </svg>
+              <h3 class="text-lg font-semibold text-gray-800 truncate">
+                {{ allOffices ? 'Espacio de las oficinas' : usages().length === 1 ? 'Espacio de tu oficina' : 'Espacio de tus oficinas' }}
+              </h3>
+              <app-new-badge feature="espacio-oficinas" />
+            </div>
+            <a routerLink="/archivos" class="text-sm font-medium text-teal-700 hover:underline whitespace-nowrap">Ir a Archivos</a>
+          </div>
+          <div class="grid gap-x-8 gap-y-5" [ngClass]="{ 'sm:grid-cols-2': usages().length > 1 }">
+            @for (u of usages(); track u.groupName) {
+              <app-storage-usage [usage]="u" />
+            }
+          </div>
+        </div>
+      }
 
       <!-- Alertas globales -->
       @if (successMsg()) {
@@ -271,6 +298,7 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
 export class CuentaComponent {
   private readonly authService = inject(AuthService);
   private readonly fb = inject(FormBuilder);
+  private readonly sharedFolders = inject(SharedFoldersService);
 
   user = this.authService.currentUser;
   activePanel = signal<Panel>('info');
@@ -287,7 +315,15 @@ export class CuentaComponent {
   pendingAvatar = signal<string | null>(null);
   selectedRank = this.authService.currentUser()?.rank ?? '';
 
+  /** Espacio de Archivos compartidos: el de sus oficinas, o el de todas para TICOM. */
+  readonly usages = signal<OfficeUsage[]>([]);
+  readonly allOffices = (this.authService.currentUser()?.roles ?? []).some((r) => r.toUpperCase() === 'TICOM');
+
   constructor() {
+    (this.allOffices ? this.sharedFolders.allUsage() : this.sharedFolders.usage()).subscribe({
+      next: (list) => this.usages.set(list),
+      error: () => { /* sin Archivos compartidos configurado: no se muestra */ },
+    });
     // Keep selectedRank and recoveryForm in sync when the user signal updates
     // (e.g. after the profile completion modal saves while this component is mounted)
     effect(() => {

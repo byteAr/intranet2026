@@ -13,7 +13,7 @@ const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const ACCOUNTS_TTL_MS = 10 * 60_000;
 
 export const FILE_FIELDS =
-  'id,name,mimeType,size,modifiedTime,driveId,parents,trashed,webViewLink,lastModifyingUser(displayName,emailAddress)';
+  'id,name,mimeType,size,quotaBytesUsed,modifiedTime,driveId,parents,trashed,webViewLink,lastModifyingUser(displayName,emailAddress)';
 
 export interface DriveMember {
   permissionId: string;
@@ -250,9 +250,42 @@ export class GoogleDriveService {
     return res.data;
   }
 
-  /** A la papelera de la unidad: se puede recuperar desde Drive durante 30 días. */
-  async trash(actAs: string, fileId: string): Promise<void> {
-    await this.drive(actAs).files.update({ fileId, supportsAllDrives: true, requestBody: { trashed: true } });
+  /**
+   * Borra para siempre, sin pasar por la papelera (que para Google sigue
+   * ocupando espacio 30 días). En una unidad compartida solo puede hacerlo un
+   * administrador: se llama con la cuenta dueña. Una carpeta se lleva su contenido.
+   */
+  async deleteForever(fileId: string): Promise<void> {
+    await this.drive().files.delete({ fileId, supportsAllDrives: true });
+  }
+
+  /**
+   * Espacio que ocupa una unidad para Google: todos sus archivos, también los
+   * de la papelera. Los nativos de Google cuentan por quotaBytesUsed.
+   */
+  async driveUsage(driveId: string): Promise<{ used: number; trashed: number }> {
+    let used = 0;
+    let trashed = 0;
+    let pageToken: string | undefined;
+    do {
+      const res = await this.drive().files.list({
+        corpora: 'drive',
+        driveId,
+        includeItemsFromAllDrives: true,
+        supportsAllDrives: true,
+        q: `mimeType != '${FOLDER_MIME}'`,
+        pageSize: 1000,
+        pageToken,
+        fields: 'nextPageToken,files(size,quotaBytesUsed,trashed)',
+      });
+      for (const f of res.data.files ?? []) {
+        const bytes = Number(f.quotaBytesUsed ?? f.size ?? 0) || 0;
+        used += bytes;
+        if (f.trashed) trashed += bytes;
+      }
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
+    return { used, trashed };
   }
 
   async download(actAs: string, fileId: string): Promise<Readable> {

@@ -34,6 +34,16 @@ export interface FolderListing {
   path?: { id: string; name: string }[];
 }
 
+/** Espacio de una oficina. */
+export interface OfficeUsage {
+  groupName: string;
+  quotaBytes: number;
+  /** Papelera de Drive incluida, como lo cuenta Google. */
+  usedBytes: number;
+  trashedBytes: number;
+  updatedAt: string | null;
+}
+
 export type ShareRole = 'reader' | 'writer';
 
 /** Algo compartido con el usuario. */
@@ -86,6 +96,16 @@ export class SharedFoldersService {
 
   offices(): Observable<OfficesInfo> {
     return this.http.get<OfficesInfo>(`${this.base}/offices`);
+  }
+
+  /** Espacio usado y disponible de las oficinas del usuario. */
+  usage(): Observable<OfficeUsage[]> {
+    return this.http.get<OfficeUsage[]>(`${this.base}/usage`);
+  }
+
+  /** Espacio de todas las oficinas (solo TICOM). */
+  allUsage(): Observable<OfficeUsage[]> {
+    return this.http.get<OfficeUsage[]>(`${this.base}/usage/all`);
   }
 
   // ─── Archivos ───────────────────────────────────────────────────────────────

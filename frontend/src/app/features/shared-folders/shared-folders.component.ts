@@ -7,6 +7,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import {
   FolderScope,
+  OfficeUsage,
   OfficesInfo,
   ShareEntry,
   ShareRole,
@@ -21,6 +22,8 @@ import {
 import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { NotificationsService } from '../../core/services/notifications.service';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
+import { StorageUsageComponent, formatBytes, freeBytes } from '../../shared/storage-usage/storage-usage.component';
+import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
 
 const LAST_TAB_KEY = 'pac_shared_folders_office';
 /** Pestaña "Compartidos conmigo" (no puede coincidir con un grupo del AD). */
@@ -52,7 +55,7 @@ interface UploadState {
 @Component({
   selector: 'app-shared-folders',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent, StorageUsageComponent, NewBadgeComponent],
   // La página ocupa todo el alto del <main> para que la tarjeta se estire hasta abajo.
   host: { class: 'flex flex-col min-h-full' },
   template: `
@@ -152,6 +155,14 @@ interface UploadState {
           }
         </div>
       </div>
+
+      <!-- Espacio de la oficina -->
+      @if (currentUsage(); as u) {
+        <div class="flex items-center gap-2 px-4 py-2 border-b border-gray-100 dark:border-zinc-800">
+          <app-storage-usage class="flex-1 min-w-0" [usage]="u" [compact]="true" />
+          <app-new-badge feature="espacio-oficinas" />
+        </div>
+      }
 
       <!-- Sin cuenta de Google: explica por qué no puede editar en línea -->
       @if (showGoogleHint()) {
@@ -402,7 +413,7 @@ interface UploadState {
           }
           @case ('delete') {
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
-            Borrar
+            Eliminar
           }
         }
       </button>
@@ -540,15 +551,22 @@ interface UploadState {
   <div class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" (click)="toDelete.set(null)">
     <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-100 dark:border-zinc-700 p-6"
          (click)="$event.stopPropagation()" role="alertdialog" aria-modal="true">
-      <h2 class="text-base font-semibold text-gray-900 dark:text-zinc-100">¿Borrar {{ f.isFolder ? 'la carpeta' : 'el archivo' }}?</h2>
+      <h2 class="text-base font-semibold text-gray-900 dark:text-zinc-100">¿Eliminar {{ f.isFolder ? 'la carpeta' : 'el archivo' }}?</h2>
       <p class="mt-2 text-sm text-gray-600 dark:text-zinc-400">
-        «{{ f.name }}»{{ f.isFolder ? ' y todo su contenido' : '' }} va a la papelera. TICOM puede recuperarlo durante 30 días.
+        «{{ f.name }}»{{ f.isFolder ? ' y todo su contenido' : '' }} se elimina definitivamente
+        @if (!f.isFolder && f.size) { y libera {{ formatSize(f.size) }} }.
+      </p>
+      <p class="mt-2 flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs font-medium text-red-700 dark:text-red-300">
+        <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+        </svg>
+        No va a la papelera: no se puede recuperar, ni siquiera TICOM.
       </p>
       <div class="mt-5 flex justify-end gap-2">
         <button (click)="toDelete.set(null)"
           class="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800">Cancelar</button>
         <button (click)="confirmDelete(f)" [disabled]="busy()"
-          class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">Borrar</button>
+          class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">Eliminar definitivamente</button>
       </div>
     </div>
   </div>
@@ -674,6 +692,13 @@ export class SharedFoldersComponent implements OnInit {
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly upload = signal<UploadState | null>(null);
+  /** Espacio de las oficinas del usuario. */
+  readonly usages = signal<OfficeUsage[]>([]);
+  /** El de la oficina abierta; en lo compartido no se muestra (es de otra oficina). */
+  readonly currentUsage = computed(() => {
+    const scope = this.scope();
+    return scope?.kind === 'office' ? this.usages().find((u) => u.groupName === scope.office) ?? null : null;
+  });
   /** Archivos recién subidos o creados: entran a la lista con un destello. */
   readonly freshIds = signal<ReadonlySet<string>>(new Set());
   readonly UPLOAD_RING = 2 * Math.PI * 24;
@@ -776,6 +801,7 @@ export class SharedFoldersComponent implements OnInit {
         this.info.set(info);
         this.loadingInfo.set(false);
         if (!info.configured) return;
+        if (info.offices.length) this.loadUsage();
         if (this.focusShareId()) {
           this.selectTab(SHARED_TAB);
           return;
@@ -793,6 +819,13 @@ export class SharedFoldersComponent implements OnInit {
         this.info.set({ configured: false, offices: [], googleEmail: null });
         this.loadingInfo.set(false);
       },
+    });
+  }
+
+  private loadUsage(): void {
+    this.folders.usage().subscribe({
+      next: (list) => this.usages.set(list),
+      error: () => { /* sin el dato, la barra no se muestra; el backend igual controla */ },
     });
   }
 
@@ -1087,10 +1120,19 @@ export class SharedFoldersComponent implements OnInit {
       this.error.set('Se pueden subir hasta 20 archivos por vez.');
       return;
     }
+    const total = files.reduce((sum, f) => sum + f.size, 0);
+    // Aviso inmediato, sin mandar nada; el backend lo vuelve a controlar.
+    const usage = this.currentUsage();
+    if (usage && total > freeBytes(usage)) {
+      this.error.set(
+        `No hay espacio en ${usage.groupName}: quedan ${formatBytes(freeBytes(usage))} libres de ` +
+          `${formatBytes(usage.quotaBytes)} y querés subir ${formatBytes(total)}. Eliminá archivos para liberar lugar.`,
+      );
+      return;
+    }
 
     this.busy.set(true);
     this.error.set(null);
-    const total = files.reduce((sum, f) => sum + f.size, 0);
     this.upload.set({
       phase: 'sending',
       percent: 0,
@@ -1115,6 +1157,7 @@ export class SharedFoldersComponent implements OnInit {
           this.busy.set(false);
           this.upload.update((u) => u && { ...u, phase: 'done', percent: 100 });
           this.mergeFiles(ev.body ?? [], folderId);
+          this.loadUsage();
           // Se ve el festejo y el panel se va solo.
           setTimeout(() => this.upload.update((u) => u && { ...u, leaving: true }), 2200);
           setTimeout(() => this.upload.set(null), 2600);
@@ -1226,6 +1269,9 @@ export class SharedFoldersComponent implements OnInit {
         this.busy.set(false);
         this.toDelete.set(null);
         this.files.update((list) => list.filter((x) => x.id !== f.id));
+        // Una carpeta se recalcula en el servidor unos segundos después.
+        this.loadUsage();
+        if (f.isFolder) setTimeout(() => this.loadUsage(), 12_000);
       },
       error: (err) => {
         this.busy.set(false);
@@ -1401,7 +1447,10 @@ async function errorMessage(err: unknown): Promise<string> {
     if (body instanceof Blob) {
       try { body = JSON.parse(await body.text()); } catch { body = null; }
     }
-    if (err.status === 413) return 'El archivo supera el tamaño máximo (200 MB).';
+    // 413 también es "no hay espacio en la oficina", que trae su propio mensaje.
+    if (err.status === 413 && !(typeof body?.message === 'string' && body.message.startsWith('No hay espacio'))) {
+      return 'El archivo supera el tamaño máximo (200 MB).';
+    }
     if (typeof body?.message === 'string') return body.message;
   }
   return 'No se pudo completar la operación.';

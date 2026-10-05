@@ -8,6 +8,7 @@
 export const NEW_FEATURES = {
   'archivos-compartidos': '2026-10-05',
   notificaciones: '2026-10-05',
+  'espacio-oficinas': '2026-10-06',
 } as const;
 
 export type NewFeature = keyof typeof NEW_FEATURES;

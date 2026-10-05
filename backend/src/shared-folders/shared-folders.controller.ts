@@ -35,6 +35,10 @@ const uploadInterceptor = FilesInterceptor('files', MAX_FILES_PER_UPLOAD, {
 
 type AuthRequest = { user: User };
 
+function isTicom(user: User): boolean {
+  return (user.roles ?? []).some((r) => r.toUpperCase() === 'TICOM');
+}
+
 /** Content-Disposition con el nombre en UTF-8 y una versión ASCII de respaldo. */
 function disposition(type: 'attachment' | 'inline', name: string): string {
   const ascii = name.normalize('NFD').replace(/[^\x20-\x7e]/g, '').replace(/["\\]/g, '_') || 'archivo';
@@ -71,10 +75,21 @@ export class SharedFoldersController {
   @Post('sync')
   @HttpCode(HttpStatus.OK)
   sync(@Request() req: AuthRequest) {
-    if (!(req.user.roles ?? []).some((r) => r.toUpperCase() === 'TICOM')) {
-      throw new ForbiddenException('Solo TICOM puede sincronizar las carpetas.');
-    }
+    if (!isTicom(req.user)) throw new ForbiddenException('Solo TICOM puede sincronizar las carpetas.');
     return this.service.syncNow();
+  }
+
+  /** Espacio usado y disponible de las oficinas del usuario. */
+  @Get('usage')
+  usage(@Request() req: AuthRequest) {
+    return this.service.myUsage(req.user);
+  }
+
+  /** Espacio de todas las oficinas (solo TICOM). */
+  @Get('usage/all')
+  allUsage(@Request() req: AuthRequest) {
+    if (!isTicom(req.user)) throw new ForbiddenException('Solo TICOM ve el espacio de todas las oficinas.');
+    return this.service.allUsage();
   }
 
   // ─── Compartidos conmigo ───────────────────────────────────────────────────
@@ -133,7 +148,7 @@ export class SharedFoldersController {
   @Delete('shares/:shareId/files/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async shareTrash(@Request() req: AuthRequest, @Param('shareId') shareId: string, @Param('id') id: string) {
-    await this.service.trash(await this.service.shareScope(req.user, shareId), id);
+    await this.service.remove(await this.service.shareScope(req.user, shareId), id);
   }
 
   @Get('shares/:shareId/files/:id/download')
@@ -203,7 +218,7 @@ export class SharedFoldersController {
   @Delete(':office/files/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async trash(@Request() req: AuthRequest, @Param('office') office: string, @Param('id') id: string) {
-    await this.service.trash(await this.service.officeScope(req.user, office), id);
+    await this.service.remove(await this.service.officeScope(req.user, office), id);
   }
 
   @Get(':office/files/:id/download')

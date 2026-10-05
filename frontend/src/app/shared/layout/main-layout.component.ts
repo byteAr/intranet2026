@@ -541,16 +541,17 @@ import { HttpClient } from '@angular/common/http';
     }
 
     <!-- ── Aviso de versión nueva ───────────────────────
-         Solo aparece si el usuario sigue trabajando sin pasar a otra
-         ventana; en cuanto la app queda en segundo plano se recarga sola. -->
-    @if (appVersionService.actualizacionPendiente()) {
+         Casi nunca se ve: la versión nueva se aplica sola en un momento
+         seguro (pestaña en segundo plano, cambio de sección o inactividad).
+         Solo aparece si pasó una hora sin uno, p. ej. un MTO abierto todo ese tiempo. -->
+    @if (appVersionService.mostrarAviso()) {
       <div class="fixed bottom-6 left-6 z-[99997] max-w-sm">
         <div class="bg-teal-700 text-white rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3">
           <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          <p class="text-sm flex-1 leading-snug">Hay una versión nueva de la intranet.</p>
+          <p class="text-sm flex-1 leading-snug">Hay una versión nueva de la intranet. Se aplica sola cuando termines; si querés, ahora.</p>
           <button (click)="appVersionService.actualizarAhora()"
             class="text-sm font-semibold bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5 flex-shrink-0">
             Actualizar

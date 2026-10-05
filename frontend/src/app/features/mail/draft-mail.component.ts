@@ -9,6 +9,7 @@ import {
   ViewChild,
   ElementRef,
 } from '@angular/core';
+import { AppVersionService } from '../../core/services/app-version.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -607,6 +608,9 @@ const MONTHS_LONG = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','A
   `,
 })
 export class DraftMailComponent implements OnInit, OnDestroy {
+  /** No actualizar la intranet con un MTO a medio redactar (ver AppVersionService). */
+  private readonly sinRecarga = inject(AppVersionService).holdWhile('mto', () => this.showForm());
+
   readonly draftMailService = inject(DraftMailService);
   private readonly authService = inject(AuthService);
   readonly mailService = inject(MailService);

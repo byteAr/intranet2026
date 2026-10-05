@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed, effect, OnInit } from '@angular/core';
+import { AppVersionService } from '../../core/services/app-version.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IncidentsService, Incident, IncidentEvent } from '../../core/services/incidents.service';
@@ -374,6 +375,9 @@ import { AuthService } from '../../core/services/auth.service';
   `,
 })
 export class IncidentsComponent implements OnInit {
+  /** No actualizar la intranet con una incidencia a medio cargar (ver AppVersionService). */
+  private readonly sinRecarga = inject(AppVersionService).holdWhile('incidencia', () => this.showCreateForm());
+
   readonly incidentsService = inject(IncidentsService);
   private readonly authService = inject(AuthService);
 

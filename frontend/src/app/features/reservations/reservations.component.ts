@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed, effect, OnInit } from '@angular/core';
+import { AppVersionService } from '../../core/services/app-version.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
@@ -964,6 +965,9 @@ import { AuthService } from '../../core/services/auth.service';
   `,
 })
 export class ReservationsComponent implements OnInit {
+  /** No actualizar la intranet con una reserva a medio cargar (ver AppVersionService). */
+  private readonly sinRecarga = inject(AppVersionService).holdWhile('reserva', () => this.showCreateForm() || this.showBlockForm() || this.editingReservationId() !== null);
+
   readonly reservationsService = inject(ReservationsService);
   private readonly authService = inject(AuthService);
 

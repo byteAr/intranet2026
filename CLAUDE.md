@@ -18,8 +18,11 @@ cd /usr/local/proyectos/intranet2026
 git pull origin <rama>
 # cambios backend (pase sin corte: levanta el nuevo al lado, espera /api/health y apaga el viejo):
 scripts/rollout.sh backend -f docker-compose.yml -f docker-compose.prod.yml
-# cambios frontend (nginx reinicia en menos de un segundo; --no-deps: sin él, compose también reinicia el backend):
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps frontend
+# cambios frontend (sin reiniciar nginx: copia los archivos y, si cambió nginx.conf, "nginx -s reload"):
+scripts/rollout-frontend.sh -f docker-compose.yml -f docker-compose.prod.yml
+# solo si cambió el contenedor del frontend en el compose (puertos, volúmenes): corte breve.
+# --no-deps es obligatorio: sin él, compose también reinicia el backend.
+# docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps frontend
 ```
 
 ### Pase sin corte (`scripts/rollout.sh`)
@@ -28,6 +31,8 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --
 - Si la versión nueva no queda sana (`/api/health`: arrancó y llega a la base), el script la borra y la vieja sigue atendiendo.
 - Los contenedores del backend se llaman `intranet2026-backend-N` (cambia N en cada pase): para logs, `docker compose -f docker-compose.yml -f docker-compose.prod.yml logs backend`.
 - La copia nueva se crea con el compose y el `.env` actuales, así que el rollout también aplica cambios de variables. `nginx.conf` va con el frontend.
+- Frontend (`scripts/rollout-frontend.sh`): copia los archivos nuevos al nginx que está corriendo sin borrar los viejos (las pestañas abiertas siguen encontrando sus chunks) e `index.html`/`ngsw.json` al final; `nginx.conf` con `nginx -t` + `nginx -s reload`. No corta conexiones.
+- Los navegadores se actualizan solos (`AppVersionService`): detectan el ETag nuevo de `index.html` y recargan en un momento seguro (pestaña en segundo plano, cambio de sección, 3 min sin actividad), activando antes la versión nueva del service worker. Nunca con trabajo en curso: cada pantalla lo declara con `holdWhile()` (MTO, incidencia, reserva, parte, subida, PST) y tampoco si hay foco en un campo con texto. Solo tras 1 h sin momento seguro aparece un aviso con botón.
 
 ---
 

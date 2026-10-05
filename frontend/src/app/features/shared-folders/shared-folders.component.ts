@@ -290,6 +290,14 @@ const MAX_FILES_PER_DROP = 1000;
         </div>
       }
 
+      @if (downloadNotice()) {
+        <div class="mx-4 mt-3 rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900 px-3 py-2 text-sm text-teal-800 dark:text-teal-200 flex items-start gap-2" role="status">
+          <svg class="h-4 w-4 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>
+          <span class="flex-1">{{ downloadNotice() }}</span>
+          <button (click)="downloadNotice.set(null)" class="text-teal-500 hover:text-teal-700" aria-label="Cerrar">✕</button>
+        </div>
+      }
+
       @if (error()) {
         <div class="mx-4 mt-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-3 py-2 text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
           <span class="flex-1">{{ error() }}</span>
@@ -441,7 +449,7 @@ const MAX_FILES_PER_DROP = 1000;
           }
           @case ('download') {
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>
-            Descargar
+            {{ row.file.isFolder ? 'Descargar (.zip)' : 'Descargar' }}
           }
           @case ('share') {
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M19 8v6M16 11h6"/></svg>
@@ -790,6 +798,8 @@ export class SharedFoldersComponent implements OnInit {
   readonly shareError = signal<string | null>(null);
   /** Aclaración tras compartir (p. ej. que esa persona no puede editar en Google). */
   readonly shareNotice = signal<string | null>(null);
+  /** Aviso al descargar una carpeta (el .zip tarda en empezar). */
+  readonly downloadNotice = signal<string | null>(null);
   private readonly shareSearch$ = new Subject<string>();
 
   readonly isSharedTab = computed(() => this.tab() === SHARED_TAB);
@@ -1559,17 +1569,25 @@ export class SharedFoldersComponent implements OnInit {
 
   // ─── Acciones ───────────────────────────────────────────────────────────────
 
+  /**
+   * Con un enlace de un par de minutos el navegador baja el archivo por su
+   * cuenta (con su barra de descargas): sirve para archivos de varios GB y
+   * para carpetas, que bajan enteras en .zip.
+   */
   download(row: Row): void {
-    this.folders.download(this.scopeFor(row), row.file.id).subscribe({
-      next: (ev) => {
-        if (ev.type !== HttpEventType.Response || !ev.body) return;
-        const name = filenameFrom(ev.headers.get('Content-Disposition')) ?? row.file.name;
-        const url = URL.createObjectURL(ev.body);
+    const f = row.file;
+    this.folders.downloadLink(this.scopeFor(row), f.id).subscribe({
+      next: ({ url }) => {
         const a = document.createElement('a');
         a.href = url;
-        a.download = name;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
         a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+        a.remove();
+        if (f.isFolder) {
+          this.downloadNotice.set(`Se está armando «${f.name}.zip» con todo su contenido: la descarga aparece en el navegador.`);
+          setTimeout(() => this.downloadNotice.set(null), 7000);
+        }
       },
       error: (err) => void this.showError(err),
     });
@@ -1805,12 +1823,3 @@ async function errorMessage(err: unknown): Promise<string> {
   return 'No se pudo completar la operación.';
 }
 
-/** Nombre del archivo desde Content-Disposition (prefiere filename* en UTF-8). */
-function filenameFrom(header: string | null): string | null {
-  if (!header) return null;
-  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(header);
-  if (utf8) {
-    try { return decodeURIComponent(utf8[1]); } catch { /* sigue con filename */ }
-  }
-  return /filename="([^"]+)"/i.exec(header)?.[1] ?? null;
-}

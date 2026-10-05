@@ -24,6 +24,8 @@ import { Response as ExpressResponse } from 'express';
 import { User } from '../users/entities/user.entity';
 import { AccessScope, FileStream, SharedFoldersService, UploadedFile } from './shared-folders.service';
 import { SharesService } from './shares.service';
+import { FolderDownloadService } from './folder-download.service';
+import { Public } from '../auth/decorators/public.decorator';
 
 /** Límite por archivo al subir desde la intranet. */
 const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
@@ -68,11 +70,22 @@ export class SharedFoldersController {
   constructor(
     private readonly service: SharedFoldersService,
     private readonly shares: SharesService,
+    private readonly downloads: FolderDownloadService,
   ) {}
 
   @Get('offices')
   offices(@Request() req: AuthRequest) {
     return this.service.myOffices(req.user);
+  }
+
+  /**
+   * Descarga con enlace firmado (sin JWT de sesión: la hace el navegador
+   * por su cuenta). Una carpeta baja como .zip. Ver FolderDownloadService.
+   */
+  @Public()
+  @Get('dl/:token')
+  async downloadByLink(@Param('token') token: string, @Response({ passthrough: true }) res: ExpressResponse) {
+    return send(res, await this.downloads.redeem(token), 'attachment');
   }
 
   /** Fuerza la sincronización de miembros de todas las unidades (solo TICOM). */
@@ -185,6 +198,11 @@ export class SharedFoldersController {
     await this.service.remove(await this.service.shareScope(req.user, shareId), id);
   }
 
+  @Post('shares/:shareId/files/:id/download-link')
+  shareDownloadLink(@Request() req: AuthRequest, @Param('shareId') shareId: string, @Param('id') id: string) {
+    return this.downloads.createLink(req.user, { kind: 'share', shareId }, id);
+  }
+
   @Get('shares/:shareId/files/:id/download')
   async shareDownload(
     @Request() req: AuthRequest,
@@ -281,6 +299,11 @@ export class SharedFoldersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async trash(@Request() req: AuthRequest, @Param('office') office: string, @Param('id') id: string) {
     await this.service.remove(await this.service.officeScope(req.user, office), id);
+  }
+
+  @Post(':office/files/:id/download-link')
+  downloadLink(@Request() req: AuthRequest, @Param('office') office: string, @Param('id') id: string) {
+    return this.downloads.createLink(req.user, { kind: 'office', office }, id);
   }
 
   @Get(':office/files/:id/download')

@@ -175,12 +175,13 @@ export class SharedFoldersService {
     return this.http.delete<void>(this.fileUrl(scope, fileId));
   }
 
-  /** Descarga vía blob con la sesión (nunca un <a href> directo a la API). */
-  download(scope: FolderScope, fileId: string): Observable<HttpEvent<Blob>> {
-    return this.http.get(`${this.fileUrl(scope, fileId)}/download`, {
-      responseType: 'blob',
-      observe: 'events',
-    });
+  /**
+   * Enlace de descarga de un par de minutos, para que el navegador baje el
+   * archivo por su cuenta (barra de descargas, sin ocupar la memoria de la
+   * página). Una carpeta baja entera, en .zip.
+   */
+  downloadLink(scope: FolderScope, fileId: string): Observable<{ url: string }> {
+    return this.http.post<{ url: string }>(`${this.fileUrl(scope, fileId)}/download-link`, {});
   }
 
   /** URL para el visor de adjuntos (lo pide como blob con la sesión). */

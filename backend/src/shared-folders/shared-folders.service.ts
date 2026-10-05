@@ -28,7 +28,7 @@ import { GoogleDriveService, isDriveId } from './google-drive.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
 const DRIVE_NAME_PREFIX = 'Intranet - ';
-const FOLDER_MIME = 'application/vnd.google-apps.folder';
+export const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const GOOGLE_APPS_PREFIX = 'application/vnd.google-apps.';
 /** "Administrador de contenido": sube, edita, mueve y borra; no maneja miembros. */
 const MEMBER_ROLE = 'fileOrganizer';
@@ -43,7 +43,7 @@ export const MAX_DIRECT_UPLOAD_BYTES = 10 * GB;
 const USAGE_MAX_AGE_MS = 10 * 60_000;
 
 /** Los archivos nativos de Google se descargan convertidos a formato Office/PDF. */
-const GOOGLE_EXPORTS: Record<string, { mimeType: string; ext: string }> = {
+export const GOOGLE_EXPORTS: Record<string, { mimeType: string; ext: string }> = {
   'application/vnd.google-apps.document': {
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ext: 'docx',
@@ -713,7 +713,8 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       mimeType,
       isFolder,
       isGoogleDoc,
-      downloadable: !isFolder && (!isGoogleDoc || !!GOOGLE_EXPORTS[mimeType]),
+      // Una carpeta se descarga entera, en .zip.
+      downloadable: isFolder || !isGoogleDoc || !!GOOGLE_EXPORTS[mimeType],
       previewable: !isFolder && previewKind(mimeType, name) !== 'none',
       googleUrl: googleEditUrl(f.id!, mimeType, name),
       size: f.size ? Number(f.size) : null,

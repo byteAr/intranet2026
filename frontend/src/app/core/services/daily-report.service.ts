@@ -107,6 +107,7 @@ export class DailyReportService {
     return this.http.get<any[]>(`${this.base}/non-working-days`, { params: { year: year.toString() } });
   }
 
+
   // ─── Office members ───────────────────────────────────────────────────────
 
   getOfficeMembers(officeGroup: string): Observable<{ username: string; fullName: string; rank: string; rankCategory: string; sortOrder: number }[]> {

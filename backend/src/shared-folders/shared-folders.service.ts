@@ -37,6 +37,8 @@ const MAX_FOLDER_DEPTH = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Como Google: 1 GB = 1024³ bytes. */
 const GB = 1024 ** 3;
+/** Subida directa a Google (archivos grandes): hasta 10 GB por archivo. */
+export const MAX_DIRECT_UPLOAD_BYTES = 10 * GB;
 /** Cada cuánto se vuelve a preguntar a Drive cuánto ocupa una unidad. */
 const USAGE_MAX_AGE_MS = 10 * 60_000;
 
@@ -780,7 +782,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     try {
       this.assertWritable(scope);
       if (!files?.length) throw new BadRequestException('No se recibió ningún archivo.');
-      await this.assertRoomFor(scope.office, files);
+      await this.assertRoomFor(scope.office, files.reduce((sum, f) => sum + (f.size ?? 0), 0));
       const { parent, uploaded } = await this.as(scope, async (actAs) => {
         const parent = await this.folderIn(actAs, scope, parentId);
         const uploaded: SharedFile[] = [];
@@ -803,13 +805,59 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     }
   }
 
+  // ─── Subida directa a Google (archivos grandes) ────────────────────────────
+
+  /**
+   * Abre una subida reanudable en Drive para un archivo grande: el navegador
+   * lo manda directo a Google, en partes, sin pasar por este servidor. Acá se
+   * valida el acceso, la carpeta, el tamaño y el espacio de la oficina.
+   */
+  async startDirectUpload(
+    scope: AccessScope,
+    parentId: string | undefined,
+    body: { name?: string; mimeType?: string; size?: number },
+    origin?: string,
+  ): Promise<{ uploadUrl: string }> {
+    this.assertWritable(scope);
+    const name = this.cleanName(body?.name ?? '');
+    const size = Math.trunc(Number(body?.size));
+    if (!Number.isFinite(size) || size <= 0) throw new BadRequestException('Falta el tamaño del archivo.');
+    if (size > MAX_DIRECT_UPLOAD_BYTES) throw new PayloadTooLargeException('El archivo supera el máximo de 10 GB.');
+    await this.assertRoomFor(scope.office, size);
+    const mimeType = /^[\w.+-]+\/[\w.+-]+$/.test(body?.mimeType ?? '') ? body.mimeType! : 'application/octet-stream';
+    // Solo una página web (la de la intranet) para que Google acepte sus pedidos.
+    const cleanOrigin = origin && /^https?:\/\/[\w.-]+(:\d+)?$/.test(origin) ? origin : undefined;
+    const uploadUrl = await this.as(scope, async (actAs) => {
+      const parent = await this.folderIn(actAs, scope, parentId);
+      return this.gdrive.createUploadSession(actAs, parent.id!, { name, mimeType, size }, cleanOrigin);
+    });
+    return { uploadUrl };
+  }
+
+  /** Cierra una subida directa: valida que el archivo quedó en el ámbito, suma el espacio y avisa. */
+  async finishDirectUpload(scope: AccessScope, fileId: string, uploader: Uploader, quiet = false): Promise<SharedFile> {
+    this.assertWritable(scope);
+    const { file, parent } = await this.as(scope, async (actAs) => {
+      const file = await this.fileIn(actAs, scope, fileId);
+      const parentId = file.parents?.[0];
+      const parent: drive_v3.Schema$File =
+        parentId && parentId !== scope.office.driveId
+          ? await this.gdrive.getFile(actAs, parentId)
+          : { id: scope.office.driveId, name: scope.office.groupName };
+      return { file, parent };
+    });
+    const shared = this.toShared(file);
+    await this.addUsage(scope.office, Number(file.quotaBytesUsed ?? file.size ?? 0) || 0);
+    if (!quiet) void this.notifyUpload(scope, parent, [shared], uploader);
+    return shared;
+  }
+
   /**
    * Lo compartido cuenta para la oficina dueña, no para quien lo recibe. Lo
    * que se sube directo en Drive no pasa por acá: lo frena el límite que se
    * configura en la consola de Google.
    */
-  private async assertRoomFor(office: OfficeDrive, files: UploadedFile[]): Promise<void> {
-    const incoming = files.reduce((sum, f) => sum + (f.size ?? 0), 0);
+  private async assertRoomFor(office: OfficeDrive, incoming: number): Promise<void> {
     let current = await this.usageOf(office);
     let quota = this.quotaOf(current);
     if (incoming <= quota - current.usedBytes) return;

@@ -21,6 +21,7 @@ import {
 } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { NotificationsService } from '../../core/services/notifications.service';
+import { uploadToDrive } from '../../core/services/drive-direct-upload';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
 import { formatBytes, freeBytes } from '../../shared/storage-usage/storage-usage.component';
 import { StorageDriveComponent } from '../../shared/storage-usage/storage-drive.component';
@@ -28,8 +29,10 @@ import { StorageDriveComponent } from '../../shared/storage-usage/storage-drive.
 const LAST_TAB_KEY = 'pac_shared_folders_office';
 /** Pestaña "Compartidos conmigo" (no puede coincidir con un grupo del AD). */
 const SHARED_TAB = '__compartidos__';
-/** Igual al límite del backend. */
-const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+/** Máximo por archivo (subida directa a Google; igual que el backend). */
+const MAX_FILE_BYTES = 10 * 1024 ** 3;
+/** Desde este tamaño el archivo va directo a Google (el servidor acepta hasta 200 MB). */
+const DIRECT_UPLOAD_FROM = 100 * 1024 * 1024;
 const MENU_WIDTH = 220;
 const MENU_HEIGHT = 250;
 
@@ -1115,6 +1118,16 @@ export class SharedFoldersComponent implements OnInit {
     }
   }
 
+  /** Con una subida en curso (un archivo grande puede tardar mucho), avisar antes de cerrar la pestaña. */
+  @HostListener('window:beforeunload', ['$event'])
+  warnBeforeLeaving(event: BeforeUnloadEvent): void {
+    const phase = this.upload()?.phase;
+    if (phase && phase !== 'done') {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  }
+
   @HostListener('document:click')
   @HostListener('document:keydown.escape')
   @HostListener('window:resize')
@@ -1304,9 +1317,9 @@ export class SharedFoldersComponent implements OnInit {
     if (!scope || !folderId || this.busy() || (!plan.items.length && !plan.dirs.length)) return;
 
     const files = plan.items.map((i) => i.file);
-    const tooBig = files.filter((f) => f.size > MAX_UPLOAD_BYTES);
+    const tooBig = files.filter((f) => f.size > MAX_FILE_BYTES);
     if (tooBig.length) {
-      this.error.set(`Superan el máximo de 200 MB: ${tooBig.slice(0, 5).map((f) => f.name).join(', ')}${tooBig.length > 5 ? '…' : ''}`);
+      this.error.set(`Superan el máximo de 10 GB: ${tooBig.slice(0, 5).map((f) => f.name).join(', ')}${tooBig.length > 5 ? '…' : ''}`);
       return;
     }
     const total = files.reduce((sum, f) => sum + f.size, 0);
@@ -1321,8 +1334,10 @@ export class SharedFoldersComponent implements OnInit {
 
     this.busy.set(true);
     this.error.set(null);
-    const batches = this.batchesOf(plan.items);
-    const single = !plan.dirs.length && batches.length <= 1;
+    // Los grandes van directo a Google; el resto, por el servidor en tandas.
+    const big = plan.items.filter((i) => i.file.size > DIRECT_UPLOAD_FROM);
+    const batches = this.batchesOf(plan.items.filter((i) => i.file.size <= DIRECT_UPLOAD_FROM));
+    const single = !plan.dirs.length && batches.length + big.length <= 1;
     const created: SharedFile[] = [];
     const loose: SharedFile[] = [];
     try {
@@ -1365,19 +1380,31 @@ export class SharedFoldersComponent implements OnInit {
 
       // 2. Archivos, en tandas por carpeta.
       let sentBefore = 0;
+      const progress = (sent: number): void => {
+        const ratio = total ? sent / total : 1;
+        // Enviado todo, falta que el servidor lo pase a Drive: el anillo pasa a ser el cometa.
+        this.upload.update((u) => u && { ...u, phase: ratio >= 1 ? 'saving' : 'sending', percent: Math.round(ratio * 100), loaded: sent });
+      };
       for (const batch of batches) {
-        const uploaded = await this.sendBatch(scope, ids.get(batch.dir)!, batch.files, !single, (loaded) => {
-          const sent = sentBefore + Math.min(loaded, batch.bytes);
-          const ratio = total ? sent / total : 1;
-          // Enviado todo, falta que el servidor lo pase a Drive: el anillo pasa a ser el cometa.
-          this.upload.update((u) => u && { ...u, phase: ratio >= 1 ? 'saving' : 'sending', percent: Math.round(ratio * 100), loaded: sent });
-        });
+        const uploaded = await this.sendBatch(scope, ids.get(batch.dir)!, batch.files, !single, (loaded) =>
+          progress(sentBefore + Math.min(loaded, batch.bytes)),
+        );
         sentBefore += batch.bytes;
         this.upload.update((u) => u && { ...u, filesDone: u.filesDone + batch.files.length });
         if (!batch.dir) loose.push(...uploaded);
       }
 
-      // 3. Un único aviso para todo lo soltado.
+      // 3. Los grandes, de a uno, directo a Google (en partes, reanudable).
+      for (const { file, dir } of big) {
+        const { uploadUrl } = await firstValueFrom(this.folders.startDirectUpload(scope, ids.get(dir)!, file));
+        const created = await uploadToDrive(uploadUrl, file, (sent) => progress(sentBefore + Math.min(sent, file.size)));
+        const uploaded = await firstValueFrom(this.folders.finishDirectUpload(scope, created.id, !single));
+        sentBefore += file.size;
+        this.upload.update((u) => u && { ...u, filesDone: u.filesDone + 1 });
+        if (!dir) loose.push(uploaded);
+      }
+
+      // 4. Un único aviso para todo lo soltado.
       const shown = [...created, ...loose];
       if (!single && shown.length) {
         this.folders.notifyUploaded(scope, folderId, shown.map((f) => f.id), files.length).subscribe({ error: () => undefined });
@@ -1767,12 +1794,14 @@ async function errorMessage(err: unknown): Promise<string> {
     if (body instanceof Blob) {
       try { body = JSON.parse(await body.text()); } catch { body = null; }
     }
-    // 413 también es "no hay espacio en la oficina", que trae su propio mensaje.
-    if (err.status === 413 && !(typeof body?.message === 'string' && body.message.startsWith('No hay espacio'))) {
-      return 'El archivo supera el tamaño máximo (200 MB).';
+    // 413: falta de espacio o tamaño (traen su mensaje); el de multer viene en inglés.
+    if (err.status === 413 && !(typeof body?.message === 'string' && !/file too large/i.test(body.message))) {
+      return 'El archivo es demasiado grande para subirlo así.';
     }
     if (typeof body?.message === 'string') return body.message;
   }
+  // Errores de la subida directa a Google: ya vienen explicados.
+  if (err instanceof Error && err.message) return err.message;
   return 'No se pudo completar la operación.';
 }
 

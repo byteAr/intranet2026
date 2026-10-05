@@ -4,6 +4,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -35,6 +36,8 @@ const uploadInterceptor = FilesInterceptor('files', MAX_FILES_PER_UPLOAD, {
 
 type AuthRequest = { user: User };
 type UploadedBody = { folderId: string; itemIds: string[]; fileCount: number };
+type UploadSessionBody = { folderId?: string; name?: string; mimeType?: string; size?: number };
+type UploadCompleteBody = { fileId: string; quiet?: boolean };
 
 function isTicom(user: User): boolean {
   return (user.roles ?? []).some((r) => r.toUpperCase() === 'TICOM');
@@ -145,6 +148,21 @@ export class SharedFoldersController {
     return this.service.upload(await this.scopeOrCleanup(() => this.service.shareScope(req.user, shareId), files), folderId, files, req.user, quiet === '1');
   }
 
+  @Post('shares/:shareId/upload-session')
+  async shareUploadSession(
+    @Request() req: AuthRequest,
+    @Param('shareId') shareId: string,
+    @Body() body: UploadSessionBody,
+    @Headers('origin') origin?: string,
+  ) {
+    return this.service.startDirectUpload(await this.service.shareScope(req.user, shareId), body?.folderId, body, origin);
+  }
+
+  @Post('shares/:shareId/upload-complete')
+  async shareUploadComplete(@Request() req: AuthRequest, @Param('shareId') shareId: string, @Body() body: UploadCompleteBody) {
+    return this.service.finishDirectUpload(await this.service.shareScope(req.user, shareId), body?.fileId, req.user, !!body?.quiet);
+  }
+
   @Post('shares/:shareId/uploaded')
   @HttpCode(HttpStatus.NO_CONTENT)
   async shareUploaded(@Request() req: AuthRequest, @Param('shareId') shareId: string, @Body() body: UploadedBody) {
@@ -220,6 +238,26 @@ export class SharedFoldersController {
     @UploadedFiles() files: UploadedFile[],
   ) {
     return this.service.upload(await this.scopeOrCleanup(() => this.service.officeScope(req.user, office), files), folderId, files, req.user, quiet === '1');
+  }
+
+  /**
+   * Archivos grandes (hasta 10 GB): la intranet abre la subida en Drive y el
+   * navegador manda el archivo directo a Google; al terminar avisa con
+   * upload-complete para registrar el espacio y notificar.
+   */
+  @Post(':office/upload-session')
+  async uploadSession(
+    @Request() req: AuthRequest,
+    @Param('office') office: string,
+    @Body() body: UploadSessionBody,
+    @Headers('origin') origin?: string,
+  ) {
+    return this.service.startDirectUpload(await this.service.officeScope(req.user, office), body?.folderId, body, origin);
+  }
+
+  @Post(':office/upload-complete')
+  async uploadComplete(@Request() req: AuthRequest, @Param('office') office: string, @Body() body: UploadCompleteBody) {
+    return this.service.finishDirectUpload(await this.service.officeScope(req.user, office), body?.fileId, req.user, !!body?.quiet);
   }
 
   /** Cierre de una subida en tandas (carpeta arrastrada): un único aviso a la oficina. */

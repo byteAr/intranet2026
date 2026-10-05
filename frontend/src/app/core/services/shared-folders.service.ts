@@ -147,6 +147,21 @@ export class SharedFoldersService {
     });
   }
 
+  /** Archivo grande: la intranet abre la subida en Drive y devuelve a dónde mandarlo. */
+  startDirectUpload(scope: FolderScope, folderId: string, file: File): Observable<{ uploadUrl: string }> {
+    return this.http.post<{ uploadUrl: string }>(`${this.prefix(scope)}/upload-session`, {
+      folderId,
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      size: file.size,
+    });
+  }
+
+  /** Cierra la subida directa: registra el espacio y, sin quiet, avisa a la oficina. */
+  finishDirectUpload(scope: FolderScope, fileId: string, quiet: boolean): Observable<SharedFile> {
+    return this.http.post<SharedFile>(`${this.prefix(scope)}/upload-complete`, { fileId, quiet });
+  }
+
   /** Cierra una subida en tandas: un único aviso con lo que quedó en `folderId`. */
   notifyUploaded(scope: FolderScope, folderId: string, itemIds: string[], fileCount: number): Observable<void> {
     return this.http.post<void>(`${this.prefix(scope)}/uploaded`, { folderId, itemIds, fileCount });

@@ -259,6 +259,11 @@ export class GoogleDriveService {
     await this.drive().files.delete({ fileId, supportsAllDrives: true });
   }
 
+  /** Vacía la papelera de una unidad compartida (solo un administrador puede). */
+  async emptyTrash(driveId: string): Promise<void> {
+    await this.drive().files.emptyTrash({ driveId });
+  }
+
   /**
    * Espacio que ocupa una unidad para Google: todos sus archivos, también los
    * de la papelera. Los nativos de Google cuentan por quotaBytesUsed.

@@ -217,9 +217,23 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     };
   }
 
-  /** Recalcula lo que ocupa la unidad preguntándole a Drive. */
+  /**
+   * Recalcula lo que ocupa la unidad preguntándole a Drive. Si hay algo en la
+   * papelera (borrado desde Drive), la vacía: Google la sigue contando 30 días
+   * y quien libera espacio tiene que verlo libre enseguida.
+   */
   async refreshUsage(office: OfficeDrive): Promise<OfficeDrive> {
-    const { used, trashed } = await this.gdrive.driveUsage(office.driveId);
+    let { used, trashed } = await this.gdrive.driveUsage(office.driveId);
+    if (trashed > 0) {
+      try {
+        await this.gdrive.emptyTrash(office.driveId);
+        this.logger.log(`Papelera de ${office.groupName} vaciada (${formatBytes(trashed)})`);
+        used -= trashed;
+        trashed = 0;
+      } catch (err) {
+        this.logger.warn(`No se pudo vaciar la papelera de ${office.groupName}: ${(err as Error).message}`);
+      }
+    }
     office.usedBytes = used;
     office.trashedBytes = trashed;
     office.usageAt = new Date();
@@ -253,11 +267,11 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   }
 
   /** Espacio de las oficinas del usuario (para el inicio y Archivos compartidos). */
-  async myUsage(user: CurrentUser): Promise<OfficeUsage[]> {
+  async myUsage(user: CurrentUser, fresh = false): Promise<OfficeUsage[]> {
     if (!this.gdrive.isConfigured) return [];
     const { allowedModules } = await this.adminService.getEffectiveModules(user.roles ?? []);
     if (!allowedModules.includes('carpetas')) return [];
-    return this.usageFor(await this.userOffices(user));
+    return this.usageFor(await this.userOffices(user), fresh);
   }
 
   /** Todas las oficinas (TICOM). */
@@ -268,14 +282,14 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   }
 
   /** Las oficinas que todavía no abrieron su unidad figuran vacías. */
-  private async usageFor(groups: string[]): Promise<OfficeUsage[]> {
+  private async usageFor(groups: string[], fresh = false): Promise<OfficeUsage[]> {
     if (!groups.length) return [];
     const drives = await this.driveRepo.find({ where: { groupName: In(groups) } });
     const byGroup = new Map(drives.map((d) => [d.groupName.toUpperCase(), d]));
     return Promise.all(
       groups.map(async (g) => {
         const drive = byGroup.get(g.toUpperCase());
-        return this.toUsage(g, drive ? await this.usageOf(drive) : null);
+        return this.toUsage(g, drive ? await this.usageOf(drive, fresh ? 0 : USAGE_MAX_AGE_MS) : null);
       }),
     );
   }
@@ -714,16 +728,17 @@ export class SharedFoldersService implements OnApplicationBootstrap {
    */
   private async assertRoomFor(office: OfficeDrive, files: UploadedFile[]): Promise<void> {
     const incoming = files.reduce((sum, f) => sum + (f.size ?? 0), 0);
-    const current = await this.usageOf(office);
-    const quota = this.quotaOf(current);
+    let current = await this.usageOf(office);
+    let quota = this.quotaOf(current);
+    if (incoming <= quota - current.usedBytes) return;
+    // Antes de rechazar, el dato fresco: quizás borraron algo desde Drive.
+    current = await this.usageOf(office, 0);
+    quota = this.quotaOf(current);
     const free = Math.max(0, quota - current.usedBytes);
     if (incoming <= free) return;
-    const trash = current.trashedBytes > 0
-      ? ` La papelera de Drive ocupa ${formatBytes(current.trashedBytes)}: se libera sola a los 30 días.`
-      : '';
     throw new PayloadTooLargeException(
       `No hay espacio en ${office.groupName}: quedan ${formatBytes(free)} libres de ${formatBytes(quota)} ` +
-        `y querés subir ${formatBytes(incoming)}. Eliminá archivos para liberar lugar.${trash}`,
+        `y querés subir ${formatBytes(incoming)}. Eliminá archivos para liberar lugar.`,
     );
   }
 

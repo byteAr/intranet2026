@@ -81,8 +81,9 @@ export class SharedFoldersController {
 
   /** Espacio usado y disponible de las oficinas del usuario. */
   @Get('usage')
-  usage(@Request() req: AuthRequest) {
-    return this.service.myUsage(req.user);
+  usage(@Request() req: AuthRequest, @Query('fresh') fresh?: string) {
+    // fresh=1: recalcula en Drive (antes de rechazar una subida por falta de lugar).
+    return this.service.myUsage(req.user, fresh === '1');
   }
 
   /** Espacio de todas las oficinas (solo TICOM). */

@@ -99,8 +99,8 @@ export class SharedFoldersService {
   }
 
   /** Espacio usado y disponible de las oficinas del usuario. */
-  usage(): Observable<OfficeUsage[]> {
-    return this.http.get<OfficeUsage[]>(`${this.base}/usage`);
+  usage(fresh = false): Observable<OfficeUsage[]> {
+    return this.http.get<OfficeUsage[]>(`${this.base}/usage`, { params: fresh ? { fresh: '1' } : {} });
   }
 
   /** Espacio de todas las oficinas (solo TICOM). */

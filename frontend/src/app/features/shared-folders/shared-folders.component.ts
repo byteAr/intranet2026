@@ -801,7 +801,7 @@ export class SharedFoldersComponent implements OnInit {
         this.info.set(info);
         this.loadingInfo.set(false);
         if (!info.configured) return;
-        if (info.offices.length) this.loadUsage();
+        if (info.offices.length) this.loadUsage(true);
         if (this.focusShareId()) {
           this.selectTab(SHARED_TAB);
           return;
@@ -822,8 +822,8 @@ export class SharedFoldersComponent implements OnInit {
     });
   }
 
-  private loadUsage(): void {
-    this.folders.usage().subscribe({
+  private loadUsage(fresh = false): void {
+    this.folders.usage(fresh).subscribe({
       next: (list) => this.usages.set(list),
       error: () => { /* sin el dato, la barra no se muestra; el backend igual controla */ },
     });
@@ -1124,13 +1124,33 @@ export class SharedFoldersComponent implements OnInit {
     // Aviso inmediato, sin mandar nada; el backend lo vuelve a controlar.
     const usage = this.currentUsage();
     if (usage && total > freeBytes(usage)) {
-      this.error.set(
-        `No hay espacio en ${usage.groupName}: quedan ${formatBytes(freeBytes(usage))} libres de ` +
-          `${formatBytes(usage.quotaBytes)} y querés subir ${formatBytes(total)}. Eliminá archivos para liberar lugar.`,
-      );
+      // El dato puede ser de hace unos minutos (quizás borraron desde Drive): se confirma.
+      this.busy.set(true);
+      this.folders.usage(true).subscribe({
+        next: (list) => {
+          this.busy.set(false);
+          this.usages.set(list);
+          const fresh = list.find((u) => u.groupName === usage.groupName) ?? usage;
+          if (total > freeBytes(fresh)) {
+            this.error.set(
+              `No hay espacio en ${fresh.groupName}: quedan ${formatBytes(freeBytes(fresh))} libres de ` +
+                `${formatBytes(fresh.quotaBytes)} y querés subir ${formatBytes(total)}. Eliminá archivos para liberar lugar.`,
+            );
+            return;
+          }
+          this.sendUpload(scope, folderId, files, total);
+        },
+        error: () => {
+          this.busy.set(false);
+          this.sendUpload(scope, folderId, files, total);
+        },
+      });
       return;
     }
+    this.sendUpload(scope, folderId, files, total);
+  }
 
+  private sendUpload(scope: FolderScope, folderId: string, files: File[], total: number): void {
     this.busy.set(true);
     this.error.set(null);
     this.upload.set({

@@ -41,8 +41,8 @@ export function freeBytes(u: OfficeUsage): number {
         @if (usage().trashedBytes > 0) {
           <!-- Si no, una carpeta vacía que "ocupa" espacio no se entiende -->
           <span class="text-gray-400 dark:text-zinc-500 whitespace-nowrap"
-                title="Lo borrado desde Drive queda en su papelera y Google lo sigue contando hasta que se elimina solo, a los 30 días.">
-            · {{ trashed() }} en la papelera de Drive
+                title="Lo borrado desde Drive pasa por su papelera; la intranet la vacía sola en unos minutos.">
+            · {{ trashed() }} en la papelera, se libera en unos minutos
           </span>
         }
       </div>
@@ -68,7 +68,7 @@ export function freeBytes(u: OfficeUsage): number {
         }
         @if (usage().trashedBytes > 0) {
           <p class="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">
-            Incluye {{ trashed() }} en la papelera de Drive: se libera sola a los 30 días.
+            Incluye {{ trashed() }} en la papelera de Drive: se libera en unos minutos.
           </p>
         }
       </div>

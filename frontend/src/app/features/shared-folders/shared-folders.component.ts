@@ -111,15 +111,8 @@ const MAX_FILES_PER_DROP = 1000;
     </div>
   } @else {
 
-    <!-- Pestañas: oficinas + Mis archivos + Compartidos conmigo -->
+    <!-- Pestañas: Mis archivos · Compartidos con mi oficina · Compartidos conmigo -->
     <div class="flex gap-1 bg-gray-100 dark:bg-zinc-800 rounded-xl p-1 w-fit max-w-full overflow-x-auto" role="tablist">
-      @for (o of info()!.offices; track o) {
-        <button (click)="selectTab(o)" role="tab" [attr.aria-selected]="tab() === o"
-          class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
-          [class]="tab() === o ? tabOn : tabOff">
-          {{ o }}
-        </button>
-      }
       <button (click)="selectTab(PERSONAL_KEY)" role="tab" [attr.aria-selected]="isPersonalTab()"
         class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
         [class]="isPersonalTab() ? tabOn : tabOff">
@@ -129,6 +122,17 @@ const MAX_FILES_PER_DROP = 1000;
         Mis archivos
         <app-new-badge feature="mis-archivos" />
       </button>
+      @for (o of info()!.offices; track o) {
+        <button (click)="selectTab(o)" role="tab" [attr.aria-selected]="tab() === o" [title]="o"
+          class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+          [class]="tab() === o ? tabOn : tabOff">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 21V5a2 2 0 012-2h8a2 2 0 012 2v16M16 9h2a2 2 0 012 2v10M3 21h18M8 7h4M8 11h4M8 15h4"/>
+          </svg>
+          <!-- Con una sola oficina, el nombre va en la tarjeta; con varias, cada pestaña dice cuál -->
+          {{ info()!.offices.length === 1 ? 'Compartidos con mi oficina' : 'Compartidos con ' + o }}
+        </button>
+      }
       <button (click)="selectTab(SHARED_TAB)" role="tab" [attr.aria-selected]="isSharedTab()"
         class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
         [class]="isSharedTab() ? tabOn : tabOff">

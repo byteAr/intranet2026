@@ -4,9 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
+import { Subject, catchError, debounceTime, distinctUntilChanged, firstValueFrom, of, switchMap } from 'rxjs';
 import {
   FolderScope,
+  OfficeUsage,
   OfficesInfo,
   ShareEntry,
   ShareRole,
@@ -21,6 +22,8 @@ import {
 import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { NotificationsService } from '../../core/services/notifications.service';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
+import { formatBytes, freeBytes } from '../../shared/storage-usage/storage-usage.component';
+import { StorageDriveComponent } from '../../shared/storage-usage/storage-drive.component';
 
 const LAST_TAB_KEY = 'pac_shared_folders_office';
 /** Pestaña "Compartidos conmigo" (no puede coincidir con un grupo del AD). */
@@ -41,27 +44,55 @@ interface ContextMenu { x: number; y: number; row: Row; }
 interface UserHit { username: string; displayName: string; }
 /** Subida en curso: enviando al servidor → el servidor lo pasa a Drive → listo. */
 interface UploadState {
-  phase: 'sending' | 'saving' | 'done';
+  /** reading: recorriendo lo soltado · folders: creando carpetas · sending/saving/done: archivos. */
+  phase: 'reading' | 'folders' | 'sending' | 'saving' | 'done';
   percent: number;
   loaded: number;
   total: number;
-  files: { name: string; mimeType: string; isFolder: false }[];
+  /** Lo que se ve en el panel: las carpetas y archivos que se soltaron. */
+  files: { name: string; mimeType: string; isFolder: boolean }[];
+  /** Archivos en total (incluido el contenido de las carpetas) y cuántos ya subieron. */
+  fileCount: number;
+  filesDone: number;
+  folderCount: number;
+  foldersDone: number;
   leaving: boolean;
 }
+
+/**
+ * Qué subir: carpetas a crear (rutas relativas, las de arriba primero) y
+ * cada archivo con la carpeta donde va ('' = la carpeta abierta).
+ */
+interface UploadPlan {
+  dirs: string[];
+  items: { file: File; dir: string }[];
+}
+
+/** Archivos que crea el sistema operativo y no tiene sentido subir. */
+const JUNK_FILES = /^(\.DS_Store|Thumbs\.db|desktop\.ini|~\$.*)$/i;
+/** Por pedido al servidor (su límite es 20 archivos) y por tamaño. */
+const BATCH_FILES = 20;
+const BATCH_BYTES = 100 * 1024 * 1024;
+const MAX_FILES_PER_DROP = 1000;
 
 @Component({
   selector: 'app-shared-folders',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent, StorageDriveComponent],
   // La página ocupa todo el alto del <main> para que la tarjeta se estire hasta abajo.
   host: { class: 'flex flex-col min-h-full' },
   template: `
 <div class="flex flex-col gap-5 flex-1">
 
-  <!-- Header -->
-  <div>
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-zinc-100">Archivos compartidos</h1>
-    <p class="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">Archivos de tu oficina y lo que otros compartieron con vos.</p>
+  <!-- Header + espacio de la oficina abierta (un pendrive que se va llenando) -->
+  <div class="flex items-center justify-between gap-x-6 gap-y-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-zinc-100">Archivos compartidos</h1>
+      <p class="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">Archivos de tu oficina y lo que otros compartieron con vos.</p>
+    </div>
+    @if (currentUsage(); as u) {
+      <app-storage-drive class="ml-auto" [usage]="u" />
+    }
   </div>
 
   @if (loadingInfo()) {
@@ -176,12 +207,24 @@ interface UploadState {
              [class.upload-out]="up.leaving" role="status" aria-live="polite">
           <!-- El panel se llena de color a medida que avanza -->
           <div class="absolute inset-y-0 left-0 bg-teal-100/70 dark:bg-teal-900/30 transition-[width] duration-300 ease-out"
-               [style.width.%]="up.phase === 'sending' ? up.percent : 100"></div>
+               [style.width.%]="panelFill(up)"></div>
           @if (up.phase !== 'done') { <span class="shimmer"></span> }
 
           <div class="relative flex items-center gap-4 px-4 py-3">
             <div class="relative h-14 w-14 flex-shrink-0 flex items-center justify-center">
               @switch (up.phase) {
+                @case ('reading') {
+                  <app-comet-spinner class="absolute inset-0" [size]="56" [thickness]="7" />
+                  <svg class="h-5 w-5 text-teal-600 dark:text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="6" /><path d="M20 20l-4.5-4.5" />
+                  </svg>
+                }
+                @case ('folders') {
+                  <app-comet-spinner class="absolute inset-0" [size]="56" [thickness]="7" />
+                  <svg class="h-5 w-5 text-teal-600 dark:text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /><path d="M12 11v5M9.5 13.5h5" />
+                  </svg>
+                }
                 @case ('sending') {
                   <svg class="absolute inset-0 -rotate-90" viewBox="0 0 56 56" aria-hidden="true">
                     <defs>
@@ -272,7 +315,7 @@ interface UploadState {
           } @else {
             <p class="mt-3 text-sm font-medium text-gray-700 dark:text-zinc-300">Esta carpeta está vacía</p>
             @if (canWrite()) {
-              <p class="text-sm text-gray-500 dark:text-zinc-400">Arrastrá archivos acá o usá el botón Subir.</p>
+              <p class="text-sm text-gray-500 dark:text-zinc-400">Arrastrá archivos o carpetas acá, o usá el botón Subir.</p>
             }
           }
         </div>
@@ -402,7 +445,7 @@ interface UploadState {
           }
           @case ('delete') {
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
-            Borrar
+            Eliminar
           }
         }
       </button>
@@ -540,15 +583,22 @@ interface UploadState {
   <div class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" (click)="toDelete.set(null)">
     <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-100 dark:border-zinc-700 p-6"
          (click)="$event.stopPropagation()" role="alertdialog" aria-modal="true">
-      <h2 class="text-base font-semibold text-gray-900 dark:text-zinc-100">¿Borrar {{ f.isFolder ? 'la carpeta' : 'el archivo' }}?</h2>
+      <h2 class="text-base font-semibold text-gray-900 dark:text-zinc-100">¿Eliminar {{ f.isFolder ? 'la carpeta' : 'el archivo' }}?</h2>
       <p class="mt-2 text-sm text-gray-600 dark:text-zinc-400">
-        «{{ f.name }}»{{ f.isFolder ? ' y todo su contenido' : '' }} va a la papelera. TICOM puede recuperarlo durante 30 días.
+        «{{ f.name }}»{{ f.isFolder ? ' y todo su contenido' : '' }} se elimina definitivamente
+        @if (!f.isFolder && f.size) { y libera {{ formatSize(f.size) }} }.
+      </p>
+      <p class="mt-2 flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs font-medium text-red-700 dark:text-red-300">
+        <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+        </svg>
+        No va a la papelera: no se puede recuperar, ni siquiera TICOM.
       </p>
       <div class="mt-5 flex justify-end gap-2">
         <button (click)="toDelete.set(null)"
           class="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800">Cancelar</button>
         <button (click)="confirmDelete(f)" [disabled]="busy()"
-          class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">Borrar</button>
+          class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">Eliminar definitivamente</button>
       </div>
     </div>
   </div>
@@ -674,6 +724,13 @@ export class SharedFoldersComponent implements OnInit {
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly upload = signal<UploadState | null>(null);
+  /** Espacio de las oficinas del usuario. */
+  readonly usages = signal<OfficeUsage[]>([]);
+  /** El de la oficina abierta; en lo compartido no se muestra (es de otra oficina). */
+  readonly currentUsage = computed(() => {
+    const scope = this.scope();
+    return scope?.kind === 'office' ? this.usages().find((u) => u.groupName === scope.office) ?? null : null;
+  });
   /** Archivos recién subidos o creados: entran a la lista con un destello. */
   readonly freshIds = signal<ReadonlySet<string>>(new Set());
   readonly UPLOAD_RING = 2 * Math.PI * 24;
@@ -776,6 +833,7 @@ export class SharedFoldersComponent implements OnInit {
         this.info.set(info);
         this.loadingInfo.set(false);
         if (!info.configured) return;
+        if (info.offices.length) this.loadUsage(true);
         if (this.focusShareId()) {
           this.selectTab(SHARED_TAB);
           return;
@@ -793,6 +851,13 @@ export class SharedFoldersComponent implements OnInit {
         this.info.set({ configured: false, offices: [], googleEmail: null });
         this.loadingInfo.set(false);
       },
+    });
+  }
+
+  private loadUsage(fresh = false): void {
+    this.folders.usage(fresh).subscribe({
+      next: (list) => this.usages.set(list),
+      error: () => { /* sin el dato, la barra no se muestra; el backend igual controla */ },
     });
   }
 
@@ -1070,76 +1135,292 @@ export class SharedFoldersComponent implements OnInit {
     if (!this.dragOver()) return;
     event.preventDefault();
     this.dragOver.set(false);
+    // Las entradas hay que tomarlas ya: después del evento el navegador las invalida.
+    const entries = Array.from(event.dataTransfer?.items ?? [])
+      .map((item) => item.webkitGetAsEntry?.() ?? null)
+      .filter((e): e is FileSystemEntry => !!e);
+    if (entries.some((e) => e.isDirectory)) {
+      if (this.busy()) {
+        this.error.set('Esperá a que termine lo que se está subiendo.');
+        return;
+      }
+      // Una carpeta no se puede mandar como archivo (el envío falla): se recorre,
+      // mostrando cuántos archivos va encontrando (en carpetas grandes tarda).
+      this.busy.set(true);
+      this.error.set(null);
+      this.upload.set({
+        phase: 'reading',
+        percent: 0,
+        loaded: 0,
+        total: 0,
+        files: entries.map((e) => ({ name: e.name, mimeType: '', isFolder: e.isDirectory })),
+        fileCount: 0,
+        filesDone: 0,
+        folderCount: 0,
+        foldersDone: 0,
+        leaving: false,
+      });
+      const done = (): void => {
+        this.busy.set(false);
+        this.upload.set(null);
+      };
+      void this.planFromEntries(entries, (found) => this.upload.update((u) => u && { ...u, fileCount: found })).then(
+        (plan) => {
+          done();
+          this.startUpload(plan);
+        },
+        () => {
+          done();
+          this.error.set('No se pudo leer la carpeta. Probá de nuevo o subí los archivos sueltos.');
+        },
+      );
+      return;
+    }
     this.startUpload(Array.from(event.dataTransfer?.files ?? []));
   }
 
-  private startUpload(files: File[]): void {
+  /** Recorre lo soltado: carpetas (con todo su contenido) y archivos sueltos. */
+  private async planFromEntries(entries: FileSystemEntry[], onFound: (count: number) => void): Promise<UploadPlan> {
+    const plan: UploadPlan = { dirs: [], items: [] };
+    const walk = async (entry: FileSystemEntry, dir: string): Promise<void> => {
+      if (JUNK_FILES.test(entry.name)) return;
+      if (entry.isFile) {
+        const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
+        plan.items.push({ file, dir });
+        if (plan.items.length % 25 === 0) onFound(plan.items.length);
+        return;
+      }
+      if (!entry.isDirectory) return;
+      const path = dir ? `${dir}/${entry.name}` : entry.name;
+      plan.dirs.push(path);
+      const reader = (entry as FileSystemDirectoryEntry).createReader();
+      // readEntries entrega de a tandas (100 en Chrome): se llama hasta que no haya más.
+      for (;;) {
+        const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
+        if (!batch.length) break;
+        for (const child of batch) await walk(child, path);
+      }
+    };
+    for (const entry of entries) await walk(entry, '');
+    onFound(plan.items.length);
+    return plan;
+  }
+
+  private startUpload(input: File[] | UploadPlan): void {
+    const plan: UploadPlan = Array.isArray(input) ? { dirs: [], items: input.map((file) => ({ file, dir: '' })) } : input;
+    void this.runUpload(plan);
+  }
+
+  /**
+   * Crea las carpetas (las de arriba primero), sube los archivos en tandas a
+   * su carpeta y, si hubo más de una tanda o carpetas, pide un único aviso a
+   * la oficina. Un archivo suelto o unos pocos van en un solo pedido, como siempre.
+   */
+  private async runUpload(plan: UploadPlan): Promise<void> {
     const scope = this.scope();
     const folderId = this.currentFolderId();
-    if (!scope || !folderId || !files.length || this.busy()) return;
+    if (!scope || !folderId || this.busy() || (!plan.items.length && !plan.dirs.length)) return;
 
+    const files = plan.items.map((i) => i.file);
     const tooBig = files.filter((f) => f.size > MAX_UPLOAD_BYTES);
     if (tooBig.length) {
-      this.error.set(`Superan el máximo de 200 MB: ${tooBig.map((f) => f.name).join(', ')}`);
+      this.error.set(`Superan el máximo de 200 MB: ${tooBig.slice(0, 5).map((f) => f.name).join(', ')}${tooBig.length > 5 ? '…' : ''}`);
       return;
     }
-    if (files.length > 20) {
-      this.error.set('Se pueden subir hasta 20 archivos por vez.');
+    const total = files.reduce((sum, f) => sum + f.size, 0);
+    if (files.length > MAX_FILES_PER_DROP) {
+      const n = files.length.toLocaleString('es-AR');
+      this.error.set(
+        `Son ${n} archivos (${formatBytes(total)}): desde acá se pueden subir hasta ${MAX_FILES_PER_DROP.toLocaleString('es-AR')} por vez. ` +
+          'Subí la carpeta por partes, o algo tan grande subilo directo en Google Drive, en la unidad de la oficina.',
+      );
       return;
     }
 
     this.busy.set(true);
     this.error.set(null);
-    const total = files.reduce((sum, f) => sum + f.size, 0);
-    this.upload.set({
-      phase: 'sending',
-      percent: 0,
-      loaded: 0,
-      total,
-      files: files.map((f) => ({ name: f.name, mimeType: f.type, isFolder: false as const })),
-      leaving: false,
-    });
-    this.folders.upload(scope, folderId, files).subscribe({
-      next: (ev) => {
-        if (ev.type === HttpEventType.UploadProgress) {
-          const sent = ev.total ? ev.loaded / ev.total : 0;
-          // Enviado todo, falta que el servidor lo pase a Drive: el anillo pasa a ser el cometa.
-          this.upload.update((u) => u && {
-            ...u,
-            phase: sent >= 1 ? 'saving' : 'sending',
-            percent: Math.round(sent * 100),
-            loaded: ev.loaded,
-            total: ev.total ?? u.total,
-          });
-        } else if (ev.type === HttpEventType.Response) {
-          this.busy.set(false);
-          this.upload.update((u) => u && { ...u, phase: 'done', percent: 100 });
-          this.mergeFiles(ev.body ?? [], folderId);
-          // Se ve el festejo y el panel se va solo.
-          setTimeout(() => this.upload.update((u) => u && { ...u, leaving: true }), 2200);
-          setTimeout(() => this.upload.set(null), 2600);
+    const batches = this.batchesOf(plan.items);
+    const single = !plan.dirs.length && batches.length <= 1;
+    const created: SharedFile[] = [];
+    const loose: SharedFile[] = [];
+    try {
+      if (!(await this.hasRoomFor(total))) return;
+
+      const topDirs = plan.dirs.filter((d) => !d.includes('/'));
+      this.upload.set({
+        phase: plan.dirs.length ? 'folders' : 'sending',
+        percent: 0,
+        loaded: 0,
+        total,
+        folderCount: plan.dirs.length,
+        foldersDone: 0,
+        files: [
+          ...topDirs.map((name) => ({ name, mimeType: '', isFolder: true })),
+          ...plan.items.filter((i) => !i.dir).map((i) => ({ name: i.file.name, mimeType: i.file.type, isFolder: false })),
+        ],
+        fileCount: files.length,
+        filesDone: 0,
+        leaving: false,
+      });
+
+      // 1. Carpetas. Si ya hay una con el mismo nombre se agrega " (2)": no se mezclan.
+      const ids = new Map<string, string>([['', folderId]]);
+      const taken = new Set(this.files().map((f) => f.name.toLowerCase()));
+      for (const dir of plan.dirs) {
+        const slash = dir.lastIndexOf('/');
+        const parentPath = slash < 0 ? '' : dir.slice(0, slash);
+        let name = dir.slice(slash + 1);
+        if (slash < 0) {
+          name = this.freeName(name, taken);
+          taken.add(name.toLowerCase());
         }
-      },
-      error: (err) => {
-        this.busy.set(false);
-        this.upload.set(null);
-        void this.showError(err);
-      },
+        const folder = await firstValueFrom(this.folders.createFolder(scope, ids.get(parentPath)!, name));
+        ids.set(dir, folder.id);
+        if (slash < 0) created.push(folder);
+        this.upload.update((u) => u && { ...u, foldersDone: u.foldersDone + 1 });
+      }
+      this.upload.update((u) => u && { ...u, phase: 'sending' });
+
+      // 2. Archivos, en tandas por carpeta.
+      let sentBefore = 0;
+      for (const batch of batches) {
+        const uploaded = await this.sendBatch(scope, ids.get(batch.dir)!, batch.files, !single, (loaded) => {
+          const sent = sentBefore + Math.min(loaded, batch.bytes);
+          const ratio = total ? sent / total : 1;
+          // Enviado todo, falta que el servidor lo pase a Drive: el anillo pasa a ser el cometa.
+          this.upload.update((u) => u && { ...u, phase: ratio >= 1 ? 'saving' : 'sending', percent: Math.round(ratio * 100), loaded: sent });
+        });
+        sentBefore += batch.bytes;
+        this.upload.update((u) => u && { ...u, filesDone: u.filesDone + batch.files.length });
+        if (!batch.dir) loose.push(...uploaded);
+      }
+
+      // 3. Un único aviso para todo lo soltado.
+      const shown = [...created, ...loose];
+      if (!single && shown.length) {
+        this.folders.notifyUploaded(scope, folderId, shown.map((f) => f.id), files.length).subscribe({ error: () => undefined });
+      }
+
+      this.upload.update((u) => u && { ...u, phase: 'done', percent: 100 });
+      this.mergeFiles(shown, folderId);
+      this.loadUsage();
+      // Se ve el festejo y el panel se va solo.
+      setTimeout(() => this.upload.update((u) => u && { ...u, leaving: true }), 2200);
+      setTimeout(() => this.upload.set(null), 2600);
+    } catch (err) {
+      this.upload.set(null);
+      // Lo que se alcanzó a crear queda en la carpeta: que se vea.
+      if (created.length || loose.length) {
+        this.mergeFiles([...created, ...loose], folderId);
+        this.loadUsage();
+      }
+      void this.showError(err);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /**
+   * Hay lugar en la oficina abierta? Aviso inmediato, sin mandar nada (el
+   * backend lo vuelve a controlar). El dato puede ser de hace unos minutos
+   * (quizás borraron desde Drive): antes de rechazar, se confirma.
+   */
+  private async hasRoomFor(total: number): Promise<boolean> {
+    const usage = this.currentUsage();
+    if (!usage || total <= freeBytes(usage)) return true;
+    try {
+      const list = await firstValueFrom(this.folders.usage(true));
+      this.usages.set(list);
+      const fresh = list.find((u) => u.groupName === usage.groupName) ?? usage;
+      if (total <= freeBytes(fresh)) return true;
+      this.error.set(
+        `No hay espacio en ${fresh.groupName}: quedan ${formatBytes(freeBytes(fresh))} libres de ` +
+          `${formatBytes(fresh.quotaBytes)} y querés subir ${formatBytes(total)}. Eliminá archivos para liberar lugar.`,
+      );
+      return false;
+    } catch {
+      return true;
+    }
+  }
+
+  /** Agrupa por carpeta en tandas de hasta 20 archivos o ~100 MB. */
+  private batchesOf(items: UploadPlan['items']): { dir: string; files: File[]; bytes: number }[] {
+    const batches: { dir: string; files: File[]; bytes: number }[] = [];
+    const byDir = new Map<string, File[]>();
+    for (const { file, dir } of items) byDir.set(dir, [...(byDir.get(dir) ?? []), file]);
+    for (const [dir, files] of byDir) {
+      let current: { dir: string; files: File[]; bytes: number } | null = null;
+      for (const f of files) {
+        if (!current || current.files.length >= BATCH_FILES || (current.files.length && current.bytes + f.size > BATCH_BYTES)) {
+          current = { dir, files: [], bytes: 0 };
+          batches.push(current);
+        }
+        current.files.push(f);
+        current.bytes += f.size;
+      }
+    }
+    return batches;
+  }
+
+  private sendBatch(scope: FolderScope, folderId: string, files: File[], quiet: boolean, onProgress: (loaded: number) => void): Promise<SharedFile[]> {
+    return new Promise((resolve, reject) => {
+      this.folders.upload(scope, folderId, files, quiet).subscribe({
+        next: (ev) => {
+          if (ev.type === HttpEventType.UploadProgress) onProgress(ev.loaded);
+          else if (ev.type === HttpEventType.Response) resolve(ev.body ?? []);
+        },
+        error: reject,
+      });
     });
   }
 
-  uploadTitle(up: UploadState): string {
-    const n = up.files.length;
+  /** «Informe», «Informe (2)», «Informe (3)»… según lo que ya hay en la carpeta. */
+  private freeName(name: string, taken: Set<string>): string {
+    if (!taken.has(name.toLowerCase())) return name;
+    for (let i = 2; ; i++) {
+      const candidate = `${name} (${i})`;
+      if (!taken.has(candidate.toLowerCase())) return candidate;
+    }
+  }
+
+  /** Cuánto se llena el fondo del panel. */
+  panelFill(up: UploadState): number {
     switch (up.phase) {
-      case 'sending': return n === 1 ? `Subiendo «${up.files[0].name}»` : `Subiendo ${n} archivos`;
+      case 'reading': return 0;
+      case 'folders': return up.folderCount ? (up.foldersDone / up.folderCount) * 100 : 0;
+      case 'sending': return up.percent;
+      default: return 100;
+    }
+  }
+
+  uploadTitle(up: UploadState): string {
+    const one = up.files.length === 1 ? up.files[0] : null;
+    const archivos = `${up.fileCount.toLocaleString('es-AR')} ${up.fileCount === 1 ? 'archivo' : 'archivos'}`;
+    switch (up.phase) {
+      case 'reading': return one ? `Leyendo la carpeta «${one.name}»…` : 'Leyendo lo que soltaste…';
+      case 'folders': return 'Creando las carpetas…';
+      case 'sending':
+        if (one?.isFolder) return `Subiendo la carpeta «${one.name}»`;
+        return one ? `Subiendo «${one.name}»` : `Subiendo ${archivos}`;
       case 'saving': return 'Guardando en la carpeta…';
-      case 'done': return n === 1 ? '¡Listo! Archivo subido' : `¡Listo! ${n} archivos subidos`;
+      case 'done':
+        if (one?.isFolder) return `¡Listo! Carpeta subida con ${archivos}`;
+        return up.fileCount === 1 ? '¡Listo! Archivo subido' : `¡Listo! ${archivos} subidos`;
     }
   }
 
   uploadSubtitle(up: UploadState): string {
     switch (up.phase) {
-      case 'sending': return `${this.formatSize(up.loaded)} de ${this.formatSize(up.total)}`;
+      case 'reading':
+        return up.fileCount ? `${up.fileCount.toLocaleString('es-AR')} archivos encontrados hasta ahora` : 'Buscando archivos…';
+      case 'folders': {
+        const next = up.fileCount ? ` · después ${up.fileCount === 1 ? 'sigue 1 archivo' : `siguen ${up.fileCount.toLocaleString('es-AR')} archivos`}` : '';
+        return `${up.foldersDone} de ${up.folderCount}${next}`;
+      }
+      case 'sending': {
+        const bytes = `${this.formatSize(up.loaded)} de ${this.formatSize(up.total)}`;
+        return up.fileCount > 1 ? `${bytes} · ${up.filesDone} de ${up.fileCount} archivos` : bytes;
+      }
       case 'saving': return 'Ya casi: lo estamos pasando a Google Drive';
       case 'done': return up.files.length === 1 ? 'Ya está disponible en la carpeta' : 'Ya están disponibles en la carpeta';
     }
@@ -1226,6 +1507,9 @@ export class SharedFoldersComponent implements OnInit {
         this.busy.set(false);
         this.toDelete.set(null);
         this.files.update((list) => list.filter((x) => x.id !== f.id));
+        // Una carpeta se recalcula en el servidor unos segundos después.
+        this.loadUsage();
+        if (f.isFolder) setTimeout(() => this.loadUsage(), 12_000);
       },
       error: (err) => {
         this.busy.set(false);
@@ -1401,7 +1685,10 @@ async function errorMessage(err: unknown): Promise<string> {
     if (body instanceof Blob) {
       try { body = JSON.parse(await body.text()); } catch { body = null; }
     }
-    if (err.status === 413) return 'El archivo supera el tamaño máximo (200 MB).';
+    // 413 también es "no hay espacio en la oficina", que trae su propio mensaje.
+    if (err.status === 413 && !(typeof body?.message === 'string' && body.message.startsWith('No hay espacio'))) {
+      return 'El archivo supera el tamaño máximo (200 MB).';
+    }
     if (typeof body?.message === 'string') return body.message;
   }
   return 'No se pudo completar la operación.';

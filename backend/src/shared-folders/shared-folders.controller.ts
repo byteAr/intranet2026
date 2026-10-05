@@ -34,6 +34,11 @@ const uploadInterceptor = FilesInterceptor('files', MAX_FILES_PER_UPLOAD, {
 });
 
 type AuthRequest = { user: User };
+type UploadedBody = { folderId: string; itemIds: string[]; fileCount: number };
+
+function isTicom(user: User): boolean {
+  return (user.roles ?? []).some((r) => r.toUpperCase() === 'TICOM');
+}
 
 /** Content-Disposition con el nombre en UTF-8 y una versión ASCII de respaldo. */
 function disposition(type: 'attachment' | 'inline', name: string): string {
@@ -71,10 +76,29 @@ export class SharedFoldersController {
   @Post('sync')
   @HttpCode(HttpStatus.OK)
   sync(@Request() req: AuthRequest) {
-    if (!(req.user.roles ?? []).some((r) => r.toUpperCase() === 'TICOM')) {
-      throw new ForbiddenException('Solo TICOM puede sincronizar las carpetas.');
-    }
+    if (!isTicom(req.user)) throw new ForbiddenException('Solo TICOM puede sincronizar las carpetas.');
     return this.service.syncNow();
+  }
+
+  /** Espacio usado y disponible de las oficinas del usuario. */
+  @Get('usage')
+  usage(@Request() req: AuthRequest, @Query('fresh') fresh?: string) {
+    // fresh=1: recalcula en Drive (antes de rechazar una subida por falta de lugar).
+    return this.service.myUsage(req.user, fresh === '1');
+  }
+
+  /** Espacio de todas las oficinas (solo TICOM). */
+  @Get('usage/all')
+  allUsage(@Request() req: AuthRequest) {
+    if (!isTicom(req.user)) throw new ForbiddenException('Solo TICOM ve el espacio de todas las oficinas.');
+    return this.service.allUsage();
+  }
+
+  /** Espacio fijo para una oficina; { gb: null } vuelve al automático (solo TICOM). */
+  @Patch('usage/:group')
+  setQuota(@Request() req: AuthRequest, @Param('group') group: string, @Body() body: { gb?: number | null }) {
+    if (!isTicom(req.user)) throw new ForbiddenException('Solo TICOM puede cambiar el espacio de una oficina.');
+    return this.service.setQuota(group, body?.gb === null || body?.gb === undefined ? null : Number(body.gb));
   }
 
   // ─── Compartidos conmigo ───────────────────────────────────────────────────
@@ -115,9 +139,16 @@ export class SharedFoldersController {
     @Request() req: AuthRequest,
     @Param('shareId') shareId: string,
     @Query('folderId') folderId: string | undefined,
+    @Query('quiet') quiet: string | undefined,
     @UploadedFiles() files: UploadedFile[],
   ) {
-    return this.service.upload(await this.scopeOrCleanup(() => this.service.shareScope(req.user, shareId), files), folderId, files, req.user);
+    return this.service.upload(await this.scopeOrCleanup(() => this.service.shareScope(req.user, shareId), files), folderId, files, req.user, quiet === '1');
+  }
+
+  @Post('shares/:shareId/uploaded')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async shareUploaded(@Request() req: AuthRequest, @Param('shareId') shareId: string, @Body() body: UploadedBody) {
+    await this.service.notifyUploaded(await this.service.shareScope(req.user, shareId), body?.folderId, body?.itemIds, body?.fileCount, req.user);
   }
 
   @Patch('shares/:shareId/files/:id')
@@ -133,7 +164,7 @@ export class SharedFoldersController {
   @Delete('shares/:shareId/files/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async shareTrash(@Request() req: AuthRequest, @Param('shareId') shareId: string, @Param('id') id: string) {
-    await this.service.trash(await this.service.shareScope(req.user, shareId), id);
+    await this.service.remove(await this.service.shareScope(req.user, shareId), id);
   }
 
   @Get('shares/:shareId/files/:id/download')
@@ -185,9 +216,17 @@ export class SharedFoldersController {
     @Request() req: AuthRequest,
     @Param('office') office: string,
     @Query('folderId') folderId: string | undefined,
+    @Query('quiet') quiet: string | undefined,
     @UploadedFiles() files: UploadedFile[],
   ) {
-    return this.service.upload(await this.scopeOrCleanup(() => this.service.officeScope(req.user, office), files), folderId, files, req.user);
+    return this.service.upload(await this.scopeOrCleanup(() => this.service.officeScope(req.user, office), files), folderId, files, req.user, quiet === '1');
+  }
+
+  /** Cierre de una subida en tandas (carpeta arrastrada): un único aviso a la oficina. */
+  @Post(':office/uploaded')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async uploaded(@Request() req: AuthRequest, @Param('office') office: string, @Body() body: UploadedBody) {
+    await this.service.notifyUploaded(await this.service.officeScope(req.user, office), body?.folderId, body?.itemIds, body?.fileCount, req.user);
   }
 
   @Patch(':office/files/:id')
@@ -203,7 +242,7 @@ export class SharedFoldersController {
   @Delete(':office/files/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async trash(@Request() req: AuthRequest, @Param('office') office: string, @Param('id') id: string) {
-    await this.service.trash(await this.service.officeScope(req.user, office), id);
+    await this.service.remove(await this.service.officeScope(req.user, office), id);
   }
 
   @Get(':office/files/:id/download')

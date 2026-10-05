@@ -12,8 +12,9 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { drive_v3 } from 'googleapis';
 import { Readable } from 'stream';
 import * as fs from 'fs/promises';
@@ -34,6 +35,10 @@ const MEMBER_ROLE = 'fileOrganizer';
 /** Tope al subir por los padres de un archivo; Drive no permite más de 100 niveles. */
 const MAX_FOLDER_DEPTH = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Como Google: 1 GB = 1024³ bytes. */
+const GB = 1024 ** 3;
+/** Cada cuánto se vuelve a preguntar a Drive cuánto ocupa una unidad. */
+const USAGE_MAX_AGE_MS = 10 * 60_000;
 
 /** Los archivos nativos de Google se descargan convertidos a formato Office/PDF. */
 const GOOGLE_EXPORTS: Record<string, { mimeType: string; ext: string }> = {
@@ -93,10 +98,45 @@ export interface UploadedFile {
   originalname: string;
   mimetype: string;
   path: string;
+  size: number;
 }
+
+/** Espacio de una oficina. */
+export interface OfficeUsage {
+  groupName: string;
+  quotaBytes: number;
+  /** Papelera de Drive incluida, como lo cuenta Google. */
+  usedBytes: number;
+  trashedBytes: number;
+  /** Integrantes habilitados del grupo en el AD (base del espacio automático). */
+  memberCount: number;
+  /** De dónde sale el espacio. */
+  quotaRule: QuotaRule;
+  gbPerMember: number;
+  /** El espacio lo fijó TICOM a mano. */
+  manualQuota: boolean;
+  /** La oficina ya abrió Archivos compartidos (tiene su unidad en Drive). */
+  opened: boolean;
+  updatedAt: Date | null;
+}
+
+export type QuotaRule = 'manual' | 'per-member' | 'minimum' | 'maximum';
 
 export type CurrentUser = Pick<User, 'username' | 'email' | 'roles'>;
 export type Uploader = Pick<User, 'username' | 'displayName' | 'firstName' | 'lastName'>;
+
+/** 1.5 GB, 320 MB… para los mensajes. */
+function formatBytes(bytes: number): string {
+  const units = ['bytes', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  const digits = i === 0 || value >= 100 ? 0 : 1;
+  return `${value.toFixed(digits).replace('.', ',').replace(/,0$/, '')} ${units[i]}`;
+}
 
 /** Código HTTP de un error de la API de Google. */
 function googleStatus(err: unknown): number | undefined {
@@ -122,6 +162,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     private readonly dataSource: DataSource,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly notifications: NotificationsService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -157,6 +198,171 @@ export class SharedFoldersService implements OnApplicationBootstrap {
         UNIQUE ("fileId", "sharedWith")
       )`);
     await this.dataSource.query(`ALTER TABLE "shared_items" ADD COLUMN IF NOT EXISTS "drivePermissionId" varchar NULL`);
+    await this.dataSource.query(`
+      ALTER TABLE "office_drives"
+        ADD COLUMN IF NOT EXISTS "quotaBytes" bigint NULL,
+        ADD COLUMN IF NOT EXISTS "usedBytes" bigint NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS "trashedBytes" bigint NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS "usageAt" timestamp NULL,
+        ADD COLUMN IF NOT EXISTS "memberCount" integer NOT NULL DEFAULT 0`);
+    // Las unidades que ya existían no tienen contados sus integrantes todavía.
+    if (this.gdrive.isConfigured && (await this.driveRepo.count({ where: { memberCount: 0 } }))) {
+      setTimeout(() => void this.syncAll(), 20_000);
+    }
+  }
+
+  // ─── Espacio por oficina ───────────────────────────────────────────────────
+
+  /** GB de configuración (con su valor por defecto si falta o no es válido). */
+  private gbSetting(key: string, fallback: number): number {
+    const gb = Number(this.config.get(key) ?? fallback);
+    return Number.isFinite(gb) && gb > 0 ? gb : fallback;
+  }
+
+  /**
+   * Espacio de una oficina: el que fijó TICOM o, si no, 2 GB por integrante
+   * habilitado del AD, entre un mínimo y un tope (10 y 40 GB por defecto).
+   */
+  private quotaRule(memberCount: number, manualBytes: number | null): { bytes: number; rule: QuotaRule; gbPerMember: number } {
+    const gbPerMember = this.gbSetting('SHARED_FOLDERS_GB_PER_MEMBER', 2);
+    if (manualBytes) return { bytes: manualBytes, rule: 'manual', gbPerMember };
+    const min = this.gbSetting('SHARED_FOLDERS_MIN_GB', 10);
+    const max = Math.max(min, this.gbSetting('SHARED_FOLDERS_MAX_GB', 40));
+    const byMembers = memberCount * gbPerMember;
+    const gb = Math.min(max, Math.max(min, byMembers));
+    const rule: QuotaRule = byMembers < min ? 'minimum' : byMembers > max ? 'maximum' : 'per-member';
+    return { bytes: Math.round(gb * GB), rule, gbPerMember };
+  }
+
+  private quotaOf(office: OfficeDrive | null): number {
+    return this.quotaRule(office?.memberCount ?? 0, office?.quotaBytes ?? null).bytes;
+  }
+
+  /** `memberCount` para las oficinas que todavía no abrieron su unidad (se cuentan en el AD). */
+  private toUsage(groupName: string, office: OfficeDrive | null, memberCount?: number): OfficeUsage {
+    const members = office?.memberCount || memberCount || 0;
+    const { bytes, rule, gbPerMember } = this.quotaRule(members, office?.quotaBytes ?? null);
+    return {
+      groupName,
+      quotaBytes: bytes,
+      quotaRule: rule,
+      gbPerMember,
+      usedBytes: office?.usedBytes ?? 0,
+      trashedBytes: office?.trashedBytes ?? 0,
+      memberCount: members,
+      manualQuota: rule === 'manual',
+      opened: !!office,
+      updatedAt: office?.usageAt ?? null,
+    };
+  }
+
+  /** Integrantes habilitados de cada grupo según el AD (para las oficinas sin unidad todavía). */
+  private async adMemberCounts(): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    try {
+      for (const u of await this.adminService.listAdUsers()) {
+        if (!u.enabled) continue;
+        for (const g of u.groups ?? []) counts.set(g.toUpperCase(), (counts.get(g.toUpperCase()) ?? 0) + 1);
+      }
+    } catch (err) {
+      this.logger.warn(`No se pudo contar los integrantes en el AD: ${(err as Error).message}`);
+    }
+    return counts;
+  }
+
+  /** TICOM fija el espacio de una oficina a mano; null vuelve al cálculo por integrantes. */
+  async setQuota(groupName: string, gb: number | null): Promise<OfficeUsage> {
+    if (gb !== null && !(Number.isFinite(gb) && gb > 0 && gb <= 1000)) {
+      throw new BadRequestException('El espacio tiene que ser un número de GB entre 1 y 1000.');
+    }
+    const office = await this.driveRepo
+      .createQueryBuilder('d')
+      .where('UPPER(d.groupName) = UPPER(:g)', { g: groupName ?? '' })
+      .getOne();
+    if (!office) throw new NotFoundException('Esa oficina todavía no abrió Archivos compartidos.');
+    office.quotaBytes = gb === null ? null : Math.round(gb * GB);
+    await this.driveRepo.update(office.id, { quotaBytes: office.quotaBytes });
+    this.logger.log(`Espacio de ${office.groupName}: ${gb === null ? 'automático' : `${gb} GB`} (TICOM)`);
+    return this.toUsage(office.groupName, office);
+  }
+
+  /**
+   * Recalcula lo que ocupa la unidad preguntándole a Drive. Si hay algo en la
+   * papelera (borrado desde Drive), la vacía: Google la sigue contando 30 días
+   * y quien libera espacio tiene que verlo libre enseguida.
+   */
+  async refreshUsage(office: OfficeDrive): Promise<OfficeDrive> {
+    let { used, trashed } = await this.gdrive.driveUsage(office.driveId);
+    if (trashed > 0) {
+      try {
+        await this.gdrive.emptyTrash(office.driveId);
+        this.logger.log(`Papelera de ${office.groupName} vaciada (${formatBytes(trashed)})`);
+        used -= trashed;
+        trashed = 0;
+      } catch (err) {
+        this.logger.warn(`No se pudo vaciar la papelera de ${office.groupName}: ${(err as Error).message}`);
+      }
+    }
+    office.usedBytes = used;
+    office.trashedBytes = trashed;
+    office.usageAt = new Date();
+    await this.driveRepo.update(office.id, { usedBytes: used, trashedBytes: trashed, usageAt: office.usageAt });
+    return office;
+  }
+
+  /**
+   * Uso de la unidad. Entre recálculos se lleva sumando y restando lo que pasa
+   * por la intranet; lo que se hace directo en Drive aparece al recalcular.
+   */
+  private async usageOf(office: OfficeDrive, maxAgeMs = USAGE_MAX_AGE_MS): Promise<OfficeDrive> {
+    if (office.usageAt && Date.now() - office.usageAt.getTime() < maxAgeMs) return office;
+    try {
+      return await this.refreshUsage(office);
+    } catch (err) {
+      this.logger.warn(`No se pudo calcular el espacio de ${office.groupName}: ${(err as Error).message}`);
+      return office;
+    }
+  }
+
+  private async addUsage(office: OfficeDrive, bytes: number): Promise<void> {
+    if (!bytes) return;
+    await this.driveRepo
+      .createQueryBuilder()
+      .update()
+      .set({ usedBytes: () => `GREATEST(0, "usedBytes" + ${Math.trunc(bytes)})` })
+      .where('id = :id', { id: office.id })
+      .execute();
+    office.usedBytes = Math.max(0, office.usedBytes + bytes);
+  }
+
+  /** Espacio de las oficinas del usuario (para el inicio y Archivos compartidos). */
+  async myUsage(user: CurrentUser, fresh = false): Promise<OfficeUsage[]> {
+    if (!this.gdrive.isConfigured) return [];
+    const { allowedModules } = await this.adminService.getEffectiveModules(user.roles ?? []);
+    if (!allowedModules.includes('carpetas')) return [];
+    return this.usageFor(await this.userOffices(user), fresh);
+  }
+
+  /** Todas las oficinas (TICOM). */
+  async allUsage(): Promise<OfficeUsage[]> {
+    if (!this.gdrive.isConfigured) return [];
+    const groups = await this.groupRepo.find({ where: { category: 'oficina' } });
+    return this.usageFor(groups.map((g) => g.groupName).sort((a, b) => a.localeCompare(b)));
+  }
+
+  /** Las oficinas que todavía no abrieron su unidad figuran vacías. */
+  private async usageFor(groups: string[], fresh = false): Promise<OfficeUsage[]> {
+    if (!groups.length) return [];
+    const drives = await this.driveRepo.find({ where: { groupName: In(groups) } });
+    const byGroup = new Map(drives.map((d) => [d.groupName.toUpperCase(), d]));
+    const counts = groups.some((g) => !byGroup.has(g.toUpperCase())) ? await this.adMemberCounts() : new Map<string, number>();
+    return Promise.all(
+      groups.map(async (g) => {
+        const drive = byGroup.get(g.toUpperCase());
+        if (!drive) return this.toUsage(g, null, counts.get(g.toUpperCase()));
+        return this.toUsage(g, await this.usageOf(drive, fresh ? 0 : USAGE_MAX_AGE_MS));
+      }),
+    );
   }
 
   // ─── Oficinas y acceso ──────────────────────────────────────────────────────
@@ -245,6 +451,8 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     if (!this.gdrive.isConfigured) return;
     const offices = await this.driveRepo.find();
     if (!offices.length) return;
+    // También el espacio: así aparece lo que se subió o borró directo en Drive.
+    for (const office of offices) await this.usageOf(office, 0);
     let adUsers: Awaited<ReturnType<AdminService['listAdUsers']>>;
     try {
       adUsers = await this.adminService.listAdUsers();
@@ -270,9 +478,9 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       const owner = this.gdrive.ownerEmail;
       const group = office.groupName.toUpperCase();
 
+      const officeUsers = users.filter((u) => u.enabled && (u.groups ?? []).some((g) => g.toUpperCase() === group));
       const desired = new Set(
-        users
-          .filter((u) => u.enabled && (u.groups ?? []).some((g) => g.toUpperCase() === group))
+        officeUsers
           .map((u) => this.gdrive.emailFor(u.username, u.email))
           .filter((email) => accounts.has(email) && email !== owner),
       );
@@ -304,7 +512,14 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       this.members.set(office.driveId, withAccess);
       office.lastSyncAt = new Date();
       office.lastSyncError = null;
-      await this.driveRepo.save(office);
+      // El espacio se calcula con todos los integrantes, tengan o no cuenta de Google.
+      office.memberCount = officeUsers.length;
+      // Solo estos campos: guardar el registro entero pisaría el uso con un valor viejo.
+      await this.driveRepo.update(office.id, {
+        lastSyncAt: office.lastSyncAt,
+        lastSyncError: null,
+        memberCount: office.memberCount,
+      });
       if (added || removed || updated) {
         this.logger.log(`Carpeta ${office.groupName}: +${added} -${removed} ~${updated} miembros`);
       }
@@ -312,7 +527,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       const message = (err as Error).message;
       this.logger.error(`Sincronización de la carpeta ${office.groupName} falló: ${message}`);
       office.lastSyncError = message.slice(0, 1000);
-      await this.driveRepo.save(office);
+      await this.driveRepo.update(office.id, { lastSyncError: office.lastSyncError });
     }
   }
 
@@ -557,10 +772,15 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     });
   }
 
-  async upload(scope: AccessScope, parentId: string | undefined, files: UploadedFile[], uploader: Uploader) {
+  /**
+   * Con quiet no avisa: al subir una carpeta el navegador manda los archivos
+   * en tandas y al final pide un único aviso (notifyUploaded).
+   */
+  async upload(scope: AccessScope, parentId: string | undefined, files: UploadedFile[], uploader: Uploader, quiet = false) {
     try {
       this.assertWritable(scope);
       if (!files?.length) throw new BadRequestException('No se recibió ningún archivo.');
+      await this.assertRoomFor(scope.office, files);
       const { parent, uploaded } = await this.as(scope, async (actAs) => {
         const parent = await this.folderIn(actAs, scope, parentId);
         const uploaded: SharedFile[] = [];
@@ -575,7 +795,8 @@ export class SharedFoldersService implements OnApplicationBootstrap {
         }
         return { parent, uploaded };
       });
-      void this.notifyUpload(scope, parent, uploaded, uploader);
+      await this.addUsage(scope.office, uploaded.reduce((sum, f) => sum + (f.size ?? 0), 0));
+      if (!quiet) void this.notifyUpload(scope, parent, uploaded, uploader);
       return uploaded;
     } finally {
       await this.discardUploads(files);
@@ -583,11 +804,57 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   }
 
   /**
+   * Lo compartido cuenta para la oficina dueña, no para quien lo recibe. Lo
+   * que se sube directo en Drive no pasa por acá: lo frena el límite que se
+   * configura en la consola de Google.
+   */
+  private async assertRoomFor(office: OfficeDrive, files: UploadedFile[]): Promise<void> {
+    const incoming = files.reduce((sum, f) => sum + (f.size ?? 0), 0);
+    let current = await this.usageOf(office);
+    let quota = this.quotaOf(current);
+    if (incoming <= quota - current.usedBytes) return;
+    // Antes de rechazar, el dato fresco: quizás borraron algo desde Drive.
+    current = await this.usageOf(office, 0);
+    quota = this.quotaOf(current);
+    const free = Math.max(0, quota - current.usedBytes);
+    if (incoming <= free) return;
+    throw new PayloadTooLargeException(
+      `No hay espacio en ${office.groupName}: quedan ${formatBytes(free)} libres de ${formatBytes(quota)} ` +
+        `y querés subir ${formatBytes(incoming)}. Eliminá archivos para liberar lugar.`,
+    );
+  }
+
+  /**
+   * Un único aviso para una subida hecha en tandas (una carpeta arrastrada):
+   * `itemIds` son lo que quedó a la vista en `folderId` (las carpetas
+   * creadas y los archivos sueltos) y `fileCount` el total de archivos.
+   */
+  async notifyUploaded(scope: AccessScope, folderId: string, itemIds: string[], fileCount: number, uploader: Uploader): Promise<void> {
+    this.assertWritable(scope);
+    const ids = (Array.isArray(itemIds) ? itemIds : []).filter((id) => typeof id === 'string' && isDriveId(id)).slice(0, 50);
+    if (!ids.length) return;
+    const { parent, items } = await this.as(scope, async (actAs) => {
+      const parent = await this.folderIn(actAs, scope, folderId);
+      const items: SharedFile[] = [];
+      for (const id of ids) items.push(this.toShared(await this.fileIn(actAs, scope, id)));
+      return { parent, items };
+    });
+    const count = Math.max(0, Math.min(Math.trunc(Number(fileCount) || 0), 100_000));
+    void this.notifyUpload(scope, parent, items, uploader, count);
+  }
+
+  /**
    * Avisa a los demás integrantes de la oficina: una notificación por subida
    * aunque sean varios archivos. Lleva los archivos para que quien tenga esa
    * carpeta abierta los vea aparecer sin recargar.
    */
-  private async notifyUpload(scope: AccessScope, parent: drive_v3.Schema$File, files: SharedFile[], uploader: Uploader): Promise<void> {
+  private async notifyUpload(
+    scope: AccessScope,
+    parent: drive_v3.Schema$File,
+    files: SharedFile[],
+    uploader: Uploader,
+    fileCount?: number,
+  ): Promise<void> {
     try {
       const group = scope.office.groupName;
       const members = await this.userRepo
@@ -602,11 +869,20 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       const who = [uploader.firstName, uploader.lastName].filter(Boolean).join(' ') || uploader.displayName || uploader.username;
       const n = files.length;
       const names = files.slice(0, 3).map((f) => f.name).join(', ');
+      const total = fileCount ?? n;
+      const archivos = `${total} ${total === 1 ? 'archivo' : 'archivos'}`;
+      const folders = files.filter((f) => f.isFolder);
+      const what =
+        folders.length === 1 && n === 1
+          ? `la carpeta «${folders[0].name}»${total ? ` con ${archivos}` : ''}`
+          : folders.length
+            ? `${folders.length === n ? `${n} carpetas` : `${n} elementos`} con ${archivos}`
+            : n === 1 ? 'un archivo' : `${n} archivos`;
       await this.notifications.notify(
         members.map((m) => m.username),
         {
           type: 'upload',
-          title: `${who} subió ${n === 1 ? 'un archivo' : `${n} archivos`} a ${group}`,
+          title: `${who} subió ${what} a ${group}`,
           body: n > 3 ? `${names} y ${n - 3} más` : names,
           data: {
             groupName: group,
@@ -636,12 +912,24 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     });
   }
 
-  async trash(scope: AccessScope, fileId: string): Promise<void> {
+  /**
+   * Borra para siempre (libera el espacio en el momento). Quien opera solo
+   * necesita poder ver el archivo: el borrado lo hace la cuenta dueña.
+   */
+  async remove(scope: AccessScope, fileId: string): Promise<void> {
     this.assertWritable(scope, fileId);
-    await this.as(scope, async (actAs) => {
-      await this.fileIn(actAs, scope, fileId);
-      await this.gdrive.trash(actAs, fileId);
+    const file = await this.as(scope, async (actAs) => {
+      const file = await this.fileIn(actAs, scope, fileId);
+      await this.gdrive.deleteForever(fileId);
+      return file;
     });
+    if (file.mimeType === FOLDER_MIME) {
+      // Lo que tenía adentro no se conoce sin recorrerla: se recalcula, con
+      // unos segundos para que la búsqueda de Drive ya no lo incluya.
+      setTimeout(() => void this.usageOf(scope.office, 0), 10_000);
+    } else {
+      await this.addUsage(scope.office, -(Number(file.quotaBytesUsed ?? file.size ?? 0) || 0));
+    }
   }
 
   async download(scope: AccessScope, fileId: string): Promise<FileStream> {

@@ -18,8 +18,8 @@ cd /usr/local/proyectos/intranet2026
 git pull origin <rama>
 # cambios backend (pase sin corte: levanta el nuevo al lado, espera /api/health y apaga el viejo):
 scripts/rollout.sh backend -f docker-compose.yml -f docker-compose.prod.yml
-# cambios frontend (nginx reinicia en menos de un segundo):
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build frontend
+# cambios frontend (nginx reinicia en menos de un segundo; --no-deps: sin él, compose también reinicia el backend):
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps frontend
 ```
 
 ### Pase sin corte (`scripts/rollout.sh`)

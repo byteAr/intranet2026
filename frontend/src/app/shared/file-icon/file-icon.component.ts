@@ -2,8 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 
 interface FileLike {
   name: string;
-  mimeType: string;
-  isFolder: boolean;
+  mimeType?: string;
+  isFolder?: boolean;
 }
 
 interface Badge {
@@ -20,6 +20,7 @@ const ARCHIVE = '#B45309';
 const VIDEO = '#DB2777';
 const AUDIO = '#0D9488';
 const NEUTRAL = '#6B7280';
+const ENCRYPTED = '#334155';
 
 const BY_EXTENSION: Record<string, Badge> = {
   pdf: { label: 'PDF', color: PDF },
@@ -34,6 +35,7 @@ const BY_EXTENSION: Record<string, Badge> = {
   svg: { label: 'SVG', color: IMAGE }, heic: { label: 'HEIC', color: IMAGE }, tif: { label: 'TIFF', color: IMAGE },
   tiff: { label: 'TIFF', color: IMAGE },
   zip: { label: 'ZIP', color: ARCHIVE }, rar: { label: 'RAR', color: ARCHIVE }, '7z': { label: '7Z', color: ARCHIVE },
+  msg: { label: 'MSG', color: '#0F6CBD' }, eml: { label: 'EML', color: '#0F6CBD' },
   tar: { label: 'TAR', color: ARCHIVE }, gz: { label: 'GZ', color: ARCHIVE },
   mp4: { label: 'MP4', color: VIDEO }, avi: { label: 'AVI', color: VIDEO }, mov: { label: 'MOV', color: VIDEO },
   mkv: { label: 'MKV', color: VIDEO }, webm: { label: 'WEBM', color: VIDEO },
@@ -52,11 +54,14 @@ const BY_GOOGLE_TYPE: Record<string, Badge> = {
 };
 
 function badgeFor(f: FileLike): Badge | null {
-  const google = BY_GOOGLE_TYPE[f.mimeType];
+  const mimeType = f.mimeType ?? '';
+  const google = BY_GOOGLE_TYPE[mimeType];
   if (google) return google;
   const ext = f.name.includes('.') ? f.name.split('.').pop()!.toLowerCase() : '';
   if (BY_EXTENSION[ext]) return BY_EXTENSION[ext];
-  if (f.mimeType.startsWith('image/')) return { label: 'IMG', color: IMAGE };
+  // Adjuntos encriptados de MTO (.~00, .001…): extensión numérica.
+  if (/^~?\d+$/.test(ext)) return { label: 'ENC', color: ENCRYPTED };
+  if (mimeType.startsWith('image/')) return { label: 'IMG', color: IMAGE };
   // Extensión desconocida pero corta: se muestra igual, en gris.
   return /^[a-z0-9]{1,4}$/.test(ext) ? { label: ext.toUpperCase(), color: NEUTRAL } : null;
 }

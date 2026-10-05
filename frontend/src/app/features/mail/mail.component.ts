@@ -17,6 +17,7 @@ import {
   MailUnreadCounts,
 } from '../../core/services/mail.service';
 import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
+import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 
 const FOLDER_LABELS: Record<MailFolder, string> = {
   informativos: 'Informativos',
@@ -28,7 +29,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 @Component({
   selector: 'app-mail',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -423,16 +424,11 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                       <div class="flex flex-col items-center gap-1">
                         <button
                           (click)="openPreview(activeEmail()!.id, att.id, att.filename)"
-                          class="flex flex-col items-center gap-1 p-2 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors w-14"
+                          class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-gray-200 dark:border-zinc-700 hover:border-teal-300 hover:bg-teal-50/50 dark:hover:bg-zinc-800 transition-colors w-24"
                           [title]="att.filename + ' — ' + formatSize(att.size)">
-                          <!-- File type icon -->
-                          <div class="w-8 h-8 rounded flex items-center justify-center font-bold leading-none"
-                               style="font-size:9px"
-                               [style.background]="fileIcon(att.filename).bg"
-                               [style.color]="fileIcon(att.filename).fg">
-                            {{ fileIcon(att.filename).char }}
-                          </div>
-                          <span class="text-gray-600 truncate w-full text-center" style="font-size:10px" [innerHTML]="highlightText(att.filename)"></span>
+                          <app-file-icon [file]="{ name: att.filename }" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
+                          <span class="w-full text-center text-[11px] leading-tight text-gray-700 dark:text-zinc-300 line-clamp-2 break-all" [innerHTML]="highlightText(att.filename)"></span>
+                          <span class="text-[10px] text-gray-400 dark:text-zinc-500">{{ formatSize(att.size) }}</span>
                         </button>
 
                         <!-- Zona desencriptado — solo para adjuntos .~00 -->
@@ -1226,39 +1222,5 @@ export class MailComponent implements OnInit {
     this.bodyLoadError.set(false);
     this.navIndex.set(idx + 1);
     this.activeEmail.set(history[idx + 1]);
-  }
-
-  fileIcon(filename: string): { bg: string; fg: string; char: string } {
-    const ext = (filename.split('.').pop() ?? '').toLowerCase();
-    const map: Record<string, { bg: string; fg: string; char: string }> = {
-      pdf:  { bg: '#dc2626', fg: '#fff', char: 'PDF' },
-      doc:  { bg: '#2563eb', fg: '#fff', char: 'W' },
-      docx: { bg: '#2563eb', fg: '#fff', char: 'W' },
-      odt:  { bg: '#2563eb', fg: '#fff', char: 'W' },
-      rtf:  { bg: '#2563eb', fg: '#fff', char: 'W' },
-      xls:  { bg: '#16a34a', fg: '#fff', char: 'X' },
-      xlsx: { bg: '#16a34a', fg: '#fff', char: 'X' },
-      csv:  { bg: '#16a34a', fg: '#fff', char: 'X' },
-      ods:  { bg: '#16a34a', fg: '#fff', char: 'X' },
-      ppt:  { bg: '#ea580c', fg: '#fff', char: 'P' },
-      pptx: { bg: '#ea580c', fg: '#fff', char: 'P' },
-      jpg:  { bg: '#7c3aed', fg: '#fff', char: 'IMG' },
-      jpeg: { bg: '#7c3aed', fg: '#fff', char: 'IMG' },
-      png:  { bg: '#7c3aed', fg: '#fff', char: 'IMG' },
-      gif:  { bg: '#7c3aed', fg: '#fff', char: 'IMG' },
-      bmp:  { bg: '#7c3aed', fg: '#fff', char: 'IMG' },
-      webp: { bg: '#7c3aed', fg: '#fff', char: 'IMG' },
-      tiff: { bg: '#7c3aed', fg: '#fff', char: 'IMG' },
-      svg:  { bg: '#7c3aed', fg: '#fff', char: 'IMG' },
-      zip:  { bg: '#92400e', fg: '#fff', char: 'ZIP' },
-      rar:  { bg: '#92400e', fg: '#fff', char: 'RAR' },
-      '7z': { bg: '#92400e', fg: '#fff', char: '7Z' },
-      mp3:  { bg: '#0891b2', fg: '#fff', char: '♪' },
-      mp4:  { bg: '#0891b2', fg: '#fff', char: '▶' },
-      txt:  { bg: '#6b7280', fg: '#fff', char: 'TXT' },
-    };
-    // Extensiones numéricas (.00, .001, etc.) → candado
-    if (/^\d+$/.test(ext)) return { bg: '#374151', fg: '#fff', char: '🔒' };
-    return map[ext] ?? { bg: '#6b7280', fg: '#fff', char: ext.slice(0, 3).toUpperCase() || '?' };
   }
 }

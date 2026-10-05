@@ -18,7 +18,7 @@ import {
   AttachmentPreviewModalComponent,
   AttachmentPreviewRequest,
 } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
-import { FileIconComponent } from './file-icon.component';
+import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { NotificationsService } from '../../core/services/notifications.service';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
 

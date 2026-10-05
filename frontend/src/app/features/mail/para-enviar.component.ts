@@ -8,6 +8,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
+import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { switchMap, of, tap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -21,7 +22,7 @@ import { AuthService } from '../../core/services/auth.service';
 @Component({
   selector: 'app-para-enviar',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -215,10 +216,7 @@ import { AuthService } from '../../core/services/auth.service';
                       <div class="flex items-center gap-2">
                         <button type="button" (click)="previewAttachment(activeEmail()!.id, att)"
                           class="flex-1 text-left flex items-center gap-2 text-xs text-teal-700 hover:text-teal-900 hover:underline">
-                          <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                          </svg>
+                          <app-file-icon [file]="{ name: att.filename }" [size]="24" />
                           {{ att.filename }}
                           <span class="text-gray-400">({{ formatFileSize(att.size) }})</span>
                         </button>

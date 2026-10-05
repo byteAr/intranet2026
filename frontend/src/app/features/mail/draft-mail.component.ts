@@ -22,6 +22,7 @@ import {
 import { AuthService } from '../../core/services/auth.service';
 import { MailService, MailRecipient, Email, MailOutgoingRef } from '../../core/services/mail.service';
 import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
+import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 
 const STATUS_LABELS: Record<DraftStatus, string> = {
   draft: 'Borrador',
@@ -45,7 +46,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
 @Component({
   selector: 'app-draft-mail',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -279,7 +280,8 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                     <p class="text-[11px] text-gray-400 mb-0.5">Adjuntos guardados:</p>
                     <div class="flex flex-wrap gap-1">
                       @for (att of editingDraft()!.attachments; track att.id) {
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs border border-gray-200">
+                        <span class="inline-flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs border border-gray-200">
+                          <app-file-icon [file]="{ name: att.filename }" [size]="18" />
                           <button type="button" (click)="downloadAtt(editingDraft()!.id, att.id, att.filename)" class="hover:underline">{{ att.filename }}</button>
                           <button type="button" (click)="deleteEditAtt(att.id)" class="text-gray-300 hover:text-rose-500 ml-0.5">✕</button>
                         </span>
@@ -409,10 +411,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                   @for (att of activeDraft()!.attachments; track att.id) {
                     <button type="button" (click)="openPreview(activeDraft()!.id, att.id, att.filename)"
                       class="flex items-center gap-1.5 text-xs text-teal-700 hover:underline mb-0.5">
-                      <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                      </svg>
+                      <app-file-icon [file]="{ name: att.filename }" [size]="24" />
                       {{ att.filename }}
                     </button>
                   }
@@ -520,10 +519,7 @@ const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT
                         @for (att of activeRefEmail()!.attachments!; track att.id) {
                           <button (click)="openMailPreview(activeRefEmail()!.id, att.id, att.filename)"
                             class="flex items-center gap-1 text-xs text-teal-700 hover:underline">
-                            <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                            </svg>
+                            <app-file-icon [file]="{ name: att.filename }" [size]="24" />
                             {{ att.filename }}
                           </button>
                         }

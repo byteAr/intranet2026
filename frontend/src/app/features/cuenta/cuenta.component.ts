@@ -84,7 +84,7 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
                 <ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/><path d="M4 11.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/>
               </svg>
               <h3 class="text-lg font-semibold text-gray-800 truncate">
-                {{ allOffices ? 'Espacio de las oficinas' : usages().length === 1 ? 'Espacio de tu oficina' : 'Espacio de tus oficinas' }}
+                {{ allOffices ? 'Espacio de las oficinas' : 'Tu espacio de archivos' }}
               </h3>
               <app-new-badge feature="espacio-oficinas" />
             </div>

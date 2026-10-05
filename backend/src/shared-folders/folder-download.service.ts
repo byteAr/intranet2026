@@ -14,6 +14,7 @@ import {
   FileStream,
   GOOGLE_EXPORTS,
   SharedFoldersService,
+  driveIdOf,
 } from './shared-folders.service';
 
 /** Dónde está el archivo: la unidad de una oficina o algo compartido. */
@@ -56,7 +57,7 @@ export class FolderDownloadService {
   }
 
   private scopeFor(user: CurrentUser, ref: ScopeRef): Promise<AccessScope> {
-    return ref.kind === 'office' ? this.folders.officeScope(user, ref.office) : this.folders.shareScope(user, ref.shareId);
+    return ref.kind === 'office' ? this.folders.scopeByKey(user, ref.office) : this.folders.shareScope(user, ref.shareId);
   }
 
   /** Valida el acceso ahora (para avisar enseguida si no puede) y firma el enlace. */
@@ -97,8 +98,9 @@ export class FolderDownloadService {
    * subcarpeta. Los Docs/Hojas/Presentaciones van convertidos a Office.
    */
   private async zipFolder(scope: AccessScope, folderId: string, folderName: string): Promise<FileStream> {
-    const owner = this.gdrive.ownerEmail;
-    const driveId = scope.office.driveId;
+    // En "Mis archivos" solo su dueño puede leerlo; en las unidades, la cuenta dueña.
+    const owner = scope.office.kind === 'personal' ? scope.office.ownerEmail! : this.gdrive.ownerEmail;
+    const driveId = driveIdOf(scope.office);
     const out = new PassThrough();
     // Nivel 1: lo que más se guarda (PDF, imágenes, Office) ya viene comprimido.
     const archive = archiver('zip', { zlib: { level: 1 } });

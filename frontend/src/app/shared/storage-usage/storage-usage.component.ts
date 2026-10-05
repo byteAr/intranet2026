@@ -27,14 +27,14 @@ export function freeBytes(u: OfficeUsage): number {
   template: `
       <div>
         <div class="flex items-baseline justify-between gap-3">
-          <span class="text-sm font-semibold text-gray-800 dark:text-zinc-200 truncate">{{ usage().groupName }}</span>
+          <span class="text-sm font-semibold text-gray-800 dark:text-zinc-200 truncate">{{ usage().label }}</span>
           <span class="text-sm tabular-nums font-semibold whitespace-nowrap" [class]="levelText()">
             {{ full() ? 'Sin espacio' : free() + ' libres' }}
           </span>
         </div>
         <div class="mt-2 h-2.5 rounded-full bg-gray-100 dark:bg-zinc-800 overflow-hidden"
              role="progressbar" [attr.aria-valuenow]="percent()" aria-valuemin="0" aria-valuemax="100"
-             [attr.aria-label]="'Espacio usado de ' + usage().groupName">
+             [attr.aria-label]="'Espacio usado de ' + usage().label">
           <div class="h-full rounded-full transition-[width] duration-700" [style.width.%]="barWidth()" [style.background]="barColor()"></div>
         </div>
         <div class="mt-1.5 flex justify-between gap-3 text-xs text-gray-500 dark:text-zinc-400 tabular-nums">
@@ -91,6 +91,7 @@ export class StorageUsageComponent {
     const people = `${n} ${n === 1 ? 'integrante' : 'integrantes'}`;
     const pending = u.opened ? '' : ' · todavía no la usan';
     switch (u.quotaRule) {
+      case 'personal': return 'Espacio personal: no cuenta para el de la oficina';
       case 'manual': return `Espacio asignado por TICOM${pending}`;
       case 'per-member': return `${people} · ${u.gbPerMember} GB por integrante${pending}`;
       case 'maximum': return `${people} · máximo por oficina${pending}`;

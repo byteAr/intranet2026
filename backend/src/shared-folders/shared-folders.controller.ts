@@ -234,7 +234,7 @@ export class SharedFoldersController {
     @Query('folderId') folderId?: string,
     @Query('path') path?: string,
   ) {
-    return this.service.list(await this.service.officeScope(req.user, office), folderId, path === '1');
+    return this.service.list(await this.service.scopeByKey(req.user, office), folderId, path === '1');
   }
 
   @Post(':office/folders')
@@ -243,7 +243,7 @@ export class SharedFoldersController {
     @Param('office') office: string,
     @Body() body: { parentId?: string; name: string },
   ) {
-    return this.service.createFolder(await this.service.officeScope(req.user, office), body.parentId, body.name);
+    return this.service.createFolder(await this.service.scopeByKey(req.user, office), body.parentId, body.name);
   }
 
   @Post(':office/upload')
@@ -255,7 +255,7 @@ export class SharedFoldersController {
     @Query('quiet') quiet: string | undefined,
     @UploadedFiles() files: UploadedFile[],
   ) {
-    return this.service.upload(await this.scopeOrCleanup(() => this.service.officeScope(req.user, office), files), folderId, files, req.user, quiet === '1');
+    return this.service.upload(await this.scopeOrCleanup(() => this.service.scopeByKey(req.user, office), files), folderId, files, req.user, quiet === '1');
   }
 
   /**
@@ -270,19 +270,19 @@ export class SharedFoldersController {
     @Body() body: UploadSessionBody,
     @Headers('origin') origin?: string,
   ) {
-    return this.service.startDirectUpload(await this.service.officeScope(req.user, office), body?.folderId, body, origin);
+    return this.service.startDirectUpload(await this.service.scopeByKey(req.user, office), body?.folderId, body, origin);
   }
 
   @Post(':office/upload-complete')
   async uploadComplete(@Request() req: AuthRequest, @Param('office') office: string, @Body() body: UploadCompleteBody) {
-    return this.service.finishDirectUpload(await this.service.officeScope(req.user, office), body?.fileId, req.user, !!body?.quiet);
+    return this.service.finishDirectUpload(await this.service.scopeByKey(req.user, office), body?.fileId, req.user, !!body?.quiet);
   }
 
   /** Cierre de una subida en tandas (carpeta arrastrada): un único aviso a la oficina. */
   @Post(':office/uploaded')
   @HttpCode(HttpStatus.NO_CONTENT)
   async uploaded(@Request() req: AuthRequest, @Param('office') office: string, @Body() body: UploadedBody) {
-    await this.service.notifyUploaded(await this.service.officeScope(req.user, office), body?.folderId, body?.itemIds, body?.fileCount, req.user);
+    await this.service.notifyUploaded(await this.service.scopeByKey(req.user, office), body?.folderId, body?.itemIds, body?.fileCount, req.user);
   }
 
   @Patch(':office/files/:id')
@@ -292,13 +292,13 @@ export class SharedFoldersController {
     @Param('id') id: string,
     @Body() body: { name: string },
   ) {
-    return this.service.rename(await this.service.officeScope(req.user, office), id, body.name);
+    return this.service.rename(await this.service.scopeByKey(req.user, office), id, body.name);
   }
 
   @Delete(':office/files/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async trash(@Request() req: AuthRequest, @Param('office') office: string, @Param('id') id: string) {
-    await this.service.remove(await this.service.officeScope(req.user, office), id);
+    await this.service.remove(await this.service.scopeByKey(req.user, office), id);
   }
 
   @Post(':office/files/:id/download-link')
@@ -313,7 +313,7 @@ export class SharedFoldersController {
     @Param('id') id: string,
     @Response({ passthrough: true }) res: ExpressResponse,
   ) {
-    const file = await this.service.download(await this.service.officeScope(req.user, office), id);
+    const file = await this.service.download(await this.service.scopeByKey(req.user, office), id);
     return send(res, file, 'attachment');
   }
 
@@ -324,7 +324,7 @@ export class SharedFoldersController {
     @Param('id') id: string,
     @Response({ passthrough: true }) res: ExpressResponse,
   ) {
-    const file = await this.service.preview(await this.service.officeScope(req.user, office), id);
+    const file = await this.service.preview(await this.service.scopeByKey(req.user, office), id);
     return send(res, file, 'inline');
   }
 

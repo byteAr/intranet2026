@@ -172,7 +172,7 @@ draft → pending_review → approved → sent
 
 ### Formato del body enviado
 `{mailCode}.- {body}\n\nFDO: {approvedAt}     BT: {hashEnteredAt}     TX: {rank} {apellido}`
-- ZOPR: `DDHHMMMONYR` (ej: `302003MAR26`), vacío hasta aprobar.
+- ZOPR: `DDHHMMMONYR` (ej: `302003MAR26`), vacío hasta aprobar. **En hora de Argentina** (`argentinaParts`, `common/argentina-time.ts`; en el front, `shared/date-group.ts`): el contenedor corre en UTC, nunca usar `getHours()`/`getDate()` para fechas que se muestran. Hasta 1.4.1 salía en UTC (3 h adelantado).
 - Placeholder `DEI  /YY` en body se reemplaza por `mailCode` definitivo al enviar.
 - Hash: 8 chars alfanuméricos únicos, generado al aprobar, impreso en papel físico para verificación.
 - PROMOTOR siempre `DIREDTOS@MTO.GNA`.

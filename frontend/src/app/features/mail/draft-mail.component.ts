@@ -23,6 +23,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { MailService, MailRecipient, Email, MailOutgoingRef } from '../../core/services/mail.service';
 import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
+import { fmtDateGroup } from '../../shared/date-group';
 
 const STATUS_LABELS: Record<DraftStatus, string> = {
   draft: 'Borrador',
@@ -41,7 +42,6 @@ const STATUS_CLASSES: Record<DraftStatus, string> = {
 };
 
 const MONTHS_LONG = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-const MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
 
 @Component({
   selector: 'app-draft-mail',
@@ -1163,10 +1163,7 @@ export class DraftMailComponent implements OnInit, OnDestroy {
   }
 
   private fmtDateGroup(d: Date): string {
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${dd}${hh}${mm}${MONTHS_SHORT[d.getMonth()]}${String(d.getFullYear()).slice(-2)}`;
+    return fmtDateGroup(d);
   }
 
   private escapeHtml(text: string): string {

@@ -34,7 +34,7 @@ export function freeBytes(u: OfficeUsage): number {
              [attr.aria-label]="'Espacio usado de ' + usage().groupName">
           <div class="h-full rounded-full transition-[width] duration-700" [style.width.%]="barWidth()" [style.background]="barColor()"></div>
         </div>
-        <span class="tabular-nums text-gray-500 dark:text-zinc-400 whitespace-nowrap">{{ used() }} de {{ quota() }}</span>
+        <span class="tabular-nums text-gray-500 dark:text-zinc-400 whitespace-nowrap" [title]="basis()">{{ used() }} de {{ quota() }}</span>
         <span class="tabular-nums font-semibold whitespace-nowrap" [class]="levelText()">
           {{ full() ? 'Sin espacio' : free() + ' libres' }}
         </span>
@@ -63,6 +63,7 @@ export function freeBytes(u: OfficeUsage): number {
           <span>{{ used() }} usados de {{ quota() }}</span>
           <span>{{ percent() }} %</span>
         </div>
+        <p class="mt-0.5 text-[11px] text-gray-400 dark:text-zinc-500">{{ basis() }}</p>
         @if (full()) {
           <p class="mt-1.5 text-xs text-red-600 dark:text-red-400">Para subir archivos nuevos hay que eliminar otros.</p>
         }
@@ -107,4 +108,15 @@ export class StorageUsageComponent {
   readonly quota = computed(() => formatBytes(this.usage().quotaBytes));
   readonly free = computed(() => formatBytes(freeBytes(this.usage())));
   readonly trashed = computed(() => formatBytes(this.usage().trashedBytes));
+  /** De dónde sale el espacio, para que no parezca arbitrario. */
+  readonly basis = computed(() => {
+    const u = this.usage();
+    if (u.manualQuota) return 'Espacio asignado por TICOM';
+    const n = u.memberCount;
+    if (!n) return 'Espacio mínimo por oficina';
+    const people = `${n} ${n === 1 ? 'integrante' : 'integrantes'}`;
+    const gb = Math.round(u.quotaBytes / 1024 ** 3);
+    if (gb === n) return `${people} · 1 GB por integrante`;
+    return gb > n ? `${people} · mínimo por oficina` : `${people} · máximo por oficina`;
+  });
 }

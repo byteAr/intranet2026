@@ -108,6 +108,10 @@ export interface OfficeUsage {
   /** Papelera de Drive incluida, como lo cuenta Google. */
   usedBytes: number;
   trashedBytes: number;
+  /** Integrantes habilitados del grupo en el AD (base del espacio automático). */
+  memberCount: number;
+  /** El espacio lo fijó TICOM a mano. */
+  manualQuota: boolean;
   updatedAt: Date | null;
 }
 
@@ -192,19 +196,33 @@ export class SharedFoldersService implements OnApplicationBootstrap {
         ADD COLUMN IF NOT EXISTS "quotaBytes" bigint NULL,
         ADD COLUMN IF NOT EXISTS "usedBytes" bigint NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS "trashedBytes" bigint NOT NULL DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS "usageAt" timestamp NULL`);
+        ADD COLUMN IF NOT EXISTS "usageAt" timestamp NULL,
+        ADD COLUMN IF NOT EXISTS "memberCount" integer NOT NULL DEFAULT 0`);
+    // Las unidades que ya existían no tienen contados sus integrantes todavía.
+    if (this.gdrive.isConfigured && (await this.driveRepo.count({ where: { memberCount: 0 } }))) {
+      setTimeout(() => void this.syncAll(), 20_000);
+    }
   }
 
   // ─── Espacio por oficina ───────────────────────────────────────────────────
 
-  /** Espacio por defecto de cada oficina (SHARED_FOLDERS_QUOTA_GB, 5 GB si no se define). */
-  private get defaultQuotaBytes(): number {
-    const gb = Number(this.config.get('SHARED_FOLDERS_QUOTA_GB') ?? 5);
-    return Math.round((Number.isFinite(gb) && gb > 0 ? gb : 5) * GB);
+  /** GB de configuración (con su valor por defecto si falta o no es válido). */
+  private gbSetting(key: string, fallback: number): number {
+    const gb = Number(this.config.get(key) ?? fallback);
+    return Number.isFinite(gb) && gb > 0 ? gb : fallback;
   }
 
+  /**
+   * Espacio de una oficina: el que fijó TICOM o, si no, 1 GB por integrante
+   * habilitado del AD, entre un mínimo y un tope (5 y 20 GB por defecto).
+   */
   private quotaOf(office: OfficeDrive | null): number {
-    return office?.quotaBytes ?? this.defaultQuotaBytes;
+    if (office?.quotaBytes) return office.quotaBytes;
+    const perMember = this.gbSetting('SHARED_FOLDERS_GB_PER_MEMBER', 1);
+    const min = this.gbSetting('SHARED_FOLDERS_MIN_GB', 5);
+    const max = Math.max(min, this.gbSetting('SHARED_FOLDERS_MAX_GB', 20));
+    const gb = Math.min(max, Math.max(min, (office?.memberCount ?? 0) * perMember));
+    return Math.round(gb * GB);
   }
 
   private toUsage(groupName: string, office: OfficeDrive | null): OfficeUsage {
@@ -213,8 +231,26 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       quotaBytes: this.quotaOf(office),
       usedBytes: office?.usedBytes ?? 0,
       trashedBytes: office?.trashedBytes ?? 0,
+      memberCount: office?.memberCount ?? 0,
+      manualQuota: !!office?.quotaBytes,
       updatedAt: office?.usageAt ?? null,
     };
+  }
+
+  /** TICOM fija el espacio de una oficina a mano; null vuelve al cálculo por integrantes. */
+  async setQuota(groupName: string, gb: number | null): Promise<OfficeUsage> {
+    if (gb !== null && !(Number.isFinite(gb) && gb > 0 && gb <= 1000)) {
+      throw new BadRequestException('El espacio tiene que ser un número de GB entre 1 y 1000.');
+    }
+    const office = await this.driveRepo
+      .createQueryBuilder('d')
+      .where('UPPER(d.groupName) = UPPER(:g)', { g: groupName ?? '' })
+      .getOne();
+    if (!office) throw new NotFoundException('Esa oficina todavía no abrió Archivos compartidos.');
+    office.quotaBytes = gb === null ? null : Math.round(gb * GB);
+    await this.driveRepo.update(office.id, { quotaBytes: office.quotaBytes });
+    this.logger.log(`Espacio de ${office.groupName}: ${gb === null ? 'automático' : `${gb} GB`} (TICOM)`);
+    return this.toUsage(office.groupName, office);
   }
 
   /**
@@ -407,9 +443,9 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       const owner = this.gdrive.ownerEmail;
       const group = office.groupName.toUpperCase();
 
+      const officeUsers = users.filter((u) => u.enabled && (u.groups ?? []).some((g) => g.toUpperCase() === group));
       const desired = new Set(
-        users
-          .filter((u) => u.enabled && (u.groups ?? []).some((g) => g.toUpperCase() === group))
+        officeUsers
           .map((u) => this.gdrive.emailFor(u.username, u.email))
           .filter((email) => accounts.has(email) && email !== owner),
       );
@@ -441,7 +477,14 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       this.members.set(office.driveId, withAccess);
       office.lastSyncAt = new Date();
       office.lastSyncError = null;
-      await this.driveRepo.save(office);
+      // El espacio se calcula con todos los integrantes, tengan o no cuenta de Google.
+      office.memberCount = officeUsers.length;
+      // Solo estos campos: guardar el registro entero pisaría el uso con un valor viejo.
+      await this.driveRepo.update(office.id, {
+        lastSyncAt: office.lastSyncAt,
+        lastSyncError: null,
+        memberCount: office.memberCount,
+      });
       if (added || removed || updated) {
         this.logger.log(`Carpeta ${office.groupName}: +${added} -${removed} ~${updated} miembros`);
       }
@@ -449,7 +492,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       const message = (err as Error).message;
       this.logger.error(`Sincronización de la carpeta ${office.groupName} falló: ${message}`);
       office.lastSyncError = message.slice(0, 1000);
-      await this.driveRepo.save(office);
+      await this.driveRepo.update(office.id, { lastSyncError: office.lastSyncError });
     }
   }
 

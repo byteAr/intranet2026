@@ -93,6 +93,13 @@ export class SharedFoldersController {
     return this.service.allUsage();
   }
 
+  /** Espacio fijo para una oficina; { gb: null } vuelve al automático (solo TICOM). */
+  @Patch('usage/:group')
+  setQuota(@Request() req: AuthRequest, @Param('group') group: string, @Body() body: { gb?: number | null }) {
+    if (!isTicom(req.user)) throw new ForbiddenException('Solo TICOM puede cambiar el espacio de una oficina.');
+    return this.service.setQuota(group, body?.gb === null || body?.gb === undefined ? null : Number(body.gb));
+  }
+
   // ─── Compartidos conmigo ───────────────────────────────────────────────────
 
   @Get('shares')

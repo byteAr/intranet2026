@@ -24,7 +24,7 @@ export class OfficeDrive {
   @Column({ type: 'text', nullable: true })
   lastSyncError: string | null;
 
-  /** Espacio asignado; null = el de SHARED_FOLDERS_QUOTA_GB. */
+  /** Espacio fijado por TICOM; null = automático según los integrantes. */
   @Column({ type: 'bigint', nullable: true, transformer: bigintNumber })
   quotaBytes: number | null;
 
@@ -38,6 +38,10 @@ export class OfficeDrive {
 
   @Column({ type: 'timestamp', nullable: true })
   usageAt: Date | null;
+
+  /** Integrantes habilitados del grupo en el AD, según la última sincronización. */
+  @Column({ type: 'integer', default: 0 })
+  memberCount: number;
 
   @CreateDateColumn()
   createdAt: Date;

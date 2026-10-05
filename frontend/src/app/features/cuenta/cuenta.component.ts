@@ -92,7 +92,29 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
           </div>
           <div class="grid gap-x-8 gap-y-5" [ngClass]="{ 'sm:grid-cols-2': usages().length > 1 }">
             @for (u of usages(); track u.groupName) {
-              <app-storage-usage [usage]="u" />
+              <div>
+                <app-storage-usage [usage]="u" />
+                <!-- TICOM: espacio fijo para una oficina puntual -->
+                @if (allOffices && u.updatedAt) {
+                  @if (editingQuota() === u.groupName) {
+                    <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <input type="number" min="1" max="1000" step="1" [(ngModel)]="quotaGb"
+                        class="w-20 rounded-lg border border-gray-200 px-2 py-1 text-sm focus:border-teal-500 focus:ring-teal-500"
+                        [attr.aria-label]="'Espacio en GB para ' + u.groupName" />
+                      <span class="text-gray-500">GB</span>
+                      <button (click)="saveQuota(u.groupName, quotaGb)" [disabled]="savingQuota()"
+                        class="px-2.5 py-1 rounded-lg font-semibold text-white disabled:opacity-50" style="background: #14B8A5">Guardar</button>
+                      @if (u.manualQuota) {
+                        <button (click)="saveQuota(u.groupName, null)" [disabled]="savingQuota()"
+                          class="px-2.5 py-1 rounded-lg font-medium text-teal-700 hover:bg-teal-50 disabled:opacity-50">Volver a automático</button>
+                      }
+                      <button (click)="editingQuota.set(null)" class="px-2.5 py-1 rounded-lg text-gray-500 hover:bg-gray-100">Cancelar</button>
+                    </div>
+                  } @else {
+                    <button (click)="startQuotaEdit(u)" class="mt-1 text-xs font-medium text-teal-700 hover:underline">Ajustar espacio</button>
+                  }
+                }
+              </div>
             }
           </div>
         </div>
@@ -318,6 +340,29 @@ export class CuentaComponent {
   /** Espacio de Archivos compartidos: el de sus oficinas, o el de todas para TICOM. */
   readonly usages = signal<OfficeUsage[]>([]);
   readonly allOffices = (this.authService.currentUser()?.roles ?? []).some((r) => r.toUpperCase() === 'TICOM');
+  readonly editingQuota = signal<string | null>(null);
+  readonly savingQuota = signal(false);
+  quotaGb = 5;
+
+  startQuotaEdit(u: OfficeUsage): void {
+    this.quotaGb = Math.round(u.quotaBytes / 1024 ** 3);
+    this.editingQuota.set(u.groupName);
+  }
+
+  saveQuota(groupName: string, gb: number | null): void {
+    this.savingQuota.set(true);
+    this.sharedFolders.setQuota(groupName, gb).subscribe({
+      next: (updated) => {
+        this.savingQuota.set(false);
+        this.editingQuota.set(null);
+        this.usages.update((list) => list.map((x) => (x.groupName === groupName ? updated : x)));
+      },
+      error: (err) => {
+        this.savingQuota.set(false);
+        this.errorMsg.set(err?.error?.message ?? 'No se pudo cambiar el espacio.');
+      },
+    });
+  }
 
   constructor() {
     (this.allOffices ? this.sharedFolders.allUsage() : this.sharedFolders.usage()).subscribe({

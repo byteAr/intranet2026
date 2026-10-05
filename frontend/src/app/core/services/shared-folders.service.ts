@@ -41,6 +41,10 @@ export interface OfficeUsage {
   /** Papelera de Drive incluida, como lo cuenta Google. */
   usedBytes: number;
   trashedBytes: number;
+  /** Integrantes habilitados del grupo en el AD (base del espacio automático). */
+  memberCount: number;
+  /** El espacio lo fijó TICOM a mano. */
+  manualQuota: boolean;
   updatedAt: string | null;
 }
 
@@ -106,6 +110,11 @@ export class SharedFoldersService {
   /** Espacio de todas las oficinas (solo TICOM). */
   allUsage(): Observable<OfficeUsage[]> {
     return this.http.get<OfficeUsage[]>(`${this.base}/usage/all`);
+  }
+
+  /** TICOM fija el espacio de una oficina; null vuelve al automático por integrantes. */
+  setQuota(groupName: string, gb: number | null): Observable<OfficeUsage> {
+    return this.http.patch<OfficeUsage>(`${this.base}/usage/${encodeURIComponent(groupName)}`, { gb });
   }
 
   // ─── Archivos ───────────────────────────────────────────────────────────────

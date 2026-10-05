@@ -79,8 +79,15 @@ import { NewBadgeComponent } from '../new-badge/new-badge.component';
                 }
                 <span class="min-w-0 flex-1">
                   <span class="block text-sm text-gray-900 dark:text-zinc-100" [class.font-semibold]="!n.read">{{ n.title }}</span>
-                  <span class="block text-xs text-gray-600 dark:text-zinc-400 line-clamp-2 mt-0.5">{{ n.body }}</span>
-                  <span class="block text-[11px] text-gray-400 dark:text-zinc-500 mt-1">{{ timeAgo(n.createdAt) }}</span>
+                  <!-- Sin "block": pisaría el display de line-clamp y se vería el texto entero -->
+                  <span class="text-xs text-gray-600 dark:text-zinc-400 line-clamp-2 mt-0.5">{{ n.body }}</span>
+                  <span class="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-zinc-500 mt-1">
+                    {{ timeAgo(n.createdAt) }}
+                    @if (n.type === 'announcement') {
+                      <span aria-hidden="true">·</span>
+                      <span class="font-medium text-amber-600 dark:text-amber-400">Ver anuncio completo</span>
+                    }
+                  </span>
                 </span>
                 @if (!n.read) {
                   <span class="mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-teal-500" aria-label="Sin leer"></span>

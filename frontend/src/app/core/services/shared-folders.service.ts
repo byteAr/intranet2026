@@ -43,8 +43,13 @@ export interface OfficeUsage {
   trashedBytes: number;
   /** Integrantes habilitados del grupo en el AD (base del espacio automático). */
   memberCount: number;
+  /** De dónde sale el espacio. */
+  quotaRule: 'manual' | 'per-member' | 'minimum' | 'maximum';
+  gbPerMember: number;
   /** El espacio lo fijó TICOM a mano. */
   manualQuota: boolean;
+  /** La oficina ya abrió Archivos compartidos (tiene su unidad en Drive). */
+  opened: boolean;
   updatedAt: string | null;
 }
 

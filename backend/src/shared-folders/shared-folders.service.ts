@@ -110,10 +110,17 @@ export interface OfficeUsage {
   trashedBytes: number;
   /** Integrantes habilitados del grupo en el AD (base del espacio automático). */
   memberCount: number;
+  /** De dónde sale el espacio. */
+  quotaRule: QuotaRule;
+  gbPerMember: number;
   /** El espacio lo fijó TICOM a mano. */
   manualQuota: boolean;
+  /** La oficina ya abrió Archivos compartidos (tiene su unidad en Drive). */
+  opened: boolean;
   updatedAt: Date | null;
 }
+
+export type QuotaRule = 'manual' | 'per-member' | 'minimum' | 'maximum';
 
 export type CurrentUser = Pick<User, 'username' | 'email' | 'roles'>;
 export type Uploader = Pick<User, 'username' | 'displayName' | 'firstName' | 'lastName'>;
@@ -213,28 +220,54 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   }
 
   /**
-   * Espacio de una oficina: el que fijó TICOM o, si no, 1 GB por integrante
-   * habilitado del AD, entre un mínimo y un tope (5 y 20 GB por defecto).
+   * Espacio de una oficina: el que fijó TICOM o, si no, 2 GB por integrante
+   * habilitado del AD, entre un mínimo y un tope (10 y 40 GB por defecto).
    */
-  private quotaOf(office: OfficeDrive | null): number {
-    if (office?.quotaBytes) return office.quotaBytes;
-    const perMember = this.gbSetting('SHARED_FOLDERS_GB_PER_MEMBER', 1);
-    const min = this.gbSetting('SHARED_FOLDERS_MIN_GB', 5);
-    const max = Math.max(min, this.gbSetting('SHARED_FOLDERS_MAX_GB', 20));
-    const gb = Math.min(max, Math.max(min, (office?.memberCount ?? 0) * perMember));
-    return Math.round(gb * GB);
+  private quotaRule(memberCount: number, manualBytes: number | null): { bytes: number; rule: QuotaRule; gbPerMember: number } {
+    const gbPerMember = this.gbSetting('SHARED_FOLDERS_GB_PER_MEMBER', 2);
+    if (manualBytes) return { bytes: manualBytes, rule: 'manual', gbPerMember };
+    const min = this.gbSetting('SHARED_FOLDERS_MIN_GB', 10);
+    const max = Math.max(min, this.gbSetting('SHARED_FOLDERS_MAX_GB', 40));
+    const byMembers = memberCount * gbPerMember;
+    const gb = Math.min(max, Math.max(min, byMembers));
+    const rule: QuotaRule = byMembers < min ? 'minimum' : byMembers > max ? 'maximum' : 'per-member';
+    return { bytes: Math.round(gb * GB), rule, gbPerMember };
   }
 
-  private toUsage(groupName: string, office: OfficeDrive | null): OfficeUsage {
+  private quotaOf(office: OfficeDrive | null): number {
+    return this.quotaRule(office?.memberCount ?? 0, office?.quotaBytes ?? null).bytes;
+  }
+
+  /** `memberCount` para las oficinas que todavía no abrieron su unidad (se cuentan en el AD). */
+  private toUsage(groupName: string, office: OfficeDrive | null, memberCount?: number): OfficeUsage {
+    const members = office?.memberCount || memberCount || 0;
+    const { bytes, rule, gbPerMember } = this.quotaRule(members, office?.quotaBytes ?? null);
     return {
       groupName,
-      quotaBytes: this.quotaOf(office),
+      quotaBytes: bytes,
+      quotaRule: rule,
+      gbPerMember,
       usedBytes: office?.usedBytes ?? 0,
       trashedBytes: office?.trashedBytes ?? 0,
-      memberCount: office?.memberCount ?? 0,
-      manualQuota: !!office?.quotaBytes,
+      memberCount: members,
+      manualQuota: rule === 'manual',
+      opened: !!office,
       updatedAt: office?.usageAt ?? null,
     };
+  }
+
+  /** Integrantes habilitados de cada grupo según el AD (para las oficinas sin unidad todavía). */
+  private async adMemberCounts(): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    try {
+      for (const u of await this.adminService.listAdUsers()) {
+        if (!u.enabled) continue;
+        for (const g of u.groups ?? []) counts.set(g.toUpperCase(), (counts.get(g.toUpperCase()) ?? 0) + 1);
+      }
+    } catch (err) {
+      this.logger.warn(`No se pudo contar los integrantes en el AD: ${(err as Error).message}`);
+    }
+    return counts;
   }
 
   /** TICOM fija el espacio de una oficina a mano; null vuelve al cálculo por integrantes. */
@@ -322,10 +355,12 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     if (!groups.length) return [];
     const drives = await this.driveRepo.find({ where: { groupName: In(groups) } });
     const byGroup = new Map(drives.map((d) => [d.groupName.toUpperCase(), d]));
+    const counts = groups.some((g) => !byGroup.has(g.toUpperCase())) ? await this.adMemberCounts() : new Map<string, number>();
     return Promise.all(
       groups.map(async (g) => {
         const drive = byGroup.get(g.toUpperCase());
-        return this.toUsage(g, drive ? await this.usageOf(drive, fresh ? 0 : USAGE_MAX_AGE_MS) : null);
+        if (!drive) return this.toUsage(g, null, counts.get(g.toUpperCase()));
+        return this.toUsage(g, await this.usageOf(drive, fresh ? 0 : USAGE_MAX_AGE_MS));
       }),
     );
   }

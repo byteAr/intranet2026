@@ -95,7 +95,7 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
               <div>
                 <app-storage-usage [usage]="u" />
                 <!-- TICOM: espacio fijo para una oficina puntual -->
-                @if (allOffices && u.updatedAt) {
+                @if (allOffices && u.opened) {
                   @if (editingQuota() === u.groupName) {
                     <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
                       <input type="number" min="1" max="1000" step="1" [(ngModel)]="quotaGb"

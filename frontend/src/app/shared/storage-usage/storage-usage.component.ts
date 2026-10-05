@@ -111,12 +111,14 @@ export class StorageUsageComponent {
   /** De dónde sale el espacio, para que no parezca arbitrario. */
   readonly basis = computed(() => {
     const u = this.usage();
-    if (u.manualQuota) return 'Espacio asignado por TICOM';
     const n = u.memberCount;
-    if (!n) return 'Espacio mínimo por oficina';
     const people = `${n} ${n === 1 ? 'integrante' : 'integrantes'}`;
-    const gb = Math.round(u.quotaBytes / 1024 ** 3);
-    if (gb === n) return `${people} · 1 GB por integrante`;
-    return gb > n ? `${people} · mínimo por oficina` : `${people} · máximo por oficina`;
+    const pending = u.opened ? '' : ' · todavía no la usan';
+    switch (u.quotaRule) {
+      case 'manual': return `Espacio asignado por TICOM${pending}`;
+      case 'per-member': return `${people} · ${u.gbPerMember} GB por integrante${pending}`;
+      case 'maximum': return `${people} · máximo por oficina${pending}`;
+      default: return n ? `${people} · mínimo por oficina${pending}` : `Mínimo por oficina${pending}`;
+    }
   });
 }

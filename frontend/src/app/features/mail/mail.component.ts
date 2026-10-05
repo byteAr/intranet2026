@@ -425,7 +425,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                         <button
                           (click)="openPreview(activeEmail()!.id, att.id, att.filename)"
                           class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-gray-200 dark:border-zinc-700 hover:border-teal-300 hover:bg-teal-50/50 dark:hover:bg-zinc-800 transition-colors w-24"
-                          [title]="att.filename + ' — ' + formatSize(att.size)">
+                          [title]="att.filename + ' — ' + formatSize(att.size) + (isEncryptedFile(att.filename) ? ' — encriptado' : '')">
                           <app-file-icon [file]="{ name: att.filename }" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
                           <span class="w-full text-center text-[11px] leading-tight text-gray-700 dark:text-zinc-300 line-clamp-2 break-all" [innerHTML]="highlightText(att.filename)"></span>
                           <span class="text-[10px] text-gray-400 dark:text-zinc-500">{{ formatSize(att.size) }}</span>

@@ -6,5 +6,6 @@
  *
  * 1.1.0 — Archivos compartidos, notificaciones y cierre de sesión por inactividad.
  * 1.1.1 — Íconos de archivo nuevos en los adjuntos de MTO.
+ * 1.1.2 — Candado en el ícono de los adjuntos encriptados (.~00).
  */
-export const APP_VERSION = '1.1.1';
+export const APP_VERSION = '1.1.2';

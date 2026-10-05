@@ -469,21 +469,28 @@ import { HttpClient } from '@angular/common/http';
         class="h-14 w-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform hover:scale-105 relative bg-teal-700 dark:bg-green-800 hover:bg-teal-600 dark:hover:bg-green-700"
         [attr.aria-label]="'Conversaciones, ' + onlineContacts().length + ' en línea'">
         <!-- El recorte va en una capa propia para no cortar el punto rojo de no leídos -->
+        <ng-template #chatIcon>
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        </ng-template>
         <span class="absolute inset-0 rounded-full overflow-hidden">
-          <span class="chat-face" [class.chat-cycle-icon]="onlineContacts().length > 0">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-          </span>
-          @if (onlineContacts().length > 0) {
-            <span class="chat-face chat-cycle-count flex-col leading-none" aria-hidden="true">
-              <span class="flex items-center gap-1 text-lg font-bold tabular-nums">
-                <span class="online-dot h-2 w-2 rounded-full bg-green-300"></span>{{ onlineContacts().length }}
+          <!-- Una sola tira (ícono · cantidad · ícono) con una sola animación: no se pueden desfasar -->
+          <span class="chat-track" [class.chat-track-cycle]="onlineContacts().length > 0">
+            <span class="chat-face"><ng-container [ngTemplateOutlet]="chatIcon" /></span>
+            @if (onlineContacts().length > 0) {
+              <span class="chat-face flex-col leading-none" aria-hidden="true">
+                <!-- El punto va afuera del flujo para que el número quede centrado -->
+                <span class="relative font-bold tabular-nums"
+                      [ngClass]="onlineContacts().length >= 100 ? 'text-[13px]' : 'text-base'">
+                  <span class="online-dot absolute right-full top-1/2 -translate-y-1/2 mr-1 h-1.5 w-1.5 rounded-full bg-green-300"></span>{{ onlineContacts().length }}
+                </span>
+                <span class="mt-0.5 text-[7px] font-semibold uppercase tracking-wide opacity-90">en línea</span>
               </span>
-              <span class="mt-0.5 text-[8px] font-semibold uppercase tracking-wide opacity-90">en línea</span>
-            </span>
-          }
+              <span class="chat-face"><ng-container [ngTemplateOutlet]="chatIcon" /></span>
+            }
+          </span>
         </span>
         @if (chatService.unreadCount() > 0 && !isOnChatPage()) {
           <span class="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-white dark:border-zinc-950"></span>
@@ -829,23 +836,19 @@ import { HttpClient } from '@angular/common/http';
     /*
      * Burbuja del chat: el ícono sale por la izquierda, entra la cantidad de
      * personas en línea, y vuelve el ícono. Ciclo de 9 s, infinito.
+     * Las tres caras van en una tira que se desliza entera; al final muestra
+     * la copia del ícono y el salto al inicio no se nota.
      */
+    .chat-track { position: absolute; inset: 0; display: flex; }
     .chat-face {
-      position: absolute; inset: 0;
+      flex: 0 0 100%; height: 100%;
       display: flex; align-items: center; justify-content: center;
     }
-    .chat-cycle-icon { animation: chat-icon 9s cubic-bezier(.65, 0, .35, 1) infinite; }
-    .chat-cycle-count { animation: chat-count 9s cubic-bezier(.65, 0, .35, 1) infinite; }
-    @keyframes chat-icon {
-      0%, 42% { transform: translateX(0); opacity: 1; }
-      50%, 92% { transform: translateX(-140%); opacity: 0; }
-      92.01% { transform: translateX(140%); opacity: 0; }
-      100% { transform: translateX(0); opacity: 1; }
-    }
-    @keyframes chat-count {
-      0%, 42% { transform: translateX(140%); opacity: 0; }
-      50%, 92% { transform: translateX(0); opacity: 1; }
-      100% { transform: translateX(-140%); opacity: 0; }
+    .chat-track-cycle { animation: chat-slide 9s cubic-bezier(.65, 0, .35, 1) infinite; }
+    @keyframes chat-slide {
+      0%, 42% { transform: translateX(0); }
+      50%, 92% { transform: translateX(-100%); }
+      100% { transform: translateX(-200%); }
     }
     .online-dot { animation: online-dot 1.6s ease-in-out infinite; }
     @keyframes online-dot {
@@ -853,8 +856,7 @@ import { HttpClient } from '@angular/common/http';
       50% { box-shadow: 0 0 0 4px rgba(134, 239, 172, 0); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .chat-cycle-icon, .online-dot { animation: none; }
-      .chat-cycle-count { display: none; }
+      .chat-track-cycle, .online-dot { animation: none; }
     }
   `],
 })

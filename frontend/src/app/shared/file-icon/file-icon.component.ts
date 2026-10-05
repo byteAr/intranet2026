@@ -20,7 +20,6 @@ const ARCHIVE = '#B45309';
 const VIDEO = '#DB2777';
 const AUDIO = '#0D9488';
 const NEUTRAL = '#6B7280';
-const ENCRYPTED = '#334155';
 
 const BY_EXTENSION: Record<string, Badge> = {
   pdf: { label: 'PDF', color: PDF },
@@ -59,8 +58,6 @@ function badgeFor(f: FileLike): Badge | null {
   if (google) return google;
   const ext = f.name.includes('.') ? f.name.split('.').pop()!.toLowerCase() : '';
   if (BY_EXTENSION[ext]) return BY_EXTENSION[ext];
-  // Adjuntos encriptados de MTO (.~00, .001…): extensión numérica.
-  if (/^~?\d+$/.test(ext)) return { label: 'ENC', color: ENCRYPTED };
   if (mimeType.startsWith('image/')) return { label: 'IMG', color: IMAGE };
   // Extensión desconocida pero corta: se muestra igual, en gris.
   return /^[a-z0-9]{1,4}$/.test(ext) ? { label: ext.toUpperCase(), color: NEUTRAL } : null;
@@ -88,7 +85,13 @@ function badgeFor(f: FileLike): Badge | null {
               class="fill-gray-50 stroke-gray-400 dark:fill-zinc-700 dark:stroke-zinc-500" stroke-width="1.6" stroke-linejoin="round" />
         <path d="M24.5 3.5V9a2 2 0 002 2H32"
               class="fill-gray-200 stroke-gray-400 dark:fill-zinc-600 dark:stroke-zinc-500" stroke-width="1.6" stroke-linejoin="round" />
-        @if (badge(); as b) {
+        @if (encrypted()) {
+          <!-- Encriptado (MTO .~00): candado en lugar de etiqueta -->
+          <path d="M15.6 21.5v-3.2a4.4 4.4 0 018.8 0v3.2" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" />
+          <rect x="12.4" y="20.6" width="15.2" height="12" rx="2.4" fill="#334155" />
+          <circle cx="20" cy="25.6" r="1.7" fill="#fff" />
+          <rect x="19.3" y="26.2" width="1.4" height="3.4" rx=".7" fill="#fff" />
+        } @else if (badge(); as b) {
           <rect x="2" y="19.5" [attr.width]="labelWidth()" height="12" rx="2.5" [attr.fill]="b.color" />
           <text [attr.x]="2 + labelWidth() / 2" y="27.9" text-anchor="middle" fill="#fff"
                 [attr.font-size]="fontSize()" font-weight="700" letter-spacing=".2"
@@ -105,6 +108,8 @@ export class FileIconComponent {
   readonly size = input(44);
 
   readonly badge = computed(() => badgeFor(this.file()));
+  /** Adjuntos encriptados de MTO: .~00 (y extensiones solo numéricas, .001). */
+  readonly encrypted = computed(() => /\.~?\d+$/.test(this.file().name));
   /** Las etiquetas largas (EXCEL, HOJAS) se ensanchan para no achicar tanto la letra. */
   readonly labelWidth = computed(() => ((this.badge()?.label.length ?? 0) >= 5 ? 32 : 26));
   readonly fontSize = computed(() => {

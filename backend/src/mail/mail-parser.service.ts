@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MailFolder } from './entities/email.entity';
 import { EmailReference } from './entities/email-reference.entity';
+import { argentinaYear } from '../common/argentina-time';
 
 // Matches institutional codes with structure PREFIX NUM/YY.
 // The ONLY meaningful special char is "/" (year separator).
@@ -141,8 +142,8 @@ export class MailParserService {
       }
       if (!resolvedFromSubject) {
         const yy = emailDate
-          ? new Date(emailDate).getFullYear().toString().slice(-2)
-          : new Date().getFullYear().toString().slice(-2);
+          ? argentinaYear(new Date(emailDate)).toString().slice(-2)
+          : argentinaYear().toString().slice(-2);
         mailCode = `${partialMatch[1]} ${partialMatch[2]}/${yy}`;
       }
     }

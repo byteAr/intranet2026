@@ -18,6 +18,7 @@ import {
   DraftAttachment,
 } from '../../core/services/draft-mail.service';
 import { AuthService } from '../../core/services/auth.service';
+import { fmtDateGroup } from '../../shared/date-group';
 
 @Component({
   selector: 'app-para-enviar',
@@ -394,7 +395,6 @@ export class ParaEnviarComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
 
-  private readonly MONTHS_SHORT = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
   private readonly MONTHS_LONG = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 
   readonly loading = signal(false);
@@ -595,10 +595,7 @@ export class ParaEnviarComponent implements OnInit {
   }
 
   private fmtDateGroup(d: Date): string {
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${dd}${hh}${mm}${this.MONTHS_SHORT[d.getMonth()]}${String(d.getFullYear()).slice(-2)}`;
+    return fmtDateGroup(d);
   }
 
   previewAttachment(draftId: string, att: DraftAttachment): void {

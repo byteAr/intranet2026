@@ -11,6 +11,7 @@ import { SienaFile } from './entities/siena-file.entity';
 import { SienaFileService } from './siena-file.service';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 import { cp1252SqlRepair } from './mail-text.util';
+import { argentinaYear } from '../common/argentina-time';
 
 /**
  * Versión del índice de búsqueda. Cambiarla fuerza, una sola vez y en segundo
@@ -262,7 +263,7 @@ export class MailService implements OnApplicationBootstrap {
       qb.andWhere('e.folder = :folder', { folder: dto.folder });
     }
 
-    const currentYear = new Date().getFullYear();
+    const currentYear = argentinaYear();
     const hasAdvancedDate = !!(dto.year || dto.dateFrom || dto.dateTo);
 
     if (dto.year) {
@@ -433,7 +434,7 @@ export class MailService implements OnApplicationBootstrap {
 
     if (folder) qb.andWhere('e.folder = :folder', { folder });
 
-    const currentYear = new Date().getFullYear();
+    const currentYear = argentinaYear();
     if (historical) {
       qb.andWhere('EXTRACT(YEAR FROM e.date) < :year', { year: currentYear });
     } else {
@@ -544,7 +545,7 @@ export class MailService implements OnApplicationBootstrap {
   }
 
   async getUnreadCounts(userId: string): Promise<{ total: number; informativos: number; ejecutivos: number; redgen: number; tx: number }> {
-    const currentYear = new Date().getFullYear();
+    const currentYear = argentinaYear();
     // Mismo criterio que attachReadStatuses(): lo importado desde PST y lo
     // ingresado antes del corte no es correo nuevo.
     const qb = this.emailRepo

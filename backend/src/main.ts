@@ -5,6 +5,7 @@ import helmet from 'helmet';
 const cookieParser = require('cookie-parser');
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { ArgentinaLogger } from './common/argentina-logger';
 import { readSecret } from './config/read-secret.util';
 
 // Inject secret-file values into process.env BEFORE NestJS loads any module.
@@ -22,7 +23,7 @@ for (const [envKey, secretFile] of Object.entries(SECRET_ENV_MAP)) {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const app = await NestFactory.create(AppModule, { bodyParser: false, logger: new ArgentinaLogger() });
 
   // Increase body size limit for base64 avatar uploads (default is 1mb)
   // eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -10,6 +10,7 @@ import { DraftMailSigner } from './entities/draft-mail-signer.entity';
 import { Email } from '../mail/entities/email.entity';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
+import { argentinaParts, argentinaYear } from '../common/argentina-time';
 import { ReviewActionDto } from './dto/review-action.dto';
 import { SendDraftDto } from './dto/send-draft.dto';
 import { SetSignerDto } from './dto/set-signer.dto';
@@ -309,7 +310,7 @@ export class DraftMailService {
   }
 
   async getNextMailCode(): Promise<string> {
-    const currentYear = new Date().getFullYear().toString().slice(-2);
+    const currentYear = argentinaYear().toString().slice(-2);
     const pattern = `DEI %/${currentYear}`;
 
     const lastDraft = await this.draftRepo
@@ -339,11 +340,13 @@ export class DraftMailService {
     return `DEI ${maxNum + 1}/${currentYear}`;
   }
 
+  /** Grupo fecha-hora (DDHHMMMESAA) en hora de Argentina; el contenedor corre en UTC. */
   private fmtDateGroup(d: Date): string {
     const months = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-    const day = String(d.getDate()).padStart(2, '0');
-    const hhmm = String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
-    return `${day}${hhmm}${months[d.getMonth()]}${String(d.getFullYear()).slice(-2)}`;
+    const p = argentinaParts(d);
+    const day = String(p.day).padStart(2, '0');
+    const hhmm = String(p.hour).padStart(2, '0') + String(p.minute).padStart(2, '0');
+    return `${day}${hhmm}${months[p.month - 1]}${String(p.year).slice(-2)}`;
   }
 
   async send(id: string, dto: SendDraftDto, user: User): Promise<DraftEmail> {

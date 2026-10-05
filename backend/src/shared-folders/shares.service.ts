@@ -2,14 +2,20 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { GoogleDriveService } from './google-drive.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { SharedItem, ShareRole } from './entities/shared-item.entity';
+import { OfficeDrive } from './entities/office-drive.entity';
 import { User } from '../users/entities/user.entity';
 import { CurrentUser, SharedFoldersService } from './shared-folders.service';
 
 const USERNAME = /^[a-z0-9._-]{2,64}$/;
 
 type Sharer = CurrentUser & Pick<User, 'displayName' | 'firstName' | 'lastName'>;
+
+/** Quién da y quita el permiso en Drive: en "Mis archivos", su dueño; si no, la cuenta de las unidades. */
+function grantorOf(space: OfficeDrive): string | undefined {
+  return space.kind === 'personal' ? (space.ownerEmail ?? undefined) : undefined;
+}
 
 function fullName(u: Pick<User, 'displayName' | 'firstName' | 'lastName' | 'username'>): string {
   return [u.firstName, u.lastName].filter(Boolean).join(' ') || u.displayName || u.username;
@@ -26,6 +32,7 @@ export class SharesService {
   constructor(
     @InjectRepository(SharedItem) private readonly shareRepo: Repository<SharedItem>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(OfficeDrive) private readonly driveRepo: Repository<OfficeDrive>,
     private readonly folders: SharedFoldersService,
     private readonly gdrive: GoogleDriveService,
     private readonly notifications: NotificationsService,
@@ -35,7 +42,7 @@ export class SharesService {
 
   /** Con quién está compartido un archivo o carpeta de la oficina. */
   async listForItem(user: CurrentUser, groupName: string, fileId: string) {
-    const scope = await this.folders.officeScope(user, groupName);
+    const scope = await this.folders.scopeByKey(user, groupName);
     await this.folders.fileInScope(scope, fileId);
     const shares = await this.shareRepo.find({
       where: { driveId: scope.office.driveId, fileId },
@@ -70,7 +77,7 @@ export class SharesService {
     fileId: string,
     body: { username?: string; name?: string; role?: string },
   ) {
-    const scope = await this.folders.officeScope(user, groupName);
+    const scope = await this.folders.scopeByKey(user, groupName);
     const file = await this.folders.fileInScope(scope, fileId);
 
     const username = (body.username ?? '').trim().toLowerCase();
@@ -84,7 +91,11 @@ export class SharesService {
       .createQueryBuilder('u')
       .where('LOWER(u.username) = :username', { username })
       .getOne();
-    if (target && (await this.folders.isOfficeMember(target.roles, scope.office.groupName))) {
+    if (
+      scope.office.kind === 'office' &&
+      target &&
+      (await this.folders.isOfficeMember(target.roles, scope.office.groupName))
+    ) {
       throw new BadRequestException(`${fullName(target)} es de ${scope.office.groupName} y ya tiene acceso.`);
     }
 
@@ -109,7 +120,7 @@ export class SharesService {
         }),
       );
     }
-    await this.syncDriveAccess(saved, target?.email);
+    await this.syncDriveAccess(saved, target?.email, grantorOf(scope.office));
     if (isNewShare) {
       void this.notifications.notify([username], {
         type: 'share',
@@ -122,11 +133,11 @@ export class SharesService {
   }
 
   async unshare(user: CurrentUser, groupName: string, shareId: string): Promise<void> {
-    const scope = await this.folders.officeScope(user, groupName);
+    const scope = await this.folders.scopeByKey(user, groupName);
     const share = await this.shareRepo.findOne({ where: { id: shareId, driveId: scope.office.driveId } });
     if (!share) throw new NotFoundException('Ya no estaba compartido.');
     if (share.drivePermissionId) {
-      await this.gdrive.revoke(share.fileId, share.drivePermissionId).catch((err: Error) =>
+      await this.gdrive.revoke(share.fileId, share.drivePermissionId, grantorOf(scope.office)).catch((err: Error) =>
         this.logger.warn(`No se pudo quitar el acceso en Drive a ${share.sharedWith}: ${err.message}`),
       );
     }
@@ -138,11 +149,11 @@ export class SharesService {
    * recibe, así puede abrirlo en Documentos de Google. Si no tiene cuenta, o
    * Drive falla, lo compartido igual funciona desde la intranet.
    */
-  private async syncDriveAccess(share: SharedItem, mail?: string | null): Promise<void> {
+  private async syncDriveAccess(share: SharedItem, mail?: string | null, actAs?: string): Promise<void> {
     try {
       if (share.drivePermissionId) {
         try {
-          await this.gdrive.changeGrant(share.fileId, share.drivePermissionId, share.role);
+          await this.gdrive.changeGrant(share.fileId, share.drivePermissionId, share.role, actAs);
           return;
         } catch {
           // El permiso ya no existe en Drive (lo quitaron a mano): se vuelve a dar.
@@ -151,7 +162,7 @@ export class SharesService {
       }
       const email = await this.folders.googleEmailOf(share.sharedWith, mail);
       if (!email) return;
-      share.drivePermissionId = await this.gdrive.grant(share.fileId, email, share.role);
+      share.drivePermissionId = await this.gdrive.grant(share.fileId, email, share.role, actAs);
       await this.shareRepo.save(share);
     } catch (err) {
       this.logger.warn(`No se pudo dar acceso en Drive a ${share.sharedWith}: ${(err as Error).message}`);
@@ -169,16 +180,25 @@ export class SharesService {
       where: { sharedWith: user.username.toLowerCase() },
       order: { createdAt: 'DESC' },
     });
+    const spaces = shares.length
+      ? await this.driveRepo.find({ where: { driveId: In([...new Set(shares.map((s) => s.driveId))]) } })
+      : [];
+    const spaceOf = new Map(spaces.map((d) => [d.driveId, d]));
     const items = await Promise.all(
       shares.map(async (s) => {
-        const file = await this.folders.currentFile(s.fileId);
-        if (!file || file.driveId !== s.driveId) return null;
+        const space = spaceOf.get(s.driveId);
+        if (!space) return null;
+        const personal = space.kind === 'personal';
+        // Lo de "Mis archivos" de otro solo lo puede leer su dueño.
+        const file = await this.folders.currentFile(s.fileId, personal ? space.ownerEmail! : undefined);
+        if (!file || (personal ? !!file.driveId : file.driveId !== s.driveId)) return null;
         // Compartidos antes de tener cuenta de Google (o antes de este cambio).
-        if (!s.drivePermissionId) await this.syncDriveAccess(s, user.email);
+        if (!s.drivePermissionId) await this.syncDriveAccess(s, user.email, grantorOf(space));
         return {
           shareId: s.id,
           role: s.role,
-          groupName: s.groupName,
+          // De dónde viene: la oficina, o los archivos personales de quien lo compartió.
+          groupName: personal ? `Archivos de ${s.sharedByName}` : s.groupName,
           sharedByName: s.sharedByName,
           sharedAt: s.createdAt,
           isNew: !s.seenAt,

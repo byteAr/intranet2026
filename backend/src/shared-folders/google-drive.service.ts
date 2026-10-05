@@ -168,9 +168,13 @@ export class GoogleDriveService {
 
   // ─── Acceso a un archivo o carpeta puntual (lo compartido) ──────────────────
 
-  /** Da acceso en Drive a una cuenta sobre un elemento; devuelve el id del permiso. */
-  async grant(fileId: string, email: string, role: 'reader' | 'writer'): Promise<string> {
-    const res = await this.drive().permissions.create({
+  /**
+   * Da acceso en Drive a una cuenta sobre un elemento; devuelve el id del
+   * permiso. `actAs`: quien puede darlo (por defecto la cuenta dueña de las
+   * unidades; en "Mis archivos", el dueño de la carpeta).
+   */
+  async grant(fileId: string, email: string, role: 'reader' | 'writer', actAs?: string): Promise<string> {
+    const res = await this.drive(actAs).permissions.create({
       fileId,
       supportsAllDrives: true,
       sendNotificationEmail: false,
@@ -180,24 +184,24 @@ export class GoogleDriveService {
     return res.data.id!;
   }
 
-  async changeGrant(fileId: string, permissionId: string, role: 'reader' | 'writer'): Promise<void> {
-    await this.drive().permissions.update({ fileId, permissionId, supportsAllDrives: true, requestBody: { role } });
+  async changeGrant(fileId: string, permissionId: string, role: 'reader' | 'writer', actAs?: string): Promise<void> {
+    await this.drive(actAs).permissions.update({ fileId, permissionId, supportsAllDrives: true, requestBody: { role } });
   }
 
-  async revoke(fileId: string, permissionId: string): Promise<void> {
-    await this.drive().permissions.delete({ fileId, permissionId, supportsAllDrives: true });
+  async revoke(fileId: string, permissionId: string, actAs?: string): Promise<void> {
+    await this.drive(actAs).permissions.delete({ fileId, permissionId, supportsAllDrives: true });
   }
 
   // ─── Archivos (en nombre de quien opera) ────────────────────────────────────
 
-  async listChildren(actAs: string, driveId: string, folderId: string): Promise<drive_v3.Schema$File[]> {
+  /** driveId null: la carpeta está en el Drive personal de actAs ("Mis archivos"). */
+  async listChildren(actAs: string, driveId: string | null, folderId: string): Promise<drive_v3.Schema$File[]> {
     if (!isDriveId(folderId)) return [];
     const files: drive_v3.Schema$File[] = [];
     let pageToken: string | undefined;
     do {
       const res = await this.drive(actAs).files.list({
-        corpora: 'drive',
-        driveId,
+        ...(driveId ? { corpora: 'drive', driveId } : { corpora: 'user' }),
         includeItemsFromAllDrives: true,
         supportsAllDrives: true,
         q: `'${folderId}' in parents and trashed = false`,
@@ -291,8 +295,36 @@ export class GoogleDriveService {
    * ocupando espacio 30 días). En una unidad compartida solo puede hacerlo un
    * administrador: se llama con la cuenta dueña. Una carpeta se lleva su contenido.
    */
-  async deleteForever(fileId: string): Promise<void> {
-    await this.drive().files.delete({ fileId, supportsAllDrives: true });
+  async deleteForever(fileId: string, actAs?: string): Promise<void> {
+    await this.drive(actAs).files.delete({ fileId, supportsAllDrives: true });
+  }
+
+  /**
+   * Lo que ocupa una carpeta del Drive personal ("Mis archivos"): se recorre
+   * entera, sin la papelera (esa es del usuario y no se toca).
+   */
+  async folderUsage(actAs: string, folderId: string): Promise<number> {
+    let used = 0;
+    const pending = [folderId];
+    while (pending.length) {
+      const id = pending.pop()!;
+      let pageToken: string | undefined;
+      do {
+        const res = await this.drive(actAs).files.list({
+          corpora: 'user',
+          q: `'${id}' in parents and trashed = false`,
+          pageSize: 1000,
+          pageToken,
+          fields: 'nextPageToken,files(id,mimeType,size,quotaBytesUsed)',
+        });
+        for (const f of res.data.files ?? []) {
+          if (f.mimeType === FOLDER_MIME) pending.push(f.id!);
+          else used += Number(f.quotaBytesUsed ?? f.size ?? 0) || 0;
+        }
+        pageToken = res.data.nextPageToken ?? undefined;
+      } while (pageToken);
+    }
+    return used;
   }
 
   /** Vacía la papelera de una unidad compartida (solo un administrador puede). */

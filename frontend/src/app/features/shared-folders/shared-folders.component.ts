@@ -9,6 +9,7 @@ import {
   FolderScope,
   OfficeUsage,
   OfficesInfo,
+  PERSONAL_KEY,
   ShareEntry,
   ShareRole,
   SharedFile,
@@ -25,6 +26,7 @@ import { uploadToDrive } from '../../core/services/drive-direct-upload';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
 import { formatBytes, freeBytes } from '../../shared/storage-usage/storage-usage.component';
 import { StorageDriveComponent } from '../../shared/storage-usage/storage-drive.component';
+import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
 
 const LAST_TAB_KEY = 'pac_shared_folders_office';
 /** Pestaña "Compartidos conmigo" (no puede coincidir con un grupo del AD). */
@@ -82,7 +84,7 @@ const MAX_FILES_PER_DROP = 1000;
 @Component({
   selector: 'app-shared-folders',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent, StorageDriveComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent, StorageDriveComponent, NewBadgeComponent],
   // La página ocupa todo el alto del <main> para que la tarjeta se estire hasta abajo.
   host: { class: 'flex flex-col min-h-full' },
   template: `
@@ -92,7 +94,7 @@ const MAX_FILES_PER_DROP = 1000;
   <div class="flex items-center justify-between gap-x-6 gap-y-4 flex-wrap">
     <div>
       <h1 class="text-2xl font-bold text-gray-900 dark:text-zinc-100">Archivos compartidos</h1>
-      <p class="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">Archivos de tu oficina y lo que otros compartieron con vos.</p>
+      <p class="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">Archivos de tu oficina, los tuyos y lo que otros compartieron con vos.</p>
     </div>
     @if (currentUsage(); as u) {
       <app-storage-drive class="ml-auto" [usage]="u" />
@@ -109,13 +111,26 @@ const MAX_FILES_PER_DROP = 1000;
     </div>
   } @else {
 
-    <!-- Pestañas: oficinas + Compartidos conmigo -->
+    <!-- Pestañas: Mis archivos · Compartidos con mi oficina · Compartidos conmigo -->
     <div class="flex gap-1 bg-gray-100 dark:bg-zinc-800 rounded-xl p-1 w-fit max-w-full overflow-x-auto" role="tablist">
+      <button (click)="selectTab(PERSONAL_KEY)" role="tab" [attr.aria-selected]="isPersonalTab()"
+        class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+        [class]="isPersonalTab() ? tabOn : tabOff">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>
+        </svg>
+        Mis archivos
+        <app-new-badge feature="mis-archivos" />
+      </button>
       @for (o of info()!.offices; track o) {
-        <button (click)="selectTab(o)" role="tab" [attr.aria-selected]="tab() === o"
-          class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+        <button (click)="selectTab(o)" role="tab" [attr.aria-selected]="tab() === o" [title]="o"
+          class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           [class]="tab() === o ? tabOn : tabOff">
-          {{ o }}
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 21V5a2 2 0 012-2h8a2 2 0 012 2v16M16 9h2a2 2 0 012 2v10M3 21h18M8 7h4M8 11h4M8 15h4"/>
+          </svg>
+          <!-- Con una sola oficina, el nombre va en la tarjeta; con varias, cada pestaña dice cuál -->
+          {{ info()!.offices.length === 1 ? 'Compartidos con mi oficina' : 'Compartidos con ' + o }}
         </button>
       }
       <button (click)="selectTab(SHARED_TAB)" role="tab" [attr.aria-selected]="isSharedTab()"
@@ -306,7 +321,19 @@ const MAX_FILES_PER_DROP = 1000;
       }
 
       <!-- Lista -->
-      @if (loading()) {
+      @if (personalUnavailable()) {
+        <!-- "Mis archivos" se guarda en el Drive de la cuenta @iugna.edu.ar: sin ella no hay dónde -->
+        <div class="flex-1 flex flex-col items-center justify-center py-16 text-center px-6">
+          <svg class="h-14 w-14 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>
+          </svg>
+          <p class="mt-3 text-sm font-semibold text-gray-800 dark:text-zinc-200">Para respaldar tus archivos necesitás una cuenta &#64;iugna.edu.ar</p>
+          <p class="mt-1 max-w-md text-sm text-gray-500 dark:text-zinc-400">
+            "Mis archivos" se guarda en tu Google Drive personal, así que hace falta la cuenta. Pedísela a TICOM;
+            mientras tanto podés seguir usando los archivos de tu oficina y lo que te compartan.
+          </p>
+        </div>
+      } @else if (loading()) {
         <div class="flex-1 flex flex-col items-center justify-center gap-3 py-16">
           <app-comet-spinner [size]="56" />
           <p class="text-sm text-gray-400 dark:text-zinc-500">Cargando archivos</p>
@@ -501,7 +528,7 @@ const MAX_FILES_PER_DROP = 1000;
       <div class="px-6 pt-6 pb-4">
         <h2 id="share-title" class="text-base font-semibold text-gray-900 dark:text-zinc-100 truncate">Compartir «{{ file.name }}»</h2>
         <p class="text-xs text-gray-500 dark:text-zinc-400 mt-1">
-          Los integrantes de {{ tab() }} ya tienen acceso.{{ file.isFolder ? ' Se comparte la carpeta con todo su contenido.' : '' }}
+          {{ isPersonalTab() ? 'Es de tus archivos: solo vos lo ves hasta que lo compartas.' : 'Los integrantes de ' + tab() + ' ya tienen acceso.' }}{{ file.isFolder ? ' Se comparte la carpeta con todo su contenido.' : '' }}
         </p>
 
         <div class="mt-4 flex gap-2">
@@ -557,7 +584,7 @@ const MAX_FILES_PER_DROP = 1000;
         @if (shareLoading()) {
           <p class="text-sm text-gray-400">Cargando…</p>
         } @else if (!shareEntries().length) {
-          <p class="text-sm text-gray-500 dark:text-zinc-400">Nadie fuera de la oficina todavía.</p>
+          <p class="text-sm text-gray-500 dark:text-zinc-400">{{ isPersonalTab() ? 'Con nadie todavía.' : 'Nadie fuera de la oficina todavía.' }}</p>
         } @else {
           <ul class="space-y-1.5 max-h-48 overflow-y-auto">
             @for (e of shareEntries(); track e.id) {
@@ -803,6 +830,10 @@ export class SharedFoldersComponent implements OnInit {
   private readonly shareSearch$ = new Subject<string>();
 
   readonly isSharedTab = computed(() => this.tab() === SHARED_TAB);
+  readonly PERSONAL_KEY = PERSONAL_KEY;
+  readonly isPersonalTab = computed(() => this.tab() === PERSONAL_KEY);
+  /** "Mis archivos" sin cuenta de Google: no hay dónde guardarlo. */
+  readonly personalUnavailable = computed(() => this.isPersonalTab() && !this.info()?.googleEmail);
   readonly atSharedRoot = computed(() => this.isSharedTab() && this.scope() === null);
   readonly currentFolderId = computed(() => this.path().at(-1)?.id ?? null);
 
@@ -875,7 +906,7 @@ export class SharedFoldersComponent implements OnInit {
         this.info.set(info);
         this.loadingInfo.set(false);
         if (!info.configured) return;
-        if (info.offices.length) this.loadUsage(true);
+        if (info.offices.length || info.googleEmail) this.loadUsage(true);
         if (this.focusShareId()) {
           this.selectTab(SHARED_TAB);
           return;
@@ -886,7 +917,7 @@ export class SharedFoldersComponent implements OnInit {
         }
         let last: string | null = null;
         try { last = localStorage.getItem(LAST_TAB_KEY); } catch { /* sin storage */ }
-        const valid = last === SHARED_TAB || (!!last && info.offices.includes(last));
+        const valid = last === SHARED_TAB || last === PERSONAL_KEY || (!!last && info.offices.includes(last));
         this.selectTab(valid ? last! : info.offices[0] ?? SHARED_TAB);
       },
       error: () => {
@@ -905,6 +936,11 @@ export class SharedFoldersComponent implements OnInit {
 
   // ─── Navegación ─────────────────────────────────────────────────────────────
 
+  /** Nombre de la raíz de una pestaña: la oficina, o "Mis archivos". */
+  rootLabel(tab: string): string {
+    return tab === PERSONAL_KEY ? 'Mis archivos' : tab;
+  }
+
   selectTab(tab: string): void {
     this.tab.set(tab);
     try { localStorage.setItem(LAST_TAB_KEY, tab); } catch { /* sin storage */ }
@@ -913,6 +949,13 @@ export class SharedFoldersComponent implements OnInit {
       this.scope.set(null);
       this.path.set([{ id: '', name: 'Compartidos conmigo' }]);
       this.loadShared();
+    } else if (tab === PERSONAL_KEY && !this.info()?.googleEmail) {
+      // Sin cuenta de Google: se muestra el aviso, no hay nada que cargar.
+      this.scope.set(null);
+      this.path.set([{ id: '', name: 'Mis archivos' }]);
+      this.files.set([]);
+      this.canWrite.set(false);
+      this.loading.set(false);
     } else {
       this.scope.set({ kind: 'office', office: tab });
       this.path.set([]);
@@ -969,7 +1012,7 @@ export class SharedFoldersComponent implements OnInit {
         this.files.set(res.files);
         this.canWrite.set(res.canWrite);
         // La raíz de la oficina se nombra con la oficina; lo demás ya está en la ruta.
-        if (!this.path().length) this.path.set([{ id: res.folder.id, name: this.tab() ?? res.folder.name }]);
+        if (!this.path().length) this.path.set([{ id: res.folder.id, name: this.rootLabel(this.tab() ?? res.folder.name) }]);
         this.loading.set(false);
       },
       error: (err) => {
@@ -1121,7 +1164,7 @@ export class SharedFoldersComponent implements OnInit {
       case 'refresh':
         if (this.atSharedRoot()) this.loadShared();
         else this.load(this.currentFolderId() ?? undefined);
-        if (this.info()?.offices.length) this.loadUsage(true);
+        if (this.info()?.offices.length || this.info()?.googleEmail) this.loadUsage(true);
         return;
       case 'new-folder': return this.openNewFolder();
       case 'upload': return this.pickFiles();
@@ -1453,7 +1496,7 @@ export class SharedFoldersComponent implements OnInit {
       const fresh = list.find((u) => u.groupName === usage.groupName) ?? usage;
       if (total <= freeBytes(fresh)) return true;
       this.error.set(
-        `No hay espacio en ${fresh.groupName}: quedan ${formatBytes(freeBytes(fresh))} libres de ` +
+        `No hay espacio en ${fresh.label}: quedan ${formatBytes(freeBytes(fresh))} libres de ` +
           `${formatBytes(fresh.quotaBytes)} y querés subir ${formatBytes(total)}. Eliminá archivos para liberar lugar.`,
       );
       return false;

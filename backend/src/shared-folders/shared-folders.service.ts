@@ -105,7 +105,10 @@ export interface UploadedFile {
 
 /** Espacio de una oficina. */
 export interface OfficeUsage {
+  /** La oficina, o PERSONAL_KEY para "Mis archivos". */
   groupName: string;
+  /** Cómo mostrarlo: la oficina, o "Mis archivos". */
+  label: string;
   quotaBytes: number;
   /** Papelera de Drive incluida, como lo cuenta Google. */
   usedBytes: number;
@@ -122,7 +125,25 @@ export interface OfficeUsage {
   updatedAt: Date | null;
 }
 
-export type QuotaRule = 'manual' | 'per-member' | 'minimum' | 'maximum';
+export type QuotaRule = 'manual' | 'per-member' | 'minimum' | 'maximum' | 'personal';
+
+/**
+ * "Mis archivos": en las rutas va en lugar de la oficina (/shared-folders/~mis-archivos/...).
+ * En la base, el espacio de cada usuario se guarda con groupName '@usuario'.
+ */
+export const PERSONAL_KEY = '~mis-archivos';
+const PERSONAL_NAME = 'Mis archivos';
+/** Carpeta que se crea en el Drive personal ("Mi unidad") de cada usuario. */
+const PERSONAL_FOLDER_NAME = 'Intranet - Mis archivos';
+
+export function personalKeyOf(username: string): string {
+  return `@${username.toLowerCase()}`;
+}
+
+/** La unidad donde buscar; null en "Mis archivos" (está en el Drive personal). */
+export function driveIdOf(office: OfficeDrive): string | null {
+  return office.kind === 'personal' ? null : office.driveId;
+}
 
 export type CurrentUser = Pick<User, 'username' | 'email' | 'roles'>;
 export type Uploader = Pick<User, 'username' | 'displayName' | 'firstName' | 'lastName'>;
@@ -154,6 +175,8 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   private readonly creating = new Map<string, Promise<OfficeDrive>>();
   /** driveId → cuentas con acceso según la última sincronización. */
   private readonly members = new Map<string, Set<string>>();
+  /** Carpetas de "Mis archivos" que ya se comprobó que existen (una vez por proceso). */
+  private readonly personalChecked = new Set<string>();
 
   constructor(
     @InjectRepository(OfficeDrive) private readonly driveRepo: Repository<OfficeDrive>,
@@ -206,9 +229,11 @@ export class SharedFoldersService implements OnApplicationBootstrap {
         ADD COLUMN IF NOT EXISTS "usedBytes" bigint NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS "trashedBytes" bigint NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS "usageAt" timestamp NULL,
-        ADD COLUMN IF NOT EXISTS "memberCount" integer NOT NULL DEFAULT 0`);
+        ADD COLUMN IF NOT EXISTS "memberCount" integer NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS "kind" varchar NOT NULL DEFAULT 'office',
+        ADD COLUMN IF NOT EXISTS "ownerEmail" varchar NULL`);
     // Las unidades que ya existían no tienen contados sus integrantes todavía.
-    if (this.gdrive.isConfigured && (await this.driveRepo.count({ where: { memberCount: 0 } }))) {
+    if (this.gdrive.isConfigured && (await this.driveRepo.count({ where: { memberCount: 0, kind: 'office' } }))) {
       setTimeout(() => void this.syncAll(), 20_000);
     }
   }
@@ -236,8 +261,36 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     return { bytes: Math.round(gb * GB), rule, gbPerMember };
   }
 
+  /** "Mis archivos": 10 GB por persona (SHARED_FOLDERS_PERSONAL_GB), o lo que fije TICOM. */
+  private personalQuota(space: OfficeDrive | null): number {
+    return space?.quotaBytes || Math.round(this.gbSetting('SHARED_FOLDERS_PERSONAL_GB', 10) * GB);
+  }
+
   private quotaOf(office: OfficeDrive | null): number {
+    if (office?.kind === 'personal') return this.personalQuota(office);
     return this.quotaRule(office?.memberCount ?? 0, office?.quotaBytes ?? null).bytes;
+  }
+
+  /** Cómo se nombra el espacio en los mensajes y en la barra. */
+  private spaceLabel(office: OfficeDrive): string {
+    return office.kind === 'personal' ? PERSONAL_NAME : office.groupName;
+  }
+
+  /** Espacio de "Mis archivos" (null: todavía no lo abrió). */
+  private personalUsage(space: OfficeDrive | null): OfficeUsage {
+    return {
+      groupName: PERSONAL_KEY,
+      label: PERSONAL_NAME,
+      quotaBytes: this.personalQuota(space),
+      quotaRule: space?.quotaBytes ? 'manual' : 'personal',
+      gbPerMember: 0,
+      usedBytes: space?.usedBytes ?? 0,
+      trashedBytes: 0,
+      memberCount: 1,
+      manualQuota: !!space?.quotaBytes,
+      opened: !!space,
+      updatedAt: space?.usageAt ?? null,
+    };
   }
 
   /** `memberCount` para las oficinas que todavía no abrieron su unidad (se cuentan en el AD). */
@@ -246,6 +299,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     const { bytes, rule, gbPerMember } = this.quotaRule(members, office?.quotaBytes ?? null);
     return {
       groupName,
+      label: groupName,
       quotaBytes: bytes,
       quotaRule: rule,
       gbPerMember,
@@ -294,6 +348,14 @@ export class SharedFoldersService implements OnApplicationBootstrap {
    * y quien libera espacio tiene que verlo libre enseguida.
    */
   async refreshUsage(office: OfficeDrive): Promise<OfficeDrive> {
+    if (office.kind === 'personal') {
+      // Su papelera es del usuario (puede tener otras cosas): no se toca ni se cuenta.
+      office.usedBytes = await this.gdrive.folderUsage(office.ownerEmail!, office.driveId);
+      office.trashedBytes = 0;
+      office.usageAt = new Date();
+      await this.driveRepo.update(office.id, { usedBytes: office.usedBytes, trashedBytes: 0, usageAt: office.usageAt });
+      return office;
+    }
     let { used, trashed } = await this.gdrive.driveUsage(office.driveId);
     if (trashed > 0) {
       try {
@@ -341,8 +403,11 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   async myUsage(user: CurrentUser, fresh = false): Promise<OfficeUsage[]> {
     if (!this.gdrive.isConfigured) return [];
     const { allowedModules } = await this.adminService.getEffectiveModules(user.roles ?? []);
-    if (!allowedModules.includes('carpetas')) return [];
-    return this.usageFor(await this.userOffices(user), fresh);
+    const offices = allowedModules.includes('carpetas') ? await this.usageFor(await this.userOffices(user), fresh) : [];
+    // "Mis archivos", para quien tiene cuenta de Google (sin ella no hay dónde guardarlo).
+    if (!(await this.googleEmailOf(user.username, user.email))) return offices;
+    const space = await this.driveRepo.findOne({ where: { groupName: personalKeyOf(user.username) } });
+    return [...offices, this.personalUsage(space ? await this.usageOf(space, fresh ? 0 : USAGE_MAX_AGE_MS) : null)];
   }
 
   /** Todas las oficinas (TICOM). */
@@ -451,7 +516,8 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   @Cron('*/30 * * * *')
   async syncAll(): Promise<void> {
     if (!this.gdrive.isConfigured) return;
-    const offices = await this.driveRepo.find();
+    // Solo las unidades de oficina: "Mis archivos" no tiene miembros que sincronizar.
+    const offices = await this.driveRepo.find({ where: { kind: 'office' } });
     if (!offices.length) return;
     // También el espacio: así aparece lo que se subió o borró directo en Drive.
     for (const office of offices) await this.usageOf(office, 0);
@@ -474,6 +540,8 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     office: OfficeDrive,
     adUsers?: Awaited<ReturnType<AdminService['listAdUsers']>>,
   ): Promise<void> {
+    // Una carpeta personal no es una unidad: tocar sus permisos le quitaría el acceso al dueño.
+    if (office.kind === 'personal') return;
     try {
       const users = adUsers ?? (await this.adminService.listAdUsers());
       const accounts = await this.gdrive.domainAccounts(true);
@@ -536,7 +604,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   /** Fuerza la sincronización de todas las unidades (botón en Admin). */
   async syncNow() {
     await this.syncAll();
-    const offices = await this.driveRepo.find({ order: { groupName: 'ASC' } });
+    const offices = await this.driveRepo.find({ where: { kind: 'office' }, order: { groupName: 'ASC' } });
     return offices.map((o) => ({
       groupName: o.groupName,
       lastSyncAt: o.lastSyncAt,
@@ -545,6 +613,68 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   }
 
   // ─── Ámbitos de acceso ─────────────────────────────────────────────────────
+
+  /** Lo que va en la ruta: una oficina, o PERSONAL_KEY para "Mis archivos". */
+  scopeByKey(user: CurrentUser, key: string): Promise<AccessScope> {
+    return key === PERSONAL_KEY ? this.personalScope(user) : this.officeScope(user, key);
+  }
+
+  /**
+   * "Mis archivos": una carpeta en el Drive personal del usuario, en su
+   * nombre. Necesita cuenta @iugna.edu.ar; la carpeta se crea la primera vez.
+   */
+  async personalScope(user: CurrentUser): Promise<AccessScope> {
+    if (!this.gdrive.isConfigured) {
+      throw new ServiceUnavailableException('Las carpetas compartidas no están configuradas.');
+    }
+    const email = await this.googleEmailOf(user.username, user.email);
+    if (!email) {
+      throw new ForbiddenException('Para usar Mis archivos necesitás una cuenta @iugna.edu.ar. Pedísela a TICOM.');
+    }
+    const space = await this.personalSpace(user.username, email);
+    return { office: space, actor: email, rootId: space.driveId, rootName: PERSONAL_NAME, canWrite: true };
+  }
+
+  /** El espacio personal del usuario; si no existe, o borró la carpeta desde Drive, se crea. */
+  private personalSpace(username: string, email: string): Promise<OfficeDrive> {
+    const key = personalKeyOf(username);
+    let pending = this.creating.get(key);
+    if (!pending) {
+      pending = this.ensurePersonalSpace(key, email).finally(() => this.creating.delete(key));
+      this.creating.set(key, pending);
+    }
+    return pending;
+  }
+
+  private async ensurePersonalSpace(key: string, email: string): Promise<OfficeDrive> {
+    const existing = await this.driveRepo.findOne({ where: { groupName: key } });
+    if (existing && (this.personalChecked.has(existing.driveId) || (await this.personalFolderAlive(email, existing.driveId)))) {
+      this.personalChecked.add(existing.driveId);
+      if (existing.ownerEmail !== email) {
+        existing.ownerEmail = email;
+        await this.driveRepo.update(existing.id, { ownerEmail: email });
+      }
+      return existing;
+    }
+    const folder = await this.run(() => this.gdrive.createFolder(email, 'root', PERSONAL_FOLDER_NAME));
+    this.personalChecked.add(folder.id!);
+    this.logger.log(`Mis archivos de ${key.slice(1)}: carpeta creada en su Drive (${folder.id})`);
+    if (existing) {
+      Object.assign(existing, { driveId: folder.id!, ownerEmail: email, usedBytes: 0, trashedBytes: 0, usageAt: null });
+      await this.driveRepo.update(existing.id, { driveId: folder.id!, ownerEmail: email, usedBytes: 0, trashedBytes: 0, usageAt: null });
+      return existing;
+    }
+    return this.driveRepo.save(this.driveRepo.create({ kind: 'personal', groupName: key, driveId: folder.id!, ownerEmail: email }));
+  }
+
+  /** La carpeta sigue en su Drive. Ante un error que no sea "no existe" se asume que sí (no duplicar). */
+  private async personalFolderAlive(email: string, folderId: string): Promise<boolean> {
+    try {
+      return !(await this.gdrive.getFile(email, folderId)).trashed;
+    } catch (err) {
+      return googleStatus(err) !== 404;
+    }
+  }
 
   /** Acceso de un integrante a toda la unidad de su oficina. */
   async officeScope(user: CurrentUser, groupName: string): Promise<AccessScope> {
@@ -574,7 +704,8 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     if (!share || !office) throw new NotFoundException('Ya no está compartido con vos.');
     return {
       office,
-      actor: this.gdrive.ownerEmail,
+      // De "Mis archivos" de otro: se opera como su dueño (la cuenta de la intranet no tiene acceso).
+      actor: office.kind === 'personal' ? office.ownerEmail! : this.gdrive.ownerEmail,
       rootId: share.fileId,
       rootName: share.fileName,
       canWrite: share.role === 'writer',
@@ -615,7 +746,8 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       } catch (err) {
         if (err instanceof HttpException) throw err;
         const status = googleStatus(err);
-        if (scope.actor !== this.gdrive.ownerEmail && (status === 403 || status === 404)) {
+        // En "Mis archivos" la cuenta dueña de las unidades no tiene acceso: no hay a quién recurrir.
+        if (scope.office.kind !== 'personal' && scope.actor !== this.gdrive.ownerEmail && (status === 403 || status === 404)) {
           this.logger.warn(`Drive negó el acceso a ${scope.actor} en ${scope.office.groupName}; reintento como la cuenta dueña`);
           return op(this.gdrive.ownerEmail);
         }
@@ -653,13 +785,22 @@ export class SharedFoldersService implements OnApplicationBootstrap {
    */
   private async assertInScope(actAs: string, scope: AccessScope, file: drive_v3.Schema$File): Promise<void> {
     const notFound = new NotFoundException('El archivo no existe o fue borrado.');
-    if (!file || file.driveId !== scope.office.driveId || file.trashed) throw notFound;
-    if (scope.rootId === scope.office.driveId) return;
+    if (!file || file.trashed) throw notFound;
+    if (scope.office.kind === 'personal') {
+      // "Mis archivos" está en el Drive personal: nada de una unidad, y siempre
+      // dentro de su carpeta (el resto del Drive del usuario no se expone).
+      if (file.driveId) throw notFound;
+    } else {
+      if (file.driveId !== scope.office.driveId) throw notFound;
+      if (scope.rootId === scope.office.driveId) return;
+    }
     let current = file;
     for (let depth = 0; depth < MAX_FOLDER_DEPTH; depth++) {
       if (current.id === scope.rootId) return;
       const parent = current.parents?.[0];
-      if (!parent || parent === scope.office.driveId) break;
+      if (!parent) break;
+      if (parent === scope.rootId) return;
+      if (parent === scope.office.driveId) break;
       current = await this.gdrive.getFile(actAs, parent);
       if (current.trashed) break;
     }
@@ -693,9 +834,9 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   }
 
   /** Metadatos actuales de un archivo, como la cuenta dueña; null si ya no existe. */
-  async currentFile(fileId: string): Promise<drive_v3.Schema$File | null> {
+  async currentFile(fileId: string, actAs: string = this.gdrive.ownerEmail): Promise<drive_v3.Schema$File | null> {
     try {
-      const file = await this.gdrive.getFile(this.gdrive.ownerEmail, fileId);
+      const file = await this.gdrive.getFile(actAs, fileId);
       return file.trashed ? null : file;
     } catch {
       return null;
@@ -739,7 +880,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     return this.as(scope, async (actAs) => {
       const folder = await this.folderIn(actAs, scope, folderId);
       const [files, path] = await Promise.all([
-        this.gdrive.listChildren(actAs, scope.office.driveId, folder.id!),
+        this.gdrive.listChildren(actAs, driveIdOf(scope.office), folder.id!),
         withPath ? this.pathTo(actAs, scope, folder) : Promise.resolve(undefined),
       ]);
       return {
@@ -868,7 +1009,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     const free = Math.max(0, quota - current.usedBytes);
     if (incoming <= free) return;
     throw new PayloadTooLargeException(
-      `No hay espacio en ${office.groupName}: quedan ${formatBytes(free)} libres de ${formatBytes(quota)} ` +
+      `No hay espacio en ${this.spaceLabel(office)}: quedan ${formatBytes(free)} libres de ${formatBytes(quota)} ` +
         `y querés subir ${formatBytes(incoming)}. Eliminá archivos para liberar lugar.`,
     );
   }
@@ -904,6 +1045,8 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     uploader: Uploader,
     fileCount?: number,
   ): Promise<void> {
+    // "Mis archivos" es de una sola persona: no hay a quién avisar.
+    if (scope.office.kind === 'personal') return;
     try {
       const group = scope.office.groupName;
       const members = await this.userRepo
@@ -969,7 +1112,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     this.assertWritable(scope, fileId);
     const file = await this.as(scope, async (actAs) => {
       const file = await this.fileIn(actAs, scope, fileId);
-      await this.gdrive.deleteForever(fileId);
+      await this.gdrive.deleteForever(fileId, scope.office.kind === 'personal' ? scope.office.ownerEmail! : undefined);
       return file;
     });
     if (file.mimeType === FOLDER_MIME) {

@@ -6,17 +6,31 @@ const bigintNumber: ValueTransformer = {
   from: (v: string | null) => (v === null || v === undefined ? null : Number(v)),
 };
 
-/** Unidad compartida de Google Drive de una oficina (grupo AD con category='oficina'). */
+/**
+ * Un espacio de archivos:
+ *  - office: la unidad compartida de Google Drive de una oficina (grupo AD
+ *    con category='oficina'); driveId es el id de la unidad.
+ *  - personal: "Mis archivos" de un usuario, una carpeta en su propio Drive
+ *    ("Mi unidad"); driveId es el id de esa carpeta, groupName '@usuario' y
+ *    ownerEmail su cuenta. No cuenta para el espacio de la oficina.
+ */
 @Entity('office_drives')
 export class OfficeDrive {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ type: 'varchar', default: 'office' })
+  kind: 'office' | 'personal';
 
   @Column({ unique: true })
   groupName: string;
 
   @Column()
   driveId: string;
+
+  /** Solo en los personales: la cuenta de Google dueña de la carpeta. */
+  @Column({ type: 'varchar', nullable: true })
+  ownerEmail: string | null;
 
   @Column({ type: 'timestamp', nullable: true })
   lastSyncAt: Date | null;

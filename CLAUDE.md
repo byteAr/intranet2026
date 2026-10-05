@@ -16,11 +16,18 @@ Plataforma intranet institucional: chat, incidencias, reservas, correo, MTO, pus
 ssh usuario@10.98.40.24
 cd /usr/local/proyectos/intranet2026
 git pull origin <rama>
-# cambios backend:
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend
-# cambios frontend:
+# cambios backend (pase sin corte: levanta el nuevo al lado, espera /api/health y apaga el viejo):
+scripts/rollout.sh backend -f docker-compose.yml -f docker-compose.prod.yml
+# cambios frontend (nginx reinicia en menos de un segundo):
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build frontend
 ```
+
+### Pase sin corte (`scripts/rollout.sh`)
+- El backend no tiene `container_name` ni puertos publicados en prod/staging: durante el pase conviven dos copias. nginx (servicio `frontend`) lo busca por nombre en el DNS de Docker en cada pedido (`resolver 127.0.0.11`) y, si una copia no responde, prueba la otra.
+- El puerto 3000 del servidor (mail-bridge → `10.98.40.24:3000`) y `127.0.0.1:3001` (scripts) los publica ahora el `frontend`: un `server { listen 3000; }` de `nginx.conf` que reenvía todo al backend.
+- Si la versión nueva no queda sana (`/api/health`: arrancó y llega a la base), el script la borra y la vieja sigue atendiendo.
+- Los contenedores del backend se llaman `intranet2026-backend-N` (cambia N en cada pase): para logs, `docker compose -f docker-compose.yml -f docker-compose.prod.yml logs backend`.
+- La copia nueva se crea con el compose y el `.env` actuales, así que el rollout también aplica cambios de variables. `nginx.conf` va con el frontend.
 
 ---
 
@@ -236,6 +243,7 @@ Toda funcionalidad nueva visible lleva la etiqueta **NUEVO** una semana desde su
 - **Ámbito de acceso** (`AccessScope`): toda la unidad (`/shared-folders/:office/...`) o algo compartido (`/shared-folders/shares/:shareId/...`), con las mismas rutas. En lo compartido se verifica subiendo por `parents` que el archivo esté dentro de lo compartido; se opera como la cuenta dueña.
 - **Compartir** es permiso de la intranet, no de Drive: tabla `shared_items` (`sharedWith` = username en minúsculas, rol `reader`/`writer`, `seenAt` para el badge). No se puede compartir con alguien de la misma oficina. Lo compartido en sí no se renombra ni borra desde quien lo recibe. Si quien recibe tiene cuenta `@iugna.edu.ar`, el permiso se replica en Drive (`drivePermissionId`, reader/writer) para que pueda abrirlo en Google; al quitarlo se revoca.
 - **Editar en Google**: Word/Excel/PowerPoint se abren en modo de edición de Office (`rtpof=true`, sin convertir) y los nativos en su editor; la URL lleva `authuser=<cuenta @iugna>` (`googleEditUrl()` en `preview.util.ts`). ⚠️ Google escribe el `.docx/.xlsx` al cerrar el documento o al rato: mientras alguien edita, la vista previa y la descarga muestran la versión anterior (verificado en staging; la vista previa lo avisa).
+- **Mis archivos** (1.4.0): espacio personal en una carpeta "Intranet - Mis archivos" del Drive ("Mi unidad") de cada usuario, creada la primera vez y operada en su nombre; no cuenta para la oficina. Se guarda en `office_drives` con `kind='personal'`, `groupName='@usuario'`, `driveId` = id de la carpeta y `ownerEmail`. En las rutas va `~mis-archivos` en lugar de la oficina (`scopeByKey`). 10 GB por persona (`SHARED_FOLDERS_PERSONAL_GB`; `quotaBytes` lo pisa). Uso = recorrido de la carpeta sin papelera (la del usuario no se toca). Sin cuenta @iugna.edu.ar → aviso para pedirla. Se puede compartir: los permisos de Drive los da el dueño de la carpeta (`grantorOf`) y quien recibe opera como él. ⚠️ `syncAll`/`syncMembers` ignoran los personales (tocar sus permisos le quitaría el acceso al dueño).
 - **Archivos grandes** (> 100 MB, hasta 10 GB): no pasan por el servidor. `POST /upload-session` valida acceso, tamaño y espacio y abre una subida reanudable en Drive (en nombre del usuario, con `Origin` para CORS); el navegador manda el archivo directo a Google en partes de 16 MB por XHR (`drive-direct-upload.ts`, reintenta y pregunta hasta dónde llegó) y cierra con `POST /upload-complete` (suma el espacio y avisa). Lo chico sigue por multer (200 MB máx.).
 - **Descargas con enlace** (`folder-download.service.ts`): `POST …/files/:id/download-link` valida y firma un JWT de 2 min con secreto propio (`jwt.secret` + sufijo: no sirve como sesión); `GET /api/shared-folders/dl/:token` (`@Public`) revalida el acceso del usuario y baja el archivo, o la carpeta entera en .zip armado al vuelo (`archiver`, de a un archivo, Docs convertidos a Office, nombres repetidos con " (2)"). El navegador lo baja solo (sin blob en memoria). `ngsw-config.json` excluye `/api/**` de la navegación del service worker.
 - **Subir carpetas** (arrastrar): el navegador las recorre (`webkitGetAsEntry`), crea la estructura con `POST /folders` (nombre repetido arriba → " (2)"), sube en tandas de 20 archivos o ~100 MB con `?quiet=1` y al final pide un único aviso (`POST /uploaded` con lo que quedó a la vista y el total de archivos). Hasta 1000 archivos por vez.

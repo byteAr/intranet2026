@@ -35,8 +35,14 @@ export interface FolderListing {
 }
 
 /** Espacio de una oficina. */
+/** "Mis archivos": en las rutas va en lugar de la oficina. */
+export const PERSONAL_KEY = '~mis-archivos';
+
 export interface OfficeUsage {
+  /** La oficina, o PERSONAL_KEY para "Mis archivos". */
   groupName: string;
+  /** Cómo mostrarlo: la oficina, o "Mis archivos". */
+  label: string;
   quotaBytes: number;
   /** Papelera de Drive incluida, como lo cuenta Google. */
   usedBytes: number;
@@ -44,7 +50,7 @@ export interface OfficeUsage {
   /** Integrantes habilitados del grupo en el AD (base del espacio automático). */
   memberCount: number;
   /** De dónde sale el espacio. */
-  quotaRule: 'manual' | 'per-member' | 'minimum' | 'maximum';
+  quotaRule: 'manual' | 'per-member' | 'minimum' | 'maximum' | 'personal';
   gbPerMember: number;
   /** El espacio lo fijó TICOM a mano. */
   manualQuota: boolean;

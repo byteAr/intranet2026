@@ -13,10 +13,10 @@ import { NewBadgeComponent } from '../new-badge/new-badge.component';
   imports: [NewBadgeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="flex items-center gap-3" [title]="usage().groupName + ' · ' + basis()">
+    <div class="flex items-center gap-3" [title]="usage().label + ' · ' + basis()">
       <!-- Pendrive -->
       <div class="flex items-center flex-shrink-0" role="progressbar" [attr.aria-valuenow]="percent()"
-           aria-valuemin="0" aria-valuemax="100" [attr.aria-label]="'Espacio usado de ' + usage().groupName">
+           aria-valuemin="0" aria-valuemax="100" [attr.aria-label]="'Espacio usado de ' + usage().label">
         <div class="h-6 w-16 rounded-md border-[1.5px] border-gray-300 dark:border-zinc-600 p-[3px]">
           <div class="drive-fill h-full rounded-[3px]" [style.width.%]="shown() ? barWidth() : 0" [style.background]="barColor()"></div>
         </div>

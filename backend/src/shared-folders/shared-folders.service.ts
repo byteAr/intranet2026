@@ -772,7 +772,11 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     });
   }
 
-  async upload(scope: AccessScope, parentId: string | undefined, files: UploadedFile[], uploader: Uploader) {
+  /**
+   * Con quiet no avisa: al subir una carpeta el navegador manda los archivos
+   * en tandas y al final pide un único aviso (notifyUploaded).
+   */
+  async upload(scope: AccessScope, parentId: string | undefined, files: UploadedFile[], uploader: Uploader, quiet = false) {
     try {
       this.assertWritable(scope);
       if (!files?.length) throw new BadRequestException('No se recibió ningún archivo.');
@@ -792,7 +796,7 @@ export class SharedFoldersService implements OnApplicationBootstrap {
         return { parent, uploaded };
       });
       await this.addUsage(scope.office, uploaded.reduce((sum, f) => sum + (f.size ?? 0), 0));
-      void this.notifyUpload(scope, parent, uploaded, uploader);
+      if (!quiet) void this.notifyUpload(scope, parent, uploaded, uploader);
       return uploaded;
     } finally {
       await this.discardUploads(files);
@@ -821,11 +825,36 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   }
 
   /**
+   * Un único aviso para una subida hecha en tandas (una carpeta arrastrada):
+   * `itemIds` son lo que quedó a la vista en `folderId` (las carpetas
+   * creadas y los archivos sueltos) y `fileCount` el total de archivos.
+   */
+  async notifyUploaded(scope: AccessScope, folderId: string, itemIds: string[], fileCount: number, uploader: Uploader): Promise<void> {
+    this.assertWritable(scope);
+    const ids = (Array.isArray(itemIds) ? itemIds : []).filter((id) => typeof id === 'string' && isDriveId(id)).slice(0, 50);
+    if (!ids.length) return;
+    const { parent, items } = await this.as(scope, async (actAs) => {
+      const parent = await this.folderIn(actAs, scope, folderId);
+      const items: SharedFile[] = [];
+      for (const id of ids) items.push(this.toShared(await this.fileIn(actAs, scope, id)));
+      return { parent, items };
+    });
+    const count = Math.max(0, Math.min(Math.trunc(Number(fileCount) || 0), 100_000));
+    void this.notifyUpload(scope, parent, items, uploader, count);
+  }
+
+  /**
    * Avisa a los demás integrantes de la oficina: una notificación por subida
    * aunque sean varios archivos. Lleva los archivos para que quien tenga esa
    * carpeta abierta los vea aparecer sin recargar.
    */
-  private async notifyUpload(scope: AccessScope, parent: drive_v3.Schema$File, files: SharedFile[], uploader: Uploader): Promise<void> {
+  private async notifyUpload(
+    scope: AccessScope,
+    parent: drive_v3.Schema$File,
+    files: SharedFile[],
+    uploader: Uploader,
+    fileCount?: number,
+  ): Promise<void> {
     try {
       const group = scope.office.groupName;
       const members = await this.userRepo
@@ -840,11 +869,20 @@ export class SharedFoldersService implements OnApplicationBootstrap {
       const who = [uploader.firstName, uploader.lastName].filter(Boolean).join(' ') || uploader.displayName || uploader.username;
       const n = files.length;
       const names = files.slice(0, 3).map((f) => f.name).join(', ');
+      const total = fileCount ?? n;
+      const archivos = `${total} ${total === 1 ? 'archivo' : 'archivos'}`;
+      const folders = files.filter((f) => f.isFolder);
+      const what =
+        folders.length === 1 && n === 1
+          ? `la carpeta «${folders[0].name}»${total ? ` con ${archivos}` : ''}`
+          : folders.length
+            ? `${folders.length === n ? `${n} carpetas` : `${n} elementos`} con ${archivos}`
+            : n === 1 ? 'un archivo' : `${n} archivos`;
       await this.notifications.notify(
         members.map((m) => m.username),
         {
           type: 'upload',
-          title: `${who} subió ${n === 1 ? 'un archivo' : `${n} archivos`} a ${group}`,
+          title: `${who} subió ${what} a ${group}`,
           body: n > 3 ? `${names} y ${n - 3} más` : names,
           data: {
             groupName: group,

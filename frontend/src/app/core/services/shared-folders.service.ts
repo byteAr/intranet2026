@@ -134,15 +134,22 @@ export class SharedFoldersService {
     return this.http.post<SharedFile>(`${this.prefix(scope)}/folders`, { parentId, name });
   }
 
-  /** Sube con eventos de progreso. */
-  upload(scope: FolderScope, folderId: string, files: File[]): Observable<HttpEvent<SharedFile[]>> {
+  /** Sube con eventos de progreso. Con quiet no avisa a la oficina (subida en tandas). */
+  upload(scope: FolderScope, folderId: string, files: File[], quiet = false): Observable<HttpEvent<SharedFile[]>> {
     const fd = new FormData();
     for (const f of files) fd.append('files', f, f.name);
+    const params: Record<string, string> = { folderId };
+    if (quiet) params['quiet'] = '1';
     return this.http.post<SharedFile[]>(`${this.prefix(scope)}/upload`, fd, {
-      params: { folderId },
+      params,
       reportProgress: true,
       observe: 'events',
     });
+  }
+
+  /** Cierra una subida en tandas: un único aviso con lo que quedó en `folderId`. */
+  notifyUploaded(scope: FolderScope, folderId: string, itemIds: string[], fileCount: number): Observable<void> {
+    return this.http.post<void>(`${this.prefix(scope)}/uploaded`, { folderId, itemIds, fileCount });
   }
 
   rename(scope: FolderScope, fileId: string, name: string): Observable<SharedFile> {

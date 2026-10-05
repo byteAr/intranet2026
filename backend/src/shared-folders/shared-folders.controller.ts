@@ -34,6 +34,7 @@ const uploadInterceptor = FilesInterceptor('files', MAX_FILES_PER_UPLOAD, {
 });
 
 type AuthRequest = { user: User };
+type UploadedBody = { folderId: string; itemIds: string[]; fileCount: number };
 
 function isTicom(user: User): boolean {
   return (user.roles ?? []).some((r) => r.toUpperCase() === 'TICOM');
@@ -138,9 +139,16 @@ export class SharedFoldersController {
     @Request() req: AuthRequest,
     @Param('shareId') shareId: string,
     @Query('folderId') folderId: string | undefined,
+    @Query('quiet') quiet: string | undefined,
     @UploadedFiles() files: UploadedFile[],
   ) {
-    return this.service.upload(await this.scopeOrCleanup(() => this.service.shareScope(req.user, shareId), files), folderId, files, req.user);
+    return this.service.upload(await this.scopeOrCleanup(() => this.service.shareScope(req.user, shareId), files), folderId, files, req.user, quiet === '1');
+  }
+
+  @Post('shares/:shareId/uploaded')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async shareUploaded(@Request() req: AuthRequest, @Param('shareId') shareId: string, @Body() body: UploadedBody) {
+    await this.service.notifyUploaded(await this.service.shareScope(req.user, shareId), body?.folderId, body?.itemIds, body?.fileCount, req.user);
   }
 
   @Patch('shares/:shareId/files/:id')
@@ -208,9 +216,17 @@ export class SharedFoldersController {
     @Request() req: AuthRequest,
     @Param('office') office: string,
     @Query('folderId') folderId: string | undefined,
+    @Query('quiet') quiet: string | undefined,
     @UploadedFiles() files: UploadedFile[],
   ) {
-    return this.service.upload(await this.scopeOrCleanup(() => this.service.officeScope(req.user, office), files), folderId, files, req.user);
+    return this.service.upload(await this.scopeOrCleanup(() => this.service.officeScope(req.user, office), files), folderId, files, req.user, quiet === '1');
+  }
+
+  /** Cierre de una subida en tandas (carpeta arrastrada): un único aviso a la oficina. */
+  @Post(':office/uploaded')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async uploaded(@Request() req: AuthRequest, @Param('office') office: string, @Body() body: UploadedBody) {
+    await this.service.notifyUploaded(await this.service.officeScope(req.user, office), body?.folderId, body?.itemIds, body?.fileCount, req.user);
   }
 
   @Patch(':office/files/:id')

@@ -22,8 +22,8 @@ import {
 import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { NotificationsService } from '../../core/services/notifications.service';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
-import { StorageUsageComponent, formatBytes, freeBytes } from '../../shared/storage-usage/storage-usage.component';
-import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
+import { formatBytes, freeBytes } from '../../shared/storage-usage/storage-usage.component';
+import { StorageDriveComponent } from '../../shared/storage-usage/storage-drive.component';
 
 const LAST_TAB_KEY = 'pac_shared_folders_office';
 /** Pestaña "Compartidos conmigo" (no puede coincidir con un grupo del AD). */
@@ -55,16 +55,21 @@ interface UploadState {
 @Component({
   selector: 'app-shared-folders',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent, StorageUsageComponent, NewBadgeComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent, StorageDriveComponent],
   // La página ocupa todo el alto del <main> para que la tarjeta se estire hasta abajo.
   host: { class: 'flex flex-col min-h-full' },
   template: `
 <div class="flex flex-col gap-5 flex-1">
 
-  <!-- Header -->
-  <div>
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-zinc-100">Archivos compartidos</h1>
-    <p class="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">Archivos de tu oficina y lo que otros compartieron con vos.</p>
+  <!-- Header + espacio de la oficina abierta (un pendrive que se va llenando) -->
+  <div class="flex items-center justify-between gap-x-6 gap-y-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-zinc-100">Archivos compartidos</h1>
+      <p class="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">Archivos de tu oficina y lo que otros compartieron con vos.</p>
+    </div>
+    @if (currentUsage(); as u) {
+      <app-storage-drive class="ml-auto" [usage]="u" />
+    }
   </div>
 
   @if (loadingInfo()) {
@@ -155,14 +160,6 @@ interface UploadState {
           }
         </div>
       </div>
-
-      <!-- Espacio de la oficina -->
-      @if (currentUsage(); as u) {
-        <div class="flex items-center gap-2 px-4 py-2 border-b border-gray-100 dark:border-zinc-800">
-          <app-storage-usage class="flex-1 min-w-0" [usage]="u" [compact]="true" />
-          <app-new-badge feature="espacio-oficinas" />
-        </div>
-      }
 
       <!-- Sin cuenta de Google: explica por qué no puede editar en línea -->
       @if (showGoogleHint()) {

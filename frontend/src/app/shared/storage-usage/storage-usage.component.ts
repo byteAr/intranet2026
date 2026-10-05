@@ -19,34 +19,12 @@ export function freeBytes(u: OfficeUsage): number {
 /**
  * Barra de espacio de una oficina: usado, disponible y aviso cuando se llena.
  * Verde hasta el 80 %, ámbar hasta el 95 %, rojo después.
- * Con [compact]="true" es una sola línea, para el encabezado de Archivos.
  */
 @Component({
   selector: 'app-storage-usage',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (compact()) {
-      <div class="flex items-center gap-3 text-xs">
-        <span class="font-medium text-gray-600 dark:text-zinc-400 whitespace-nowrap">Espacio</span>
-        <div class="flex-1 min-w-[5rem] max-w-xs h-2 rounded-full bg-gray-100 dark:bg-zinc-800 overflow-hidden"
-             role="progressbar" [attr.aria-valuenow]="percent()" aria-valuemin="0" aria-valuemax="100"
-             [attr.aria-label]="'Espacio usado de ' + usage().groupName">
-          <div class="h-full rounded-full transition-[width] duration-700" [style.width.%]="barWidth()" [style.background]="barColor()"></div>
-        </div>
-        <span class="tabular-nums text-gray-500 dark:text-zinc-400 whitespace-nowrap" [title]="basis()">{{ used() }} de {{ quota() }}</span>
-        <span class="tabular-nums font-semibold whitespace-nowrap" [class]="levelText()">
-          {{ full() ? 'Sin espacio' : free() + ' libres' }}
-        </span>
-        @if (usage().trashedBytes > 0) {
-          <!-- Si no, una carpeta vacía que "ocupa" espacio no se entiende -->
-          <span class="text-gray-400 dark:text-zinc-500 whitespace-nowrap"
-                title="Lo borrado desde Drive pasa por su papelera; la intranet la vacía sola en unos minutos.">
-            · {{ trashed() }} en la papelera, se libera en unos minutos
-          </span>
-        }
-      </div>
-    } @else {
       <div>
         <div class="flex items-baseline justify-between gap-3">
           <span class="text-sm font-semibold text-gray-800 dark:text-zinc-200 truncate">{{ usage().groupName }}</span>
@@ -73,12 +51,10 @@ export function freeBytes(u: OfficeUsage): number {
           </p>
         }
       </div>
-    }
   `,
 })
 export class StorageUsageComponent {
   readonly usage = input.required<OfficeUsage>();
-  readonly compact = input(false);
 
   readonly percent = computed(() => {
     const u = this.usage();

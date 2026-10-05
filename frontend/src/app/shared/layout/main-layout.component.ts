@@ -18,6 +18,7 @@ import { AppVersionService } from '../../core/services/app-version.service';
 import { IdleTimeoutService, IDLE_WARNING_SECONDS } from '../../core/services/idle-timeout.service';
 import { SharedFoldersService } from '../../core/services/shared-folders.service';
 import { NewBadgeComponent } from '../new-badge/new-badge.component';
+import { APP_VERSION } from '../../app-version';
 import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
 import { NotificationsService } from '../../core/services/notifications.service';
 import { HttpClient } from '@angular/common/http';
@@ -39,8 +40,8 @@ import { HttpClient } from '@angular/common/http';
              style="min-height: 5rem">
           @if (!collapsed()) {
             <div class="flex flex-col items-center">
-              <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'" class="h-24 object-contain" [style.mix-blend-mode]="themeService.isDark() ? 'screen' : 'normal'" alt="Diredtos" />
-              <span class="text-xs text-gray-400 dark:text-zinc-500 mt-1">V 1.0.0.0</span>
+              <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'" class="h-24 object-contain" alt="Diredtos" />
+              <span class="text-xs text-gray-400 dark:text-zinc-500 mt-1">V {{ appVersion }}</span>
             </div>
           }
           <button (click)="collapsed.set(!collapsed())"
@@ -209,7 +210,8 @@ import { HttpClient } from '@angular/common/http';
                   {{ sharedFoldersService.unseenShares() }}
                 </span>
               } @else {
-                <app-new-badge feature="archivos-compartidos" class="absolute top-0.5 right-1.5" />
+                <!-- Por encima de la línea del texto: no tapa "compartidos" -->
+                <app-new-badge feature="archivos-compartidos" [compact]="true" class="absolute -top-1.5 right-1 z-10" />
               }
             } @else if (sharedFoldersService.unseenShares() > 0) {
               <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
@@ -464,11 +466,25 @@ import { HttpClient } from '@angular/common/http';
       <!-- Chat toggle button -->
       <button
         (click)="toggleChatPopup()"
-        class="h-14 w-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform hover:scale-105 relative bg-teal-700 dark:bg-green-800 hover:bg-teal-600 dark:hover:bg-green-700">
-        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
+        class="h-14 w-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform hover:scale-105 relative bg-teal-700 dark:bg-green-800 hover:bg-teal-600 dark:hover:bg-green-700"
+        [attr.aria-label]="'Conversaciones, ' + onlineContacts().length + ' en línea'">
+        <!-- El recorte va en una capa propia para no cortar el punto rojo de no leídos -->
+        <span class="absolute inset-0 rounded-full overflow-hidden">
+          <span class="chat-face" [class.chat-cycle-icon]="onlineContacts().length > 0">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </span>
+          @if (onlineContacts().length > 0) {
+            <span class="chat-face chat-cycle-count flex-col leading-none" aria-hidden="true">
+              <span class="flex items-center gap-1 text-lg font-bold tabular-nums">
+                <span class="online-dot h-2 w-2 rounded-full bg-green-300"></span>{{ onlineContacts().length }}
+              </span>
+              <span class="mt-0.5 text-[8px] font-semibold uppercase tracking-wide opacity-90">en línea</span>
+            </span>
+          }
+        </span>
         @if (chatService.unreadCount() > 0 && !isOnChatPage()) {
           <span class="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-white dark:border-zinc-950"></span>
         }
@@ -809,6 +825,37 @@ import { HttpClient } from '@angular/common/http';
     :host-context(.dark) .nav-item { color: #a1a1aa; }
     :host-context(.dark) .nav-item:hover { background: #27272a; color: #f4f4f5; }
     :host-context(.dark) .active-nav { background: #166534 !important; color: white !important; font-weight: 600; }
+
+    /*
+     * Burbuja del chat: el ícono sale por la izquierda, entra la cantidad de
+     * personas en línea, y vuelve el ícono. Ciclo de 9 s, infinito.
+     */
+    .chat-face {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .chat-cycle-icon { animation: chat-icon 9s cubic-bezier(.65, 0, .35, 1) infinite; }
+    .chat-cycle-count { animation: chat-count 9s cubic-bezier(.65, 0, .35, 1) infinite; }
+    @keyframes chat-icon {
+      0%, 42% { transform: translateX(0); opacity: 1; }
+      50%, 92% { transform: translateX(-140%); opacity: 0; }
+      92.01% { transform: translateX(140%); opacity: 0; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes chat-count {
+      0%, 42% { transform: translateX(140%); opacity: 0; }
+      50%, 92% { transform: translateX(0); opacity: 1; }
+      100% { transform: translateX(-140%); opacity: 0; }
+    }
+    .online-dot { animation: online-dot 1.6s ease-in-out infinite; }
+    @keyframes online-dot {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(134, 239, 172, .7); }
+      50% { box-shadow: 0 0 0 4px rgba(134, 239, 172, 0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .chat-cycle-icon, .online-dot { animation: none; }
+      .chat-cycle-count { display: none; }
+    }
   `],
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
@@ -830,6 +877,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private openedFromUrl: string | null = null;
   /** Mensajes de Tráfico Oficial (antes "Correo"). */
   readonly mtosLabel = "MTO's";
+  readonly appVersion = APP_VERSION;
   /** Revisa cada minuto si compartieron algo nuevo (badge de Carpetas). */
   private sharesTimer: ReturnType<typeof setInterval> | null = null;
   private readonly http = inject(HttpClient);

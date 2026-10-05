@@ -69,11 +69,8 @@ export interface AttachmentPreviewRequest {
               <div class="absolute inset-0 flex flex-col items-center justify-center gap-6">
                 <div class="relative h-44 w-44 flex items-center justify-center">
                   <app-comet-spinner class="absolute inset-0" [size]="176" [thickness]="4" />
-                  <!-- Los logos tienen fondo opaco (blanco / negro): el modo de fusión lo vuelve
-                       transparente, así no se ve el rectángulo aunque pase el cometa por detrás. -->
                   <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'"
                        class="h-24 object-contain logo-breathe"
-                       [style.mix-blend-mode]="themeService.isDark() ? 'screen' : 'multiply'"
                        alt="INTRANET DIREDTOS" />
                 </div>
                 <p class="text-sm font-medium text-gray-500 dark:text-zinc-400">Generando vista previa</p>

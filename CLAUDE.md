@@ -110,7 +110,7 @@ CC=DIREDTOS@MTO.GNA   → INFORMATIVOS  (fallback también)
 - Consulta: `websearch_to_tsquery` + `:*` en cada término (prefijo). Texto, mailCode (trigramas) y adjuntos (trigramas) se unen con `UNION`, no con `OR`.
 - Orden: mailCode exacto > `ts_rank_cd` > fecha. Fragmento resaltado con `ts_headline` (marcadores U+0002/U+0003, el frontend escapa y los convierte en `<mark>`).
 - ⚠️ El estado de lectura se carga aparte, sin JOIN: con JOIN + skip/take TypeORM pagina con DISTINCT y **descarta el ORDER BY**.
-- Migración única en segundo plano (repara caracteres + reindexa). La marca es el comentario de la tabla: `obj_description('emails'::regclass)` = `fts:v3:<config>`. Para forzar otra: `COMMENT ON TABLE emails IS NULL` y reiniciar el backend.
+- Migración única en segundo plano (repara caracteres + reindexa ~300k correos, unos 5 min). La marca está en la tabla `app_markers` (`key='emails.fts'`, `value='fts:v3:<config>'`). Para forzar otra: `DELETE FROM app_markers WHERE key = 'emails.fts'` y reiniciar el backend. ⚠️ No usar el comentario de la tabla: la sincronización de TypeORM lo borra en cada arranque (así estuvo hasta el 05/10/2026 y se reindexaba siempre).
 
 ### Texto de los correos
 Outlook declara `iso-8859-1` pero manda `windows-1252`: los bytes 0x80-0x9F (comillas “ ”, raya –, …) quedan como controles C1 y se ven como □. `normalizeMailText()` (`mail-text.util.ts`) los convierte al ingresar, en bridge, IMAP y PST.

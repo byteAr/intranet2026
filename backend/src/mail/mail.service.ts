@@ -168,16 +168,27 @@ export class MailService implements OnApplicationBootstrap {
   private async migrateSearchData(): Promise<void> {
     const marca = `${FTS_VERSION}:${this.searchConfig}`;
     try {
-      const [fila] = await this.dataSource.query(
-        `SELECT obj_description('emails'::regclass, 'pg_class') AS marca`,
-      );
+      // La marca va en una tabla propia: antes era el comentario de "emails",
+      // pero la sincronización de TypeORM lo borra en cada arranque (la entidad
+      // no declara comentario) y la reindexación se repetía siempre.
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS "app_markers" (
+          "key" varchar PRIMARY KEY,
+          "value" text NOT NULL,
+          "updatedAt" timestamptz NOT NULL DEFAULT now()
+        )`);
+      const [fila] = await this.dataSource.query(`SELECT "value" AS marca FROM "app_markers" WHERE "key" = 'emails.fts'`);
       if (fila?.marca === marca) return;
 
       this.logger.log('FTS: reparando caracteres y reindexando correos en segundo plano...');
       const inicio = Date.now();
       const reparados = await this.repairMailEncoding();
       const reindexados = await this.rebuildSearchVectors();
-      await this.dataSource.query(`COMMENT ON TABLE emails IS '${marca}'`);
+      await this.dataSource.query(
+        `INSERT INTO "app_markers" ("key", "value") VALUES ('emails.fts', $1)
+         ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
+        [marca],
+      );
       this.logger.log(
         `FTS: migración completa en ${Math.round((Date.now() - inicio) / 1000)} s — ` +
           `${reparados} correos con caracteres reparados, ${reindexados} reindexados`,

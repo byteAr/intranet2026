@@ -28,8 +28,10 @@ services:
     restart: unless-stopped
 
   backend:
-    ports:
-      - '127.0.0.1:3001:3000'
+    # Sin nombre ni puerto fijo: durante un pase sin corte (scripts/rollout.sh)
+    # conviven dos copias. Se llega a él por nginx (servicio "frontend").
+    container_name: !reset null
+    ports: !reset []
     depends_on:
       - ad-bridge
       - redis
@@ -37,6 +39,10 @@ services:
   frontend:
     ports:
       - '8280:80'
+      # Entrada directa al backend a través de nginx (ver nginx.conf, server :3000):
+      # el mail-bridge usa 10.98.40.24:3000 y los scripts de importación 127.0.0.1:3001.
+      - '3000:3000'
+      - '127.0.0.1:3001:3000'
 
 networks:
   default:

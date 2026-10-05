@@ -33,6 +33,7 @@ import { SituationType } from './daily-report/entities/situation-type.entity';
 import { ActiveSituation } from './daily-report/entities/active-situation.entity';
 import { NonWorkingDay } from './daily-report/entities/non-working-day.entity';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { HealthController } from './health.controller';
 import { RolesGuard } from './common/guards/roles.guard';
 import { User } from './users/entities/user.entity';
 import { Department } from './admin/entities/department.entity';
@@ -100,6 +101,7 @@ import { DraftMailSigner } from './draft-mail/entities/draft-mail-signer.entity'
     SharedFoldersModule,
     NotificationsModule,
   ],
+  controllers: [HealthController],
   providers: [
     // Apply JwtAuthGuard globally; routes marked @Public() bypass it
     {

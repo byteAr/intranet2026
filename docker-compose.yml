@@ -117,6 +117,14 @@ services:
       - postgres_password
       - ldap_bind_credentials
       - smtp_pass
+    # "Sano" = arrancó y llega a la base. En un pase sin corte (scripts/rollout.sh)
+    # el backend nuevo recibe tráfico y el viejo se apaga recién cuando esto da bien.
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1 || exit 1']
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 90s
 
   frontend:
     build:

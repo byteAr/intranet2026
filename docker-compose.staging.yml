@@ -39,15 +39,20 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: intranet_staging_backend
+    # Sin nombre ni puerto fijo: durante un pase sin corte (scripts/rollout.sh)
+    # conviven dos copias. Se llega a él por nginx (servicio "frontend").
     restart: unless-stopped
     env_file: .env.staging
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
       GOOGLE_SERVICE_ACCOUNT_PATH: /run/google/google-workspace-key.json
-    ports:
-      - '127.0.0.1:3003:3000'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1 || exit 1']
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 90s
     depends_on:
       redis:
         condition: service_healthy
@@ -78,10 +83,11 @@ services:
       target: production
     container_name: intranet_staging_frontend
     restart: unless-stopped
+    # Mismo nginx.conf que producción (viene en la imagen). 127.0.0.1:3003 es la
+    # entrada directa al backend, a través de nginx.
     ports:
       - '8281:80'
-    volumes:
-      - ./frontend/nginx.staging.conf:/etc/nginx/conf.d/default.conf:ro
+      - '127.0.0.1:3003:3000'
     depends_on:
       - backend
 

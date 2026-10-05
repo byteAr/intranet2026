@@ -16,11 +16,18 @@ Plataforma intranet institucional: chat, incidencias, reservas, correo, MTO, pus
 ssh usuario@10.98.40.24
 cd /usr/local/proyectos/intranet2026
 git pull origin <rama>
-# cambios backend:
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend
-# cambios frontend:
+# cambios backend (pase sin corte: levanta el nuevo al lado, espera /api/health y apaga el viejo):
+scripts/rollout.sh backend -f docker-compose.yml -f docker-compose.prod.yml
+# cambios frontend (nginx reinicia en menos de un segundo):
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build frontend
 ```
+
+### Pase sin corte (`scripts/rollout.sh`)
+- El backend no tiene `container_name` ni puertos publicados en prod/staging: durante el pase conviven dos copias. nginx (servicio `frontend`) lo busca por nombre en el DNS de Docker en cada pedido (`resolver 127.0.0.11`) y, si una copia no responde, prueba la otra.
+- El puerto 3000 del servidor (mail-bridge → `10.98.40.24:3000`) y `127.0.0.1:3001` (scripts) los publica ahora el `frontend`: un `server { listen 3000; }` de `nginx.conf` que reenvía todo al backend.
+- Si la versión nueva no queda sana (`/api/health`: arrancó y llega a la base), el script la borra y la vieja sigue atendiendo.
+- Los contenedores del backend se llaman `intranet2026-backend-N` (cambia N en cada pase): para logs, `docker compose -f docker-compose.yml -f docker-compose.prod.yml logs backend`.
+- La copia nueva se crea con el compose y el `.env` actuales, así que el rollout también aplica cambios de variables. `nginx.conf` va con el frontend.
 
 ---
 

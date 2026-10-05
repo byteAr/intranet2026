@@ -38,6 +38,13 @@ export function freeBytes(u: OfficeUsage): number {
         <span class="tabular-nums font-semibold whitespace-nowrap" [class]="levelText()">
           {{ full() ? 'Sin espacio' : free() + ' libres' }}
         </span>
+        @if (usage().trashedBytes > 0) {
+          <!-- Si no, una carpeta vacía que "ocupa" espacio no se entiende -->
+          <span class="text-gray-400 dark:text-zinc-500 whitespace-nowrap"
+                title="Lo borrado desde Drive queda en su papelera y Google lo sigue contando hasta que se elimina solo, a los 30 días.">
+            · {{ trashed() }} en la papelera de Drive
+          </span>
+        }
       </div>
     } @else {
       <div>

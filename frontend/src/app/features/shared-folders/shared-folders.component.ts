@@ -1,4 +1,4 @@
-import { Component, DestroyRef, HostListener, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/http';
@@ -40,7 +40,8 @@ interface Crumb { id: string; name: string; }
 interface NameDialog { mode: 'folder' | 'rename'; file?: SharedFile; value: string; }
 /** Una fila: un archivo o carpeta y, en "Compartidos conmigo", el permiso que lo trae. */
 interface Row { file: SharedFile; item?: SharedWithMe; }
-interface ContextMenu { x: number; y: number; row: Row; }
+/** row null: clic derecho en la zona vacía (actualizar, nueva carpeta, subir). */
+interface ContextMenu { x: number; y: number; row: Row | null; }
 interface UserHit { username: string; displayName: string; }
 /** Subida en curso: enviando al servidor → el servidor lo pasa a Drive → listo. */
 interface UploadState {
@@ -131,7 +132,10 @@ const MAX_FILES_PER_DROP = 1000;
     </div>
 
     <div class="files-card flex-1 flex flex-col min-h-[24rem] bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm relative"
-         (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+         (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)"
+         (contextmenu)="onAreaContextMenu($event)" (dblclick)="onAreaDoubleClick($event)">
+      <!-- Selector de archivos para el menú de la zona vacía y el doble clic -->
+      <input #picker type="file" multiple class="hidden" (change)="onFilesPicked($event)" />
 
       <!-- Barra: ruta + acciones -->
       <div class="flex items-center justify-between gap-3 flex-wrap px-4 py-3 border-b border-gray-100 dark:border-zinc-800">
@@ -415,9 +419,10 @@ const MAX_FILES_PER_DROP = 1000;
 @if (menu(); as m) {
   <div class="fixed z-[1000] w-[220px] py-1.5 bg-white dark:bg-zinc-800 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-700"
        [style.left.px]="m.x" [style.top.px]="m.y" role="menu" (click)="$event.stopPropagation()">
-    @for (a of menuActions(m.row); track a) {
+   @if (m.row; as row) {
+    @for (a of menuActions(row); track a) {
       @if (a === 'delete') { <div class="my-1 border-t border-gray-100 dark:border-zinc-700"></div> }
-      <button (click)="runAction(a, m.row)" role="menuitem"
+      <button (click)="runAction(a, row)" role="menuitem"
         class="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-left transition-colors"
         [class]="a === 'delete'
           ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40'
@@ -425,11 +430,11 @@ const MAX_FILES_PER_DROP = 1000;
         @switch (a) {
           @case ('open') {
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
-            {{ m.row.file.isFolder ? 'Abrir' : 'Ver' }}
+            {{ row.file.isFolder ? 'Abrir' : 'Ver' }}
           }
           @case ('google') {
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
-            {{ canEditInGoogle(m.row) ? 'Editar' : 'Abrir' }} en {{ editorName(m.row.file) }}
+            {{ canEditInGoogle(row) ? 'Editar' : 'Abrir' }} en {{ editorName(row.file) }}
           }
           @case ('download') {
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>
@@ -450,6 +455,30 @@ const MAX_FILES_PER_DROP = 1000;
         }
       </button>
     }
+   } @else {
+    <!-- Zona vacía: lo que se puede hacer en la carpeta abierta -->
+    <button (click)="runAreaAction('refresh')" role="menuitem"
+      class="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-left text-gray-700 dark:text-zinc-200 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors">
+      <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg>
+      Actualizar
+    </button>
+    @if (canUploadHere()) {
+      <div class="my-1 border-t border-gray-100 dark:border-zinc-700"></div>
+      <button (click)="runAreaAction('new-folder')" role="menuitem"
+        class="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-left text-gray-700 dark:text-zinc-200 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors">
+        <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M12 11v5M9.5 13.5h5"/></svg>
+        Nueva carpeta
+      </button>
+      <button (click)="runAreaAction('upload')" role="menuitem"
+        class="w-full flex items-center justify-between gap-3 px-3.5 py-2 text-sm text-left text-gray-700 dark:text-zinc-200 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors">
+        <span class="flex items-center gap-3">
+          <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
+          Subir archivos
+        </span>
+        <span class="text-[10px] text-gray-400 dark:text-zinc-500">doble clic</span>
+      </button>
+    }
+   }
   </div>
 }
 
@@ -1026,11 +1055,64 @@ export class SharedFoldersComponent implements OnInit {
 
   // ─── Menú contextual ────────────────────────────────────────────────────────
 
-  openMenu(event: MouseEvent, row: Row): void {
+  openMenu(event: MouseEvent, row: Row | null): void {
     event.preventDefault();
+    // El de la fila no tiene que llegar a la zona vacía (abriría el otro menú).
+    event.stopPropagation();
     const x = Math.max(8, Math.min(event.clientX, window.innerWidth - MENU_WIDTH - 8));
     const y = Math.max(8, Math.min(event.clientY, window.innerHeight - MENU_HEIGHT - 8));
     this.menu.set({ x, y, row });
+  }
+
+  /** Se puede crear y subir en lo que está abierto. */
+  readonly canUploadHere = computed(() => !this.atSharedRoot() && this.canWrite());
+
+  /** Momento del último clic derecho en la zona vacía, para detectar el doble. */
+  private lastAreaContextAt = 0;
+  @ViewChild('picker') private picker?: ElementRef<HTMLInputElement>;
+
+  /**
+   * Clic derecho en la zona de archivos (fuera de una fila): menú propio en
+   * vez del del navegador. Dos seguidos abren directamente el selector de
+   * archivos. En el buscador queda el del navegador (copiar, pegar).
+   */
+  onAreaContextMenu(event: MouseEvent): void {
+    if ((event.target as HTMLElement).closest('input, textarea')) return;
+    const now = Date.now();
+    const twice = now - this.lastAreaContextAt < 450;
+    this.lastAreaContextAt = now;
+    if (twice && this.canUploadHere()) {
+      event.preventDefault();
+      this.menu.set(null);
+      this.lastAreaContextAt = 0;
+      this.pickFiles();
+      return;
+    }
+    this.openMenu(event, null);
+  }
+
+  /** Doble clic en lo vacío (no sobre un archivo ni un botón): subir archivos. */
+  onAreaDoubleClick(event: MouseEvent): void {
+    if ((event.target as HTMLElement).closest('li, button, a, input, label, textarea, nav')) return;
+    if (this.canUploadHere()) this.pickFiles();
+  }
+
+  private pickFiles(): void {
+    if (this.busy()) return;
+    this.picker?.nativeElement.click();
+  }
+
+  runAreaAction(action: 'refresh' | 'new-folder' | 'upload'): void {
+    this.menu.set(null);
+    switch (action) {
+      case 'refresh':
+        if (this.atSharedRoot()) this.loadShared();
+        else this.load(this.currentFolderId() ?? undefined);
+        if (this.info()?.offices.length) this.loadUsage(true);
+        return;
+      case 'new-folder': return this.openNewFolder();
+      case 'upload': return this.pickFiles();
+    }
   }
 
   @HostListener('document:click')

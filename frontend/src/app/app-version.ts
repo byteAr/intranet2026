@@ -7,6 +7,7 @@
  * 1.1.0 — Archivos compartidos, notificaciones y cierre de sesión por inactividad.
  * 1.1.1 — Íconos de archivo nuevos en los adjuntos de MTO.
  * 1.1.2 — Candado en el ícono de los adjuntos encriptados (.~00).
- * 1.2.0 — Espacio por oficina en Archivos compartidos (5 GB); eliminar es definitivo.
+ * 1.2.0 — Espacio por oficina (2 GB por integrante), pendrive, subir carpetas; eliminar es definitivo.
+ * 1.2.1 — Menú propio con clic derecho en Archivos (actualizar, nueva carpeta, subir); doble clic para subir.
  */
-export const APP_VERSION = '1.2.0';
+export const APP_VERSION = '1.2.1';

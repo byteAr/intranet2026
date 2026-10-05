@@ -35,7 +35,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --
 
 - **Backend**: NestJS 11, puerto 3000 (prod: `127.0.0.1:3001`, solo interno, prefix `/api`)
 - **Frontend**: Angular 20 standalone, puerto 4200 (prod: `8280` externo)
-- **DB**: PostgreSQL 16, TypeORM (`synchronize=true` en dev)
+- **DB**: PostgreSQL 16, TypeORM (`synchronize=true` salvo con `NODE_ENV=production`; ⚠️ producción corre con `NODE_ENV=development`, así que sincroniza el esquema solo). Log SQL: solo errores, avisos y consultas > 2 s; todas con `DB_LOG_QUERIES=true`.
 - **Auth**: AD/LDAP en `10.98.40.22`, dominio `iugnad.lan`
 - **Real-time**: Socket.IO — namespaces: `/chat`, `/incidents`, `/reservations`, `/mail`, `/draft-mail`
 - **Deploy**: Docker Compose en `10.98.40.24`, path `/usr/local/proyectos/intranet2026`

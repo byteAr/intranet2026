@@ -44,7 +44,8 @@ interface ContextMenu { x: number; y: number; row: Row; }
 interface UserHit { username: string; displayName: string; }
 /** Subida en curso: enviando al servidor → el servidor lo pasa a Drive → listo. */
 interface UploadState {
-  phase: 'sending' | 'saving' | 'done';
+  /** reading: recorriendo lo soltado · folders: creando carpetas · sending/saving/done: archivos. */
+  phase: 'reading' | 'folders' | 'sending' | 'saving' | 'done';
   percent: number;
   loaded: number;
   total: number;
@@ -53,6 +54,8 @@ interface UploadState {
   /** Archivos en total (incluido el contenido de las carpetas) y cuántos ya subieron. */
   fileCount: number;
   filesDone: number;
+  folderCount: number;
+  foldersDone: number;
   leaving: boolean;
 }
 
@@ -204,12 +207,24 @@ const MAX_FILES_PER_DROP = 1000;
              [class.upload-out]="up.leaving" role="status" aria-live="polite">
           <!-- El panel se llena de color a medida que avanza -->
           <div class="absolute inset-y-0 left-0 bg-teal-100/70 dark:bg-teal-900/30 transition-[width] duration-300 ease-out"
-               [style.width.%]="up.phase === 'sending' ? up.percent : 100"></div>
+               [style.width.%]="panelFill(up)"></div>
           @if (up.phase !== 'done') { <span class="shimmer"></span> }
 
           <div class="relative flex items-center gap-4 px-4 py-3">
             <div class="relative h-14 w-14 flex-shrink-0 flex items-center justify-center">
               @switch (up.phase) {
+                @case ('reading') {
+                  <app-comet-spinner class="absolute inset-0" [size]="56" [thickness]="7" />
+                  <svg class="h-5 w-5 text-teal-600 dark:text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="6" /><path d="M20 20l-4.5-4.5" />
+                  </svg>
+                }
+                @case ('folders') {
+                  <app-comet-spinner class="absolute inset-0" [size]="56" [thickness]="7" />
+                  <svg class="h-5 w-5 text-teal-600 dark:text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /><path d="M12 11v5M9.5 13.5h5" />
+                  </svg>
+                }
                 @case ('sending') {
                   <svg class="absolute inset-0 -rotate-90" viewBox="0 0 56 56" aria-hidden="true">
                     <defs>
@@ -1125,10 +1140,39 @@ export class SharedFoldersComponent implements OnInit {
       .map((item) => item.webkitGetAsEntry?.() ?? null)
       .filter((e): e is FileSystemEntry => !!e);
     if (entries.some((e) => e.isDirectory)) {
-      // Una carpeta no se puede mandar como archivo (el envío falla): se recorre.
-      void this.planFromEntries(entries).then(
-        (plan) => this.startUpload(plan),
-        () => this.error.set('No se pudo leer la carpeta. Probá de nuevo o subí los archivos sueltos.'),
+      if (this.busy()) {
+        this.error.set('Esperá a que termine lo que se está subiendo.');
+        return;
+      }
+      // Una carpeta no se puede mandar como archivo (el envío falla): se recorre,
+      // mostrando cuántos archivos va encontrando (en carpetas grandes tarda).
+      this.busy.set(true);
+      this.error.set(null);
+      this.upload.set({
+        phase: 'reading',
+        percent: 0,
+        loaded: 0,
+        total: 0,
+        files: entries.map((e) => ({ name: e.name, mimeType: '', isFolder: e.isDirectory })),
+        fileCount: 0,
+        filesDone: 0,
+        folderCount: 0,
+        foldersDone: 0,
+        leaving: false,
+      });
+      const done = (): void => {
+        this.busy.set(false);
+        this.upload.set(null);
+      };
+      void this.planFromEntries(entries, (found) => this.upload.update((u) => u && { ...u, fileCount: found })).then(
+        (plan) => {
+          done();
+          this.startUpload(plan);
+        },
+        () => {
+          done();
+          this.error.set('No se pudo leer la carpeta. Probá de nuevo o subí los archivos sueltos.');
+        },
       );
       return;
     }
@@ -1136,13 +1180,14 @@ export class SharedFoldersComponent implements OnInit {
   }
 
   /** Recorre lo soltado: carpetas (con todo su contenido) y archivos sueltos. */
-  private async planFromEntries(entries: FileSystemEntry[]): Promise<UploadPlan> {
+  private async planFromEntries(entries: FileSystemEntry[], onFound: (count: number) => void): Promise<UploadPlan> {
     const plan: UploadPlan = { dirs: [], items: [] };
     const walk = async (entry: FileSystemEntry, dir: string): Promise<void> => {
       if (JUNK_FILES.test(entry.name)) return;
       if (entry.isFile) {
         const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
         plan.items.push({ file, dir });
+        if (plan.items.length % 25 === 0) onFound(plan.items.length);
         return;
       }
       if (!entry.isDirectory) return;
@@ -1157,6 +1202,7 @@ export class SharedFoldersComponent implements OnInit {
       }
     };
     for (const entry of entries) await walk(entry, '');
+    onFound(plan.items.length);
     return plan;
   }
 
@@ -1181,11 +1227,15 @@ export class SharedFoldersComponent implements OnInit {
       this.error.set(`Superan el máximo de 200 MB: ${tooBig.slice(0, 5).map((f) => f.name).join(', ')}${tooBig.length > 5 ? '…' : ''}`);
       return;
     }
+    const total = files.reduce((sum, f) => sum + f.size, 0);
     if (files.length > MAX_FILES_PER_DROP) {
-      this.error.set(`Son ${files.length} archivos: se pueden subir hasta ${MAX_FILES_PER_DROP} por vez.`);
+      const n = files.length.toLocaleString('es-AR');
+      this.error.set(
+        `Son ${n} archivos (${formatBytes(total)}): desde acá se pueden subir hasta ${MAX_FILES_PER_DROP.toLocaleString('es-AR')} por vez. ` +
+          'Subí la carpeta por partes, o algo tan grande subilo directo en Google Drive, en la unidad de la oficina.',
+      );
       return;
     }
-    const total = files.reduce((sum, f) => sum + f.size, 0);
 
     this.busy.set(true);
     this.error.set(null);
@@ -1198,10 +1248,12 @@ export class SharedFoldersComponent implements OnInit {
 
       const topDirs = plan.dirs.filter((d) => !d.includes('/'));
       this.upload.set({
-        phase: 'sending',
+        phase: plan.dirs.length ? 'folders' : 'sending',
         percent: 0,
         loaded: 0,
         total,
+        folderCount: plan.dirs.length,
+        foldersDone: 0,
         files: [
           ...topDirs.map((name) => ({ name, mimeType: '', isFolder: true })),
           ...plan.items.filter((i) => !i.dir).map((i) => ({ name: i.file.name, mimeType: i.file.type, isFolder: false })),
@@ -1225,7 +1277,9 @@ export class SharedFoldersComponent implements OnInit {
         const folder = await firstValueFrom(this.folders.createFolder(scope, ids.get(parentPath)!, name));
         ids.set(dir, folder.id);
         if (slash < 0) created.push(folder);
+        this.upload.update((u) => u && { ...u, foldersDone: u.foldersDone + 1 });
       }
+      this.upload.update((u) => u && { ...u, phase: 'sending' });
 
       // 2. Archivos, en tandas por carpeta.
       let sentBefore = 0;
@@ -1329,10 +1383,22 @@ export class SharedFoldersComponent implements OnInit {
     }
   }
 
+  /** Cuánto se llena el fondo del panel. */
+  panelFill(up: UploadState): number {
+    switch (up.phase) {
+      case 'reading': return 0;
+      case 'folders': return up.folderCount ? (up.foldersDone / up.folderCount) * 100 : 0;
+      case 'sending': return up.percent;
+      default: return 100;
+    }
+  }
+
   uploadTitle(up: UploadState): string {
     const one = up.files.length === 1 ? up.files[0] : null;
-    const archivos = `${up.fileCount} ${up.fileCount === 1 ? 'archivo' : 'archivos'}`;
+    const archivos = `${up.fileCount.toLocaleString('es-AR')} ${up.fileCount === 1 ? 'archivo' : 'archivos'}`;
     switch (up.phase) {
+      case 'reading': return one ? `Leyendo la carpeta «${one.name}»…` : 'Leyendo lo que soltaste…';
+      case 'folders': return 'Creando las carpetas…';
       case 'sending':
         if (one?.isFolder) return `Subiendo la carpeta «${one.name}»`;
         return one ? `Subiendo «${one.name}»` : `Subiendo ${archivos}`;
@@ -1345,6 +1411,12 @@ export class SharedFoldersComponent implements OnInit {
 
   uploadSubtitle(up: UploadState): string {
     switch (up.phase) {
+      case 'reading':
+        return up.fileCount ? `${up.fileCount.toLocaleString('es-AR')} archivos encontrados hasta ahora` : 'Buscando archivos…';
+      case 'folders': {
+        const next = up.fileCount ? ` · después ${up.fileCount === 1 ? 'sigue 1 archivo' : `siguen ${up.fileCount.toLocaleString('es-AR')} archivos`}` : '';
+        return `${up.foldersDone} de ${up.folderCount}${next}`;
+      }
       case 'sending': {
         const bytes = `${this.formatSize(up.loaded)} de ${this.formatSize(up.total)}`;
         return up.fileCount > 1 ? `${bytes} · ${up.filesDone} de ${up.fileCount} archivos` : bytes;

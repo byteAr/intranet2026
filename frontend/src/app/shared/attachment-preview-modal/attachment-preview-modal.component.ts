@@ -11,16 +11,20 @@ import {
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { HttpClient } from '@angular/common/http';
+import { ThemeService } from '../../core/services/theme.service';
+import { CometSpinnerComponent } from '../comet-spinner/comet-spinner.component';
 
 export interface AttachmentPreviewRequest {
   url: string;
   filename: string;
+  /** Aviso opcional que se muestra arriba del documento. */
+  note?: string;
 }
 
 @Component({
   selector: 'app-attachment-preview-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, CometSpinnerComponent],
   template: `
     @if (visible()) {
       <!-- Backdrop -->
@@ -49,22 +53,27 @@ export interface AttachmentPreviewRequest {
             </button>
           </div>
 
+          @if (note()) {
+            <div class="flex items-center gap-2 px-5 py-2 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 flex-shrink-0">
+              <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="9" /><path stroke-linecap="round" d="M12 8v4m0 4h.01" />
+              </svg>
+              <span>{{ note() }}</span>
+            </div>
+          }
+
           <!-- Content -->
           <div class="flex-1 overflow-hidden relative bg-gray-100 dark:bg-zinc-950">
             @if (loading()) {
-              <!-- Branded loading screen -->
-              <div class="absolute inset-0 flex flex-col items-center justify-center gap-5">
-                <div class="animate-pulse">
-                  <img src="assets/images/diredtosintranetlogo.png"
-                       class="h-28 object-contain opacity-80"
+              <!-- Pantalla de carga: el cometa gira alrededor del logo -->
+              <div class="absolute inset-0 flex flex-col items-center justify-center gap-6">
+                <div class="relative h-44 w-44 flex items-center justify-center">
+                  <app-comet-spinner class="absolute inset-0" [size]="176" [thickness]="4" />
+                  <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'"
+                       class="h-24 object-contain logo-breathe"
                        alt="INTRANET DIREDTOS" />
                 </div>
-                <div class="flex items-center gap-1 text-sm text-gray-500 dark:text-zinc-400 font-medium">
-                  <span>Generando previsualización</span>
-                  <span class="inline-flex w-6">
-                    <span class="animate-dots">...</span>
-                  </span>
-                </div>
+                <p class="text-sm font-medium text-gray-500 dark:text-zinc-400">Generando vista previa</p>
               </div>
             } @else if (error()) {
               <div class="absolute inset-0 flex flex-col items-center justify-center gap-3">
@@ -83,24 +92,13 @@ export interface AttachmentPreviewRequest {
     }
   `,
   styles: [`
-    @keyframes dots {
-      0%, 20% { content: '.'; }
-      40% { content: '..'; }
-      60%, 100% { content: '...'; }
+    /* El logo "respira" apenas mientras gira el cometa. */
+    .logo-breathe { animation: breathe 2.4s ease-in-out infinite; }
+    @keyframes breathe {
+      0%, 100% { transform: scale(0.96); opacity: 0.85; }
+      50% { transform: scale(1); opacity: 1; }
     }
-    .animate-dots {
-      display: inline-block;
-      overflow: hidden;
-      animation: ellipsis 1.4s infinite;
-      width: 1.5em;
-      text-align: left;
-    }
-    @keyframes ellipsis {
-      0% { width: 0; }
-      25% { width: 0.5em; }
-      50% { width: 1em; }
-      75%, 100% { width: 1.5em; }
-    }
+    @media (prefers-reduced-motion: reduce) { .logo-breathe { animation: none; } }
   `],
 })
 export class AttachmentPreviewModalComponent implements OnChanges {
@@ -109,6 +107,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
 
   private readonly sanitizer = inject(DomSanitizer);
   private readonly http = inject(HttpClient);
+  readonly themeService = inject(ThemeService);
 
   private readonly MIN_LOADING_MS = 4000;
 
@@ -117,6 +116,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
   readonly error = signal(false);
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly currentFilename = signal('');
+  readonly note = signal<string | null>(null);
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['request'] && this.request) {
@@ -126,6 +126,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
 
   private open(req: AttachmentPreviewRequest): void {
     this.currentFilename.set(req.filename);
+    this.note.set(req.note ?? null);
     this.visible.set(true);
     this.loading.set(true);
     this.error.set(false);

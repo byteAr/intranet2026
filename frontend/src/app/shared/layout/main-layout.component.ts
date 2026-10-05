@@ -16,12 +16,17 @@ import { PermissionsService } from '../../core/services/permissions.service';
 import { AnnouncementsService } from '../../core/services/announcements.service';
 import { AppVersionService } from '../../core/services/app-version.service';
 import { IdleTimeoutService, IDLE_WARNING_SECONDS } from '../../core/services/idle-timeout.service';
+import { SharedFoldersService } from '../../core/services/shared-folders.service';
+import { NewBadgeComponent } from '../new-badge/new-badge.component';
+import { APP_VERSION } from '../../app-version';
+import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
+import { NotificationsService } from '../../core/services/notifications.service';
 import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, NewBadgeComponent, NotificationBellComponent],
   template: `
     <div class="flex h-screen bg-gray-100 dark:bg-zinc-950">
 
@@ -35,8 +40,8 @@ import { HttpClient } from '@angular/common/http';
              style="min-height: 5rem">
           @if (!collapsed()) {
             <div class="flex flex-col items-center">
-              <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'" class="h-24 object-contain" [style.mix-blend-mode]="themeService.isDark() ? 'screen' : 'normal'" alt="Diredtos" />
-              <span class="text-xs text-gray-400 dark:text-zinc-500 mt-1">V 1.0.0.0</span>
+              <img [src]="themeService.isDark() ? 'assets/images/diredtosintranetlogodark.png' : 'assets/images/diredtosintranetlogo.png'" class="h-24 object-contain" alt="Diredtos" />
+              <span class="text-xs text-gray-400 dark:text-zinc-500 mt-1">V {{ appVersion }}</span>
             </div>
           }
           <button (click)="collapsed.set(!collapsed())"
@@ -110,13 +115,13 @@ import { HttpClient } from '@angular/common/http';
           @if (permissionsService.isAllowed('correo')) {
           <a routerLink="/correo" routerLinkActive="active-nav" [routerLinkActiveOptions]="{exact: true}"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
-            [title]="collapsed() ? 'Correo' : ''">
+            [title]="collapsed() ? mtosLabel : ''">
             <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
             @if (!collapsed()) {
-              <span class="ml-3 flex-1">Correo</span>
+              <span class="ml-3 flex-1">MTO's</span>
               @if (mailService.unreadCount() > 0 && !isOnMailPage()) {
                 <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
                   {{ mailService.unreadCount() }}
@@ -184,6 +189,36 @@ import { HttpClient } from '@angular/common/http';
               </svg>
               @if (!collapsed()) { <span class="ml-3">Firmante MTO</span> }
             </a>
+          }
+
+          @if (permissionsService.isAllowed('carpetas') || sharedFoldersService.totalShares() > 0) {
+          <a routerLink="/archivos" routerLinkActive="active-nav"
+            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
+            [title]="collapsed() ? 'Archivos compartidos' : ''">
+            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM15 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM6.5 17a2.5 2.5 0 015 0M12.5 17a2.5 2.5 0 015 0" />
+            </svg>
+            @if (!collapsed()) {
+              <span class="ml-3 flex-1 truncate">Archivos compartidos</span>
+              <!-- NUEVO va como insignia en la esquina para que el nombre entre completo;
+                   lo compartido sin ver tiene prioridad -->
+              @if (sharedFoldersService.unseenShares() > 0) {
+                <span class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center"
+                      [title]="sharedFoldersService.unseenShares() + ' compartidos nuevos'">
+                  {{ sharedFoldersService.unseenShares() }}
+                </span>
+              } @else {
+                <!-- Por encima de la línea del texto: no tapa "compartidos" -->
+                <app-new-badge feature="archivos-compartidos" [compact]="true" class="absolute -top-1.5 right-1 z-10" />
+              }
+            } @else if (sharedFoldersService.unseenShares() > 0) {
+              <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+            } @else {
+              <app-new-badge feature="archivos-compartidos" [dot]="true" class="absolute top-1 right-1" />
+            }
+          </a>
           }
 
           @if (isTicom()) {
@@ -286,7 +321,8 @@ import { HttpClient } from '@angular/common/http';
       <div class="flex flex-col flex-1 overflow-hidden">
 
         <!-- Topbar with dark mode toggle -->
-        <header class="flex items-center justify-end px-6 h-14 flex-shrink-0 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800">
+        <header class="flex items-center justify-end gap-2 px-6 h-14 flex-shrink-0 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800">
+          <app-notification-bell />
           <button
             (click)="themeService.toggle()"
             class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800"
@@ -430,11 +466,25 @@ import { HttpClient } from '@angular/common/http';
       <!-- Chat toggle button -->
       <button
         (click)="toggleChatPopup()"
-        class="h-14 w-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform hover:scale-105 relative bg-teal-700 dark:bg-green-800 hover:bg-teal-600 dark:hover:bg-green-700">
-        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
+        class="h-14 w-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform hover:scale-105 relative bg-teal-700 dark:bg-green-800 hover:bg-teal-600 dark:hover:bg-green-700"
+        [attr.aria-label]="'Conversaciones, ' + onlineContacts().length + ' en línea'">
+        <!-- El recorte va en una capa propia para no cortar el punto rojo de no leídos -->
+        <span class="absolute inset-0 rounded-full overflow-hidden">
+          <span class="chat-face" [class.chat-cycle-icon]="onlineContacts().length > 0">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </span>
+          @if (onlineContacts().length > 0) {
+            <span class="chat-face chat-cycle-count flex-col leading-none" aria-hidden="true">
+              <span class="flex items-center gap-1 text-lg font-bold tabular-nums">
+                <span class="online-dot h-2 w-2 rounded-full bg-green-300"></span>{{ onlineContacts().length }}
+              </span>
+              <span class="mt-0.5 text-[8px] font-semibold uppercase tracking-wide opacity-90">en línea</span>
+            </span>
+          }
+        </span>
         @if (chatService.unreadCount() > 0 && !isOnChatPage()) {
           <span class="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-white dark:border-zinc-950"></span>
         }
@@ -775,6 +825,37 @@ import { HttpClient } from '@angular/common/http';
     :host-context(.dark) .nav-item { color: #a1a1aa; }
     :host-context(.dark) .nav-item:hover { background: #27272a; color: #f4f4f5; }
     :host-context(.dark) .active-nav { background: #166534 !important; color: white !important; font-weight: 600; }
+
+    /*
+     * Burbuja del chat: el ícono sale por la izquierda, entra la cantidad de
+     * personas en línea, y vuelve el ícono. Ciclo de 9 s, infinito.
+     */
+    .chat-face {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .chat-cycle-icon { animation: chat-icon 9s cubic-bezier(.65, 0, .35, 1) infinite; }
+    .chat-cycle-count { animation: chat-count 9s cubic-bezier(.65, 0, .35, 1) infinite; }
+    @keyframes chat-icon {
+      0%, 42% { transform: translateX(0); opacity: 1; }
+      50%, 92% { transform: translateX(-140%); opacity: 0; }
+      92.01% { transform: translateX(140%); opacity: 0; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes chat-count {
+      0%, 42% { transform: translateX(140%); opacity: 0; }
+      50%, 92% { transform: translateX(0); opacity: 1; }
+      100% { transform: translateX(-140%); opacity: 0; }
+    }
+    .online-dot { animation: online-dot 1.6s ease-in-out infinite; }
+    @keyframes online-dot {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(134, 239, 172, .7); }
+      50% { box-shadow: 0 0 0 4px rgba(134, 239, 172, 0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .chat-cycle-icon, .online-dot { animation: none; }
+      .chat-cycle-count { display: none; }
+    }
   `],
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
@@ -790,6 +871,15 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly announcementsService = inject(AnnouncementsService);
   readonly appVersionService = inject(AppVersionService);
   readonly idleTimeoutService = inject(IdleTimeoutService);
+  readonly sharedFoldersService = inject(SharedFoldersService);
+  private readonly notificationsService = inject(NotificationsService);
+  /** Última notificación abierta desde la URL, para no abrirla dos veces. */
+  private openedFromUrl: string | null = null;
+  /** Mensajes de Tráfico Oficial (antes "Correo"). */
+  readonly mtosLabel = "MTO's";
+  readonly appVersion = APP_VERSION;
+  /** Revisa cada minuto si compartieron algo nuevo (badge de Carpetas). */
+  private sharesTimer: ReturnType<typeof setInterval> | null = null;
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -884,6 +974,21 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Las notificaciones push abren la intranet con ?notificacion=<id>: se marca
+   * como leída, se abre si es un anuncio y se limpia el parámetro de la URL.
+   */
+  private openNotificationFromUrl(url: string): void {
+    const tree = this.router.parseUrl(url);
+    const id = tree.queryParams['notificacion'] as string | undefined;
+    if (!id || id === this.openedFromUrl) return;
+    this.openedFromUrl = id;
+    this.notificationsService.openById(id);
+    // Misma URL sin ese parámetro (conserva el resto, p. ej. ?compartido=).
+    delete tree.queryParams['notificacion'];
+    void this.router.navigateByUrl(tree, { replaceUrl: true });
+  }
+
   sendAnnouncement(): void {
     const msg = this.announcementText().trim();
     if (!msg || this.sendingAnnouncement()) return;
@@ -935,6 +1040,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.announcementsService.connect();
     void this.appVersionService.iniciar();
     void this.idleTimeoutService.start();
+    this.sharedFoldersService.refreshCounts();
+    this.sharesTimer = setInterval(() => this.sharedFoldersService.refreshCounts(), 60_000);
+    this.notificationsService.connect();
+    this.openNotificationFromUrl(this.router.url);
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
     this.isOnMailPage.set(this.router.url === '/correo');
     this.routerSub = this.router.events
@@ -943,6 +1052,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
         const url = (e as NavigationEnd).urlAfterRedirects;
         this.isOnChatPage.set(url.startsWith('/chat'));
         this.isOnMailPage.set(url === '/correo');
+        this.openNotificationFromUrl(url);
       });
 
     this.popupSearchSubject.pipe(
@@ -962,6 +1072,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.routerSub?.unsubscribe();
+    if (this.sharesTimer) clearInterval(this.sharesTimer);
   }
 
   toggleChatPopup(): void { this.chatPopupOpen.update((v) => !v); }

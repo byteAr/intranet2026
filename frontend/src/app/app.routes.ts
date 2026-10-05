@@ -105,6 +105,14 @@ export const routes: Routes = [
             (m) => m.DailyReportComponent,
           ),
       },
+      { path: 'carpetas', redirectTo: 'archivos', pathMatch: 'full' },
+      {
+        path: 'archivos',
+        loadComponent: () =>
+          import('./features/shared-folders/shared-folders.component').then(
+            (m) => m.SharedFoldersComponent,
+          ),
+      },
       {
         path: 'admin',
         loadComponent: () =>

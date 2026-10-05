@@ -22,6 +22,11 @@ import { DraftMailModule } from './draft-mail/draft-mail.module';
 import { AdminModule } from './admin/admin.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { DailyReportModule } from './daily-report/daily-report.module';
+import { SharedFoldersModule } from './shared-folders/shared-folders.module';
+import { OfficeDrive } from './shared-folders/entities/office-drive.entity';
+import { SharedItem } from './shared-folders/entities/shared-item.entity';
+import { NotificationsModule } from './notifications/notifications.module';
+import { Notification } from './notifications/entities/notification.entity';
 import { DailyReport } from './daily-report/entities/daily-report.entity';
 import { DailyReportEntry } from './daily-report/entities/daily-report-entry.entity';
 import { SituationType } from './daily-report/entities/situation-type.entity';
@@ -69,7 +74,7 @@ import { DraftMailSigner } from './draft-mail/entities/draft-mail-signer.entity'
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailSigner, Department, AdminAuditLog, GroupPermission, DailyReport, DailyReportEntry, SituationType, ActiveSituation, NonWorkingDay],
+        entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailSigner, Department, AdminAuditLog, GroupPermission, DailyReport, DailyReportEntry, SituationType, ActiveSituation, NonWorkingDay, OfficeDrive, SharedItem, Notification],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         logging: configService.get<string>('app.nodeEnv') === 'development',
       }),
@@ -92,6 +97,8 @@ import { DraftMailSigner } from './draft-mail/entities/draft-mail-signer.entity'
     AdminModule,
     AnnouncementsModule,
     DailyReportModule,
+    SharedFoldersModule,
+    NotificationsModule,
   ],
   providers: [
     // Apply JwtAuthGuard globally; routes marked @Public() bypass it

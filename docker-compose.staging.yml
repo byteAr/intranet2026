@@ -45,6 +45,7 @@ services:
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
+      GOOGLE_SERVICE_ACCOUNT_PATH: /run/google/google-workspace-key.json
     ports:
       - '127.0.0.1:3003:3000'
     depends_on:
@@ -57,6 +58,8 @@ services:
       - staging_mail_attachments:/app/storage/attachments
       - staging_mail_pst:/app/storage/pst
       - staging_draft_attachments:/app/storage/draft-attachments
+      # Cuenta de servicio de Google (Workspace + Drive), la misma de producción
+      - ./secrets/google-workspace-key.json:/run/google/google-workspace-key.json:ro
     secrets:
       - jwt_secret
       - bridge_secret

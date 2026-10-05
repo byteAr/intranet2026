@@ -61,7 +61,10 @@ Afecta: `ldap-search.service.ts`, `password-reset.service.ts`.
 ### Angular 20
 - Componente raíz: `app.ts` (NO `app.component.ts`).
 - Standalone components, sin NgModules.
-- Tailwind CSS 4: usar `@use 'tailwindcss/...'` (NO directivas `@tailwind`).
+- Tailwind CSS **3.4** (`tailwind.config.js` + directivas `@tailwind` en `styles.scss`; `@tailwindcss/postcss` v4 está instalado pero no se usa). Sin consultas de contenedor (`@container`, `@lg:`): escribirlas en CSS del componente.
+- Indicador de carga estándar: `<app-comet-spinner>` (`shared/comet-spinner`), no `animate-spin`.
+- Logos (`public/assets/images/diredtosintranetlogo*.png`): fondo transparente; el claro para tema claro, el oscuro (texto blanco) para tema oscuro.
+- Versión visible: `APP_VERSION` en `frontend/src/app/app-version.ts`. Subirla en cada pase a producción con cambios visibles.
 
 ### Límites de archivo
 - Avatar: 6MB (base64 en DB, servido en `/api/users/:id/avatar` — público)
@@ -185,7 +188,7 @@ Regex PON en body → `requiresEncryption = true` automático. Override manual c
 `primera_letra_nombre + apellido` (ej: `mlopez`). Si existe → segundo nombre (`mmlopez`). Mismo en AD y `@iugna.edu.ar`.
 
 ### Módulos configurables por grupo
-`chat`, `incidencias`, `reservas`, `correo`, `redactar-mto`
+`chat`, `incidencias`, `reservas`, `correo`, `redactar-mto`, `parte-diario`, `carpetas`
 - Sin config explícita → acceso total (backward compatible).
 - Items TICOM (PST import, Para enviar, Autorizadores, Admin) no son configurables.
 
@@ -198,6 +201,42 @@ Regex PON en body → `requiresEncryption = true` automático. Override manual c
 - JSON key en `/run/secrets/google-workspace-key.json` (bind mount `./secrets:/run/secrets:ro`).
 - Email ya existente en Google → error 409 bloqueante (puede ser de otro usuario).
 - Email de bienvenida: imágenes inline (CID) pasos 1-7 desde `backend/assets/sfainstruction/`.
+
+---
+
+## ⚠️ Funcionalidades nuevas — etiqueta NUEVO
+
+Toda funcionalidad nueva visible lleva la etiqueta **NUEVO** una semana desde su pase a producción: registrarla en `frontend/src/app/shared/new-badge/new-features.ts` (clave + fecha) y poner `<app-new-badge feature="...">` donde aparece (`[dot]="true"` en el menú contraído). Se oculta sola.
+
+---
+
+## Notificaciones — campanita (`notifications/`)
+
+- Tabla `notifications`, una fila por destinatario (`username` en minúsculas), tipos `announcement` y `share`. Se borran a los 90 días.
+- `NotificationsService.notify()` guarda, entrega en vivo por el namespace `/notifications` (sala `user:<username>`) y manda push. El service worker (`sw-custom.js`) solo muestra la push si la intranet no está a la vista; al tocarla abre `/cuenta?notificacion=<id>` (anuncio → modal) o `/archivos?compartido=<shareId>&notificacion=<id>`.
+- Los anuncios llegan a todos los usuarios activos; compartir algo nuevo (no un cambio de permiso) notifica a quien lo recibe.
+- ⚠️ `NOTIFICATIONS_ONLY_TO` (staging): limita a quién se notifica. Staging comparte la base con producción, incluidas las suscripciones push.
+- Sonido: "ding" generado con Web Audio en `notifications.service.ts`.
+
+---
+
+## Módulo Archivos compartidos (`shared-folders/`, ruta `/archivos`; `/carpetas` redirige)
+
+- En el menú va justo debajo de los ítems de MTO. "Correo" se llama ahora **MTO's** (Mensajes de Tráfico Oficial); el módulo de permisos sigue siendo `correo`.
+
+- Una **unidad compartida** de Google Drive por oficina (grupo AD con `category='oficina'`), nombre `Intranet - <GRUPO>`. Se crea al primer acceso; tabla `office_drives` (se crea sola al arrancar aunque `synchronize` esté apagado).
+- Dueña/organizadora: `GOOGLE_DRIVE_OWNER_EMAIL` (o `GOOGLE_WORKSPACE_ADMIN_EMAIL`). Restricción `domainUsersOnly`.
+- Miembros = integrantes **habilitados del grupo en el AD** (vía `AdminService.listAdUsers()`) con cuenta Google activa, rol `fileOrganizer`. Cron cada 30 min + `POST /api/shared-folders/sync` (TICOM). Los `organizer` no se tocan.
+- Cuenta Google de un usuario: su `mail` del AD si es `@iugna.edu.ar`, si no `username@iugna.edu.ar`.
+- Las operaciones se hacen **en nombre del usuario** (delegación de dominio) para que Drive registre al autor; si no tiene cuenta o Drive le niega acceso, se reintenta como la cuenta dueña. La intranet valida siempre oficina + que el archivo pertenezca a la unidad (`driveId`).
+- Docs/Sheets/Slides nativos se descargan exportados (docx/xlsx/pptx; límite de export de Google: 10 MB).
+- **Ámbito de acceso** (`AccessScope`): toda la unidad (`/shared-folders/:office/...`) o algo compartido (`/shared-folders/shares/:shareId/...`), con las mismas rutas. En lo compartido se verifica subiendo por `parents` que el archivo esté dentro de lo compartido; se opera como la cuenta dueña.
+- **Compartir** es permiso de la intranet, no de Drive: tabla `shared_items` (`sharedWith` = username en minúsculas, rol `reader`/`writer`, `seenAt` para el badge). No se puede compartir con alguien de la misma oficina. Lo compartido en sí no se renombra ni borra desde quien lo recibe. Si quien recibe tiene cuenta `@iugna.edu.ar`, el permiso se replica en Drive (`drivePermissionId`, reader/writer) para que pueda abrirlo en Google; al quitarlo se revoca.
+- **Editar en Google**: Word/Excel/PowerPoint se abren en modo de edición de Office (`rtpof=true`, sin convertir) y los nativos en su editor; la URL lleva `authuser=<cuenta @iugna>` (`googleEditUrl()` en `preview.util.ts`). ⚠️ Google escribe el `.docx/.xlsx` al cerrar el documento o al rato: mientras alguien edita, la vista previa y la descarga muestran la versión anterior (verificado en staging; la vista previa lo avisa).
+- **Vista previa** (`preview.util.ts`): PDF/imágenes/video en línea, texto como `text/plain` (nunca HTML/SVG en línea), Docs de Google exportados a PDF, Office convertido con LibreOffice (perfil temporal propio por conversión). Máx. 100 MB. Usa el mismo visor que los adjuntos de MTO.
+- El ítem del menú aparece también para quien solo recibió algo compartido; badge con lo no visto (consulta cada 60 s).
+- Requiere el scope `https://www.googleapis.com/auth/drive` en la delegación de dominio y la Drive API habilitada en el proyecto de la cuenta de servicio.
+- Módulo `carpetas`: siempre disponible para todos (`MINIMAL_MODULES` en `admin.service.ts`), como chat/incidencias/reservas.
 
 ---
 

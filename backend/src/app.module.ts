@@ -77,7 +77,11 @@ import { DraftMailSigner } from './draft-mail/entities/draft-mail-signer.entity'
         password: configService.get<string>('database.password'),
         entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailSigner, Department, AdminAuditLog, GroupPermission, DailyReport, DailyReportEntry, SituationType, ActiveSituation, NonWorkingDay, OfficeDrive, SharedItem, Notification],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
-        logging: configService.get<string>('app.nodeEnv') === 'development',
+        // Cada consulta SQL al log solo con DB_LOG_QUERIES=true (para depurar).
+        // Siempre: errores, avisos y las consultas de más de 2 s. Va aparte de
+        // NODE_ENV porque producción corre como "development" (por synchronize).
+        logging: configService.get<string>('DB_LOG_QUERIES') === 'true' ? 'all' : ['error', 'warn'],
+        maxQueryExecutionTime: 2000,
       }),
     }),
     ThrottlerModule.forRoot([

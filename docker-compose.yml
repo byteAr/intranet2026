@@ -107,6 +107,9 @@ services:
       - mail_attachments:/app/storage/attachments
       - mail_pst:/app/storage/pst
       - draft_attachments:/app/storage/draft-attachments
+      # Cuenta de servicio de Google (alta de usuarios en Workspace y
+      # Archivos compartidos). Es la ruta de GOOGLE_SERVICE_ACCOUNT_PATH.
+      - ./secrets/google-workspace-key.json:/run/secrets/google-workspace-key.json:ro
     secrets:
       - jwt_secret
       - bridge_secret

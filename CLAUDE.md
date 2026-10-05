@@ -198,7 +198,7 @@ Regex PON en body → `requiresEncryption = true` automático. Override manual c
 - Excluye: `administrator`, `guest`, `krbtgt`, `svc-pac`.
 
 ### Google Workspace
-- JSON key en `/run/secrets/google-workspace-key.json` (bind mount `./secrets:/run/secrets:ro`).
+- JSON key en `/run/secrets/google-workspace-key.json`: montado archivo por archivo en `docker-compose.yml` (`./secrets/google-workspace-key.json:...:ro`). Hasta el 05/10/2026 no estaba montado en producción. Staging lo monta en `/run/google/` con su propio `GOOGLE_SERVICE_ACCOUNT_PATH`.
 - Email ya existente en Google → error 409 bloqueante (puede ser de otro usuario).
 - Email de bienvenida: imágenes inline (CID) pasos 1-7 desde `backend/assets/sfainstruction/`.
 

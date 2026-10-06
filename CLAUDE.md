@@ -133,7 +133,7 @@ CTE recursiva con límite de profundidad < 10 + tracking de path para evitar cic
 
 ### Endpoints bridge en backend (`mail.controller.ts`)
 - `POST /api/mail/bridge/ingest` — `@Public()` + `BridgeSecretGuard` (timingSafeEqual).
-- `GET /api/mail/bridge/recipients?q=` — JWT normal, proxy a `${MAIL_BRIDGE_URL}/ldap-search?q=`.
+- `GET /api/mail/bridge/recipients?q=` — JWT normal. Autocompletado de destinatarios de MTO: el backend consulta **directo** la libreta LDAP (`10.201.0.7`, `LdapRecipientsService`) con `DIREDTOS` (misma contraseña que los MTO). La contraseña se cambia desde Admin → Configuración (actualiza el mail-bridge y la libreta) y queda en `app_markers` (`key='mail.ldapBindPassword'`, cifrada con una clave derivada del JWT secret); si no hay, `BRIDGE_LDAP_BIND_PASSWORD` del `.env`. ⚠️ Hasta el 06/10/2026 solo quedaba en memoria: tras cada reinicio la libreta daba "Invalid Credentials" y el autocompletado no sugería nada.
 
 ---
 

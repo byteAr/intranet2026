@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
-import { Message } from './entities/message.entity';
+import { ChatAttachment, Message } from './entities/message.entity';
 
 export interface SaveMessageDto {
   senderId: string;
@@ -13,6 +13,25 @@ export interface SaveMessageDto {
   attachmentName?: string;
   attachmentSize?: number;
   attachmentMimeType?: string;
+  attachments?: ChatAttachment[];
+}
+
+/** Archivos que subió /api/chat/upload: /api/chat/files/<uuid>.<ext>. */
+const CHAT_FILE_URL = /^\/api\/chat\/files\/[0-9a-f-]{36}(\.[A-Za-z0-9]{1,8})?$/i;
+const MAX_ATTACHMENTS = 10;
+
+/** Valida la lista que manda el navegador: solo archivos subidos al chat, hasta 10. */
+export function sanitizeChatAttachments(input: unknown): ChatAttachment[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((a): a is ChatAttachment => !!a && typeof a.url === 'string' && CHAT_FILE_URL.test(a.url))
+    .slice(0, MAX_ATTACHMENTS)
+    .map((a) => ({
+      url: a.url,
+      name: String(a.name ?? 'archivo').slice(0, 255),
+      size: Number(a.size) || 0,
+      mimeType: String(a.mimeType ?? 'application/octet-stream').slice(0, 120),
+    }));
 }
 
 @Injectable()
@@ -29,10 +48,13 @@ export class ChatService {
     msg.senderAvatar = dto.senderAvatar ?? undefined;
     msg.recipientId = dto.recipientId ?? undefined;
     msg.content = dto.content;
-    msg.attachmentUrl = dto.attachmentUrl;
-    msg.attachmentName = dto.attachmentName;
-    msg.attachmentSize = dto.attachmentSize;
-    msg.attachmentMimeType = dto.attachmentMimeType;
+    // Varios adjuntos: el primero también en las columnas de siempre (ver la entidad)
+    const first = dto.attachments?.[0];
+    msg.attachmentUrl = first?.url ?? dto.attachmentUrl;
+    msg.attachmentName = first?.name ?? dto.attachmentName;
+    msg.attachmentSize = first?.size ?? dto.attachmentSize;
+    msg.attachmentMimeType = first?.mimeType ?? dto.attachmentMimeType;
+    msg.attachments = dto.attachments?.length ? dto.attachments : null;
     msg.readBy = [dto.senderId];
     return this.messageRepo.save(msg);
   }

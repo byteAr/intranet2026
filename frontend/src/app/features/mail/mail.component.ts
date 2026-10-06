@@ -498,11 +498,11 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                     @for (sf of activeEmail()!.sienaFiles!; track sf.id) {
                       <div class="relative flex flex-col items-center gap-1">
                         <button (click)="openSienaPreview(sf)"
-                          class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 hover:bg-emerald-50 transition-colors w-24"
+                          class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-sky-200 bg-sky-50/50 hover:border-sky-400 hover:bg-sky-50 transition-colors w-24"
                           [title]="'Archivo SIENA desencriptado y subido por ' + sf.uploadedByName + ' (TICOM) el ' + formatUploadDate(sf.uploadedAt)">
-                          <app-file-icon [file]="{ name: sf.filename }" lock="open" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
+                          <app-file-icon [file]="{ name: sf.filename }" lock="siena" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
                           <span class="w-full text-center text-[11px] leading-tight text-gray-700 line-clamp-2 break-all">{{ sf.filename }}</span>
-                          <span class="text-[10px] font-semibold text-emerald-700">Desencriptado</span>
+                          <span class="text-[10px] font-semibold text-sky-700">SIENA</span>
                         </button>
                         <span class="w-24 text-center text-[10px] leading-tight text-gray-400">por {{ sf.uploadedByName }}<br>{{ formatUploadDate(sf.uploadedAt) }}</span>
                         @if (isTicom) {
@@ -522,11 +522,12 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 <!-- Botón subir (solo TICOM) -->
                 @if (isTicom) {
                   <label class="cursor-pointer inline-block">
-                    <input type="file" class="hidden"
+                    <input type="file" class="hidden" multiple
                            (change)="onSienaFileSelected($event)"
                            [disabled]="uploadingSiena()" />
-                    <span class="text-xs px-2 py-1 rounded border border-blue-400 text-blue-700">
-                      {{ uploadingSiena() ? 'Subiendo...' : '+ Subir archivo SIENA' }}
+                    <span class="text-xs px-2 py-1 rounded border border-blue-400 text-blue-700"
+                          title="Se pueden elegir varios archivos a la vez">
+                      {{ uploadingSiena() ? 'Subiendo...' : '+ Subir archivos SIENA' }}
                     </span>
                   </label>
                 }
@@ -750,14 +751,14 @@ export class MailComponent implements OnInit {
 
   onSienaFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
+    const files = Array.from(input.files ?? []);
+    if (!files.length) return;
     const emailId = this.activeEmail()!.id;
     this.uploadingSiena.set(true);
-    this.mailService.uploadSienaFile(emailId, file).subscribe({
-      next: (newFile) => {
+    this.mailService.uploadSienaFiles(emailId, files).subscribe({
+      next: (newFiles) => {
         this.uploadingSiena.set(false);
-        this.activeEmail.update((e) => e ? { ...e, sienaFiles: [...(e.sienaFiles ?? []), newFile] } : e);
+        this.activeEmail.update((e) => e ? { ...e, sienaFiles: [...(e.sienaFiles ?? []), ...newFiles] } : e);
       },
       error: () => this.uploadingSiena.set(false),
     });

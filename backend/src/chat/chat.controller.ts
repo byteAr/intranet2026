@@ -141,7 +141,8 @@ export class ChatController {
     if (!file) throw new BadRequestException('No se recibió ningún archivo');
     return {
       url: `/api/chat/files/${file.filename}`,
-      name: file.originalname,
+      // multer entrega el nombre en latin1: así se conservan las tildes
+      name: Buffer.from(file.originalname, 'latin1').toString('utf8'),
       size: file.size,
       mimeType: file.mimetype,
     };

@@ -104,6 +104,11 @@ function badgeFor(f: FileLike): Badge | null {
           <circle cx="31" cy="9" r="8" fill="#059669" stroke="#fff" stroke-width="1.5" />
           <path d="M28.6 8.6V6.6a2.3 2.3 0 014.5-.7" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" />
           <rect x="27.4" y="8.6" width="7.2" height="5.4" rx="1.1" fill="#fff" />
+        } @else if (padlock() === 'siena') {
+          <!-- Desencriptado con SIENA (subido por TICOM): su tipo, y "SIENA" en celeste en la esquina -->
+          <rect x="16.5" y="1.2" width="22.5" height="10" rx="3" fill="#0EA5E9" stroke="#fff" stroke-width="1.2" />
+          <text x="27.75" y="8.6" text-anchor="middle" fill="#fff" font-size="6.2" font-weight="700" letter-spacing=".2"
+                font-family="ui-sans-serif, system-ui, sans-serif">SIENA</text>
         }
       </svg>
     }
@@ -114,8 +119,11 @@ export class FileIconComponent {
   readonly size = input(44);
 
   readonly badge = computed(() => badgeFor(this.file()));
-  /** 'open': desencriptado (su tipo + candado abierto en la esquina); sin indicar, se deduce del nombre. */
-  readonly lock = input<'open' | 'closed' | null>(null);
+  /**
+   * 'open': desencriptado de PON (su tipo + candado abierto verde en la esquina);
+   * 'siena': desencriptado con SIENA (su tipo + "SIENA" celeste); sin indicar, se deduce del nombre.
+   */
+  readonly lock = input<'open' | 'closed' | 'siena' | null>(null);
   /** Adjuntos encriptados de MTO: .~00 (y extensiones solo numéricas, .001). */
   readonly encrypted = computed(() => /\.~?\d+$/.test(this.file().name));
   readonly padlock = computed(() => this.lock() ?? (this.encrypted() ? 'closed' : null));

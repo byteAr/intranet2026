@@ -11,6 +11,7 @@ export const NEW_FEATURES = {
   'espacio-oficinas': '2026-10-05',
   'mis-archivos': '2026-10-06',
   'compartir-mto': '2026-10-06',
+  'chat-varios-adjuntos': '2026-10-06',
 } as const;
 
 export type NewFeature = keyof typeof NEW_FEATURES;

@@ -19,25 +19,33 @@ export class SienaFileService {
     private readonly emailRepo: Repository<Email>,
   ) {}
 
+  /** Uno o varios archivos SIENA desencriptados (se suman a los que ya hay). */
   async upload(
     emailId: string,
-    file: Express.Multer.File,
+    files: Express.Multer.File[],
     uploadedById: string,
     uploadedByName: string,
-  ): Promise<SienaFile> {
+  ): Promise<SienaFile[]> {
     const email = await this.emailRepo.findOne({ where: { id: emailId } });
-    if (!email) throw new NotFoundException('Correo no encontrado');
+    if (!email) {
+      // diskStorage ya escribió los archivos: no dejarlos huérfanos
+      for (const f of files) { try { unlinkSync(f.path); } catch { /* ya borrado */ } }
+      throw new NotFoundException('Correo no encontrado');
+    }
 
     return this.repo.save(
-      this.repo.create({
-        emailId,
-        filename: file.originalname,
-        contentType: file.mimetype || 'application/octet-stream',
-        size: file.size,
-        storagePath: file.path,
-        uploadedById,
-        uploadedByName,
-      }),
+      files.map((file) =>
+        this.repo.create({
+          emailId,
+          // multer entrega el nombre en latin1: así se conservan las tildes
+          filename: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+          contentType: file.mimetype || 'application/octet-stream',
+          size: file.size,
+          storagePath: file.path,
+          uploadedById,
+          uploadedByName,
+        }),
+      ),
     );
   }
 

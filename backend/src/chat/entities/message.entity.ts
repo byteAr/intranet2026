@@ -6,6 +6,13 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
+export interface ChatAttachment {
+  url: string;
+  name: string;
+  size: number;
+  mimeType: string;
+}
+
 @Entity('messages')
 @Index(['senderId', 'recipientId', 'createdAt'])
 @Index(['recipientId', 'createdAt'])
@@ -39,6 +46,14 @@ export class Message {
 
   @Column({ nullable: true })
   attachmentMimeType?: string;
+
+  /**
+   * Todos los adjuntos del mensaje, cuando son varios (desde la 1.5.4). El primero
+   * también va en attachmentUrl/Name/Size/MimeType, que es lo que leen la vista
+   * previa de la lista de conversaciones y las pestañas con la versión anterior.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  attachments?: ChatAttachment[] | null;
 
   @Column('simple-array', { default: '' })
   readBy: string[];

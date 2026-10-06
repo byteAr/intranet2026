@@ -12,10 +12,9 @@ import {
   BadRequestException,
   UseInterceptors,
   UseGuards,
-  UploadedFile,
   UploadedFiles,
 } from '@nestjs/common';
-import { AnyFilesInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { AnyFilesInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage, memoryStorage } from 'multer';
 import { Response } from 'express';
 import { existsSync, mkdirSync, createReadStream } from 'fs';
@@ -189,10 +188,12 @@ export class MailController {
     return { ok: true };
   }
 
+  /** Uno o varios archivos SIENA (campo `files`; `file` es el de la versión anterior). */
   @Post('emails/:id/siena-files')
   @Roles('TICOM')
   @UseInterceptors(
-    FileInterceptor('file', {
+    AnyFilesInterceptor({
+      limits: { files: 50 },
       storage: diskStorage({
         destination: (_req, _file, cb) => {
           SienaFileService.ensureStorageDir();
@@ -207,14 +208,14 @@ export class MailController {
   )
   async uploadSienaFile(
     @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles() files: Express.Multer.File[],
     @Req() req: any,
   ) {
-    if (!file) throw new BadRequestException('Se requiere un archivo');
-    const f = await this.sienaFileService.upload(
-      id, file, req.user.id, req.user.displayName ?? req.user.username,
+    if (!files?.length) throw new BadRequestException('Se requiere al menos un archivo');
+    const saved = await this.sienaFileService.upload(
+      id, files, req.user.id, req.user.displayName ?? req.user.username,
     );
-    return { id: f.id, filename: f.filename, size: f.size, uploadedAt: f.uploadedAt, uploadedByName: f.uploadedByName };
+    return saved.map((f) => ({ id: f.id, filename: f.filename, size: f.size, uploadedAt: f.uploadedAt, uploadedByName: f.uploadedByName }));
   }
 
   @Get('emails/:id/siena-files/:fid')

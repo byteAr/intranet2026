@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, OnApplicationBootstrap } from '@
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository, SelectQueryBuilder } from 'typeorm';
+import { existsSync } from 'fs';
 import { Email } from './entities/email.entity';
 import { Attachment } from './entities/attachment.entity';
 import { EmailReadStatus } from './entities/email-read-status.entity';
@@ -478,9 +479,12 @@ export class MailService implements OnApplicationBootstrap {
       if (encryptedIds.length > 0) {
         const decryptedRows = await this.decryptedRepo.find({
           where: encryptedIds.map((aid) => ({ attachmentId: aid })),
-          select: ['attachmentId'],
+          select: ['attachmentId', 'storagePath'],
         });
-        const decryptedSet = new Set(decryptedRows.map((d) => d.attachmentId));
+        // Solo cuenta si el archivo existe: hasta el 06/10/2026 se guardaban fuera
+        // de un volumen y se perdieron al recrear el backend. Así figuran como
+        // pendientes y TICOM los puede volver a subir.
+        const decryptedSet = new Set(decryptedRows.filter((d) => existsSync(d.storagePath)).map((d) => d.attachmentId));
         (email as any).attachments = email.attachments.map((att) => ({
           ...att,
           hasDecrypted: att.filename.endsWith('.~00') ? decryptedSet.has(att.id) : undefined,

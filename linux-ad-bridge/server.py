@@ -14,7 +14,7 @@ def _read_secret(path, env_var, default=''):
     except OSError:
         return os.environ.get(env_var, default)
 SECRET         = _read_secret('/run/secrets/bridge_secret', 'BRIDGE_SECRET', 'pac-bridge-secret-change-me')
-AD_HOST        = os.environ.get('AD_HOST', '10.98.40.22')
+AD_HOST        = os.environ.get('AD_HOST', '10.98.40.1')
 AD_USER        = os.environ.get('AD_USER', 'svc-pac')
 AD_PASS        = _read_secret('/run/secrets/ldap_bind_credentials', 'AD_PASS', '')
 AD_DOMAIN      = os.environ.get('AD_DOMAIN', 'IUGNAD')

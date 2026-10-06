@@ -16,6 +16,7 @@ import {
   MailService,
   Email,
   MailAttachment,
+  DecryptedFile,
   MailFolder,
   SienaFile,
   MailUnreadCounts,
@@ -429,46 +430,56 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 <div class="mt-3 pt-3 border-t border-gray-100">
                   <div class="flex flex-wrap gap-2">
                     @for (att of activeEmail()!.attachments!; track att.id) {
-                      <div class="flex flex-col items-center gap-1">
-                        <button
-                          (click)="openPreview(activeEmail()!.id, att.id, att.filename)"
-                          class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-gray-200 dark:border-zinc-700 hover:border-teal-300 hover:bg-teal-50/50 dark:hover:bg-zinc-800 transition-colors w-24"
-                          [title]="att.filename + ' — ' + formatSize(att.size) + (isEncryptedFile(att.filename) ? ' — encriptado' : '')">
-                          <app-file-icon [file]="{ name: att.filename }" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
-                          <span class="w-full text-center text-[11px] leading-tight text-gray-700 dark:text-zinc-300 line-clamp-2 break-all" [innerHTML]="highlightText(att.filename)"></span>
-                          <span class="text-[10px] text-gray-400 dark:text-zinc-500">{{ formatSize(att.size) }}</span>
-                        </button>
-
-                        <!-- Encriptado (.~NN): TICOM sube o reemplaza el desencriptado -->
-                        @if (isEncryptedFile(att.filename)) {
-                          @if (isTicom) {
-                            <label class="cursor-pointer" [title]="att.decrypted ? 'Reemplazar el desencriptado (si se subió uno equivocado)' : 'Subir la versión desencriptada'">
-                              <input type="file" class="hidden"
-                                     (change)="onDecryptedFileSelected(att, $event)"
-                                     [disabled]="uploadingDecryptedId() === att.id" />
-                              <span class="text-xs px-1 py-0.5 rounded border leading-none"
-                                    [class]="att.decrypted ? 'border-green-400 text-green-700' : 'border-amber-400 text-amber-700'">
-                                {{ uploadingDecryptedId() === att.id ? '...' : (att.decrypted ? '↻ reemplazar' : '↑ subir') }}
-                              </span>
-                            </label>
-                          } @else if (isEncriptado && !att.decrypted) {
-                            <span class="text-[10px] text-gray-400 italic leading-none">sin desencriptar</span>
-                          }
-                        }
-                      </div>
-
-                      <!-- Desencriptado (solo TICOM y ENCRIPTADO): candado abierto y quién lo subió -->
-                      @if (att.decrypted && (isEncriptado || isTicom)) {
+                      <!-- ENCRIPTADO ve el original cifrado solo mientras TICOM no subió los desencriptados -->
+                      @if (showOriginalAttachment(att)) {
                         <div class="flex flex-col items-center gap-1">
-                          <button (click)="openDecryptedPreview(att)"
-                            class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 hover:bg-emerald-50 transition-colors w-24"
-                            [title]="'Archivo encriptado (' + att.filename + ') desencriptado y subido por ' + att.decrypted.uploadedByName + ' (TICOM) el ' + formatUploadDate(att.decrypted.uploadedAt)">
-                            <app-file-icon [file]="{ name: att.decrypted.filename }" lock="open" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
-                            <span class="w-full text-center text-[11px] leading-tight text-gray-700 line-clamp-2 break-all">{{ att.decrypted.filename }}</span>
-                            <span class="text-[10px] font-semibold text-emerald-700">Desencriptado</span>
+                          <button
+                            (click)="openPreview(activeEmail()!.id, att.id, att.filename)"
+                            class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-gray-200 dark:border-zinc-700 hover:border-teal-300 hover:bg-teal-50/50 dark:hover:bg-zinc-800 transition-colors w-24"
+                            [title]="att.filename + ' — ' + formatSize(att.size) + (isEncryptedFile(att.filename) ? ' — encriptado' : '')">
+                            <app-file-icon [file]="{ name: att.filename }" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
+                            <span class="w-full text-center text-[11px] leading-tight text-gray-700 dark:text-zinc-300 line-clamp-2 break-all" [innerHTML]="highlightText(att.filename)"></span>
+                            <span class="text-[10px] text-gray-400 dark:text-zinc-500">{{ formatSize(att.size) }}</span>
                           </button>
-                          <span class="w-24 text-center text-[10px] leading-tight text-gray-400">por {{ att.decrypted.uploadedByName }}<br>{{ formatUploadDate(att.decrypted.uploadedAt) }}</span>
+
+                          <!-- Encriptado (.~NN): TICOM sube uno o varios desencriptados (un .rar trae varios) -->
+                          @if (isEncryptedFile(att.filename)) {
+                            @if (isTicom) {
+                              <label class="cursor-pointer" [title]="att.decryptedFiles?.length ? 'Agregar más desencriptados de este archivo' : 'Subir los desencriptados (se pueden elegir varios)'">
+                                <input type="file" class="hidden" multiple
+                                       (change)="onDecryptedFileSelected(att, $event)"
+                                       [disabled]="uploadingDecryptedId() === att.id" />
+                                <span class="text-xs px-1 py-0.5 rounded border leading-none"
+                                      [class]="att.decryptedFiles?.length ? 'border-green-400 text-green-700' : 'border-amber-400 text-amber-700'">
+                                  {{ uploadingDecryptedId() === att.id ? '...' : (att.decryptedFiles?.length ? '+ agregar' : '↑ subir') }}
+                                </span>
+                              </label>
+                            } @else if (isEncriptado) {
+                              <span class="w-24 text-center text-[10px] leading-tight text-amber-600 italic">Todavía no se cargó el desencriptado</span>
+                            }
+                          }
                         </div>
+                      }
+
+                      <!-- Desencriptados (solo TICOM y ENCRIPTADO): candado abierto y quién los subió -->
+                      @if (isEncriptado || isTicom) {
+                        @for (dec of att.decryptedFiles ?? []; track dec.id) {
+                          <div class="relative flex flex-col items-center gap-1">
+                            <button (click)="openDecryptedPreview(att, dec)"
+                              class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 hover:bg-emerald-50 transition-colors w-24"
+                              [title]="'Archivo encriptado (' + att.filename + ') desencriptado y subido por ' + dec.uploadedByName + ' (TICOM) el ' + formatUploadDate(dec.uploadedAt)">
+                              <app-file-icon [file]="{ name: dec.filename }" lock="open" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
+                              <span class="w-full text-center text-[11px] leading-tight text-gray-700 line-clamp-2 break-all">{{ dec.filename }}</span>
+                              <span class="text-[10px] font-semibold text-emerald-700">Desencriptado</span>
+                            </button>
+                            <span class="w-24 text-center text-[10px] leading-tight text-gray-400">por {{ dec.uploadedByName }}<br>{{ formatUploadDate(dec.uploadedAt) }}</span>
+                            @if (isTicom) {
+                              <button (click)="onDecryptedDelete(att, dec)"
+                                class="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white border border-gray-200 text-red-500 hover:bg-red-50 text-[10px] leading-none shadow-sm"
+                                title="Eliminar (si se subió uno equivocado)">&#x2715;</button>
+                            }
+                          </div>
+                        }
                       }
                     }
                   </div>
@@ -763,13 +774,40 @@ export class MailComponent implements OnInit {
     });
   }
 
+  /**
+   * El original cifrado se muestra siempre, salvo a ENCRIPTADO (sin TICOM) cuando
+   * ya están los desencriptados: ahí ve solo esos.
+   */
+  showOriginalAttachment(att: MailAttachment): boolean {
+    if (!this.isEncryptedFile(att.filename) || this.isTicom || !this.isEncriptado) return true;
+    return !att.decryptedFiles?.length;
+  }
+
+  onDecryptedDelete(att: MailAttachment, dec: DecryptedFile): void {
+    if (!confirm(`¿Eliminar el desencriptado "${dec.filename}"? No se puede recuperar.`)) return;
+    const emailId = this.activeEmail()!.id;
+    this.mailService.deleteDecrypted(emailId, att.id, dec.id).subscribe({
+      next: () => {
+        this.activeEmail.update((e) => e ? {
+          ...e,
+          attachments: e.attachments?.map((a) => {
+            if (a.id !== att.id) return a;
+            const decryptedFiles = (a.decryptedFiles ?? []).filter((d) => d.id !== dec.id);
+            return { ...a, decryptedFiles, hasDecrypted: decryptedFiles.length > 0 };
+          }),
+        } : e);
+      },
+      error: () => {},
+    });
+  }
+
   onDecryptedFileSelected(att: { id: string; filename: string }, event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
+    const files = Array.from(input.files ?? []);
+    if (!files.length) return;
     const emailId = this.activeEmail()!.id;
     this.uploadingDecryptedId.set(att.id);
-    this.mailService.uploadDecrypted(emailId, att.id, file).subscribe({
+    this.mailService.uploadDecrypted(emailId, att.id, files).subscribe({
       next: () => {
         this.uploadingDecryptedId.set(null);
         this.mailService.getEmail(emailId).subscribe((full) => this.activeEmail.set(full));
@@ -1063,10 +1101,10 @@ export class MailComponent implements OnInit {
     });
   }
 
-  /** El desencriptado de un adjunto .~NN (solo TICOM y ENCRIPTADO; el servidor lo controla). */
-  openDecryptedPreview(att: MailAttachment): void {
-    const url = `/api/mail/emails/${this.activeEmail()!.id}/attachments/${att.id}/decrypted`;
-    this.previewRequest.set({ url, downloadUrl: url, filename: att.decrypted!.filename });
+  /** Un desencriptado de un adjunto .~NN (solo TICOM y ENCRIPTADO; el servidor lo controla). */
+  openDecryptedPreview(att: MailAttachment, dec: DecryptedFile): void {
+    const url = `/api/mail/emails/${this.activeEmail()!.id}/attachments/${att.id}/decrypted/${dec.id}`;
+    this.previewRequest.set({ url, downloadUrl: url, filename: dec.filename });
   }
 
   openSienaPreview(sf: SienaFile): void {

@@ -189,8 +189,9 @@ draft → pending_review → approved → sent
 
 ### Adjuntos encriptados recibidos (`.~NN`) — permisos
 - Original cifrado: lo ve y descarga cualquier usuario logueado (ilegible sin la clave).
-- Desencriptado (`decrypted_attachments`, se desencripta fuera y se sube): sube/reemplaza/borra solo **TICOM**; lo ven y descargan solo **ENCRIPTADO y TICOM** (TICOM para revisar si se equivocó, desde la 1.5.1). Los datos (`decrypted`: nombre, quién lo subió, cuándo) solo los reciben ellos. SIENA (`siena_files`): igual.
-- Se muestra como tarjeta con **candado abierto verde** (`<app-file-icon lock="open">`) al lado del original (candado cerrado gris), con "por <usuario TICOM>" y la fecha; abre el mismo visor que los adjuntos.
+- Desencriptado (`decrypted_attachments`, se desencripta fuera y se sube): sube/borra solo **TICOM**; lo ven y descargan solo **ENCRIPTADO y TICOM** (TICOM para revisar si se equivocó, desde la 1.5.1). Los datos (`decryptedFiles`: id, nombre, quién lo subió, cuándo) solo los reciben ellos. SIENA (`siena_files`): igual.
+- **Varios por adjunto** (1.5.2): un `.rar` encriptado trae varios documentos. TICOM elige varios a la vez (`POST …/decrypted`, campo `files`), se suman a los que hay; si se equivocó, borra ese (✕, `DELETE …/decrypted/:did`). Descarga: `GET …/decrypted/:did` (sin `:did`, el primero).
+- Se muestra como tarjeta con **candado abierto verde** (`<app-file-icon lock="open">`), con "por <usuario TICOM>" y la fecha; abre el mismo visor que los adjuntos. TICOM ve el original (candado cerrado gris) y los desencriptados. **ENCRIPTADO ve solo los desencriptados**; mientras no hay ninguno, ve el original con "Todavía no se cargó el desencriptado" (`showOriginalAttachment()`).
 - Se guardan en los volúmenes `decrypted_attachments` y `siena_files`. ⚠️ Hasta el 06/10/2026 no estaban en un volumen y se perdían al recrear el backend (se perdieron 5 desencriptados). `hasDecrypted` solo es verdadero si el archivo existe en disco.
 - Pendiente de definir con la institución: registro de descargas, cifrado en disco, plazo de conservación.
 

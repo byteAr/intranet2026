@@ -479,20 +479,24 @@ export class MailService implements OnApplicationBootstrap {
       if (encryptedIds.length > 0) {
         const decryptedRows = await this.decryptedRepo.find({
           where: encryptedIds.map((aid) => ({ attachmentId: aid })),
-          select: ['attachmentId', 'storagePath', 'filename', 'size', 'uploadedByName', 'uploadedAt'],
+          select: ['id', 'attachmentId', 'storagePath', 'filename', 'size', 'uploadedByName', 'uploadedAt'],
+          order: { uploadedAt: 'ASC' },
         });
         // Solo cuenta si el archivo existe: hasta el 06/10/2026 se guardaban fuera
         // de un volumen y se perdieron al recrear el backend. Así figuran como
         // pendientes y TICOM los puede volver a subir.
-        const decryptedOf = new Map(
-          decryptedRows
-            .filter((d) => existsSync(d.storagePath))
-            .map((d) => [d.attachmentId, { filename: d.filename, size: d.size, uploadedByName: d.uploadedByName, uploadedAt: d.uploadedAt }]),
-        );
+        const decryptedOf = new Map<string, { id: string; filename: string; size: number; uploadedByName: string; uploadedAt: Date }[]>();
+        for (const d of decryptedRows) {
+          if (!existsSync(d.storagePath)) continue;
+          const list = decryptedOf.get(d.attachmentId) ?? [];
+          list.push({ id: d.id, filename: d.filename, size: d.size, uploadedByName: d.uploadedByName, uploadedAt: d.uploadedAt });
+          decryptedOf.set(d.attachmentId, list);
+        }
+        // Puede haber varios por adjunto: un .rar encriptado trae varios documentos.
         (email as any).attachments = email.attachments.map((att) => {
           if (!/\.~\d{2}$/.test(att.filename)) return att;
-          const decrypted = decryptedOf.get(att.id) ?? null;
-          return { ...att, hasDecrypted: !!decrypted, decrypted };
+          const decryptedFiles = decryptedOf.get(att.id) ?? [];
+          return { ...att, hasDecrypted: decryptedFiles.length > 0, decryptedFiles };
         });
       }
     }

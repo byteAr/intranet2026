@@ -16,5 +16,6 @@
  * 1.4.3 — Leyenda en cada pestaña de Archivos compartidos.
  * 1.5.0 — Compartir un MTO por WhatsApp Web o por el chat (enlace que lo abre); enlaces clicables en el chat.
  * 1.5.1 — Desencriptados (PON y SIENA) con candado abierto y quién los subió; TICOM también los puede ver.
+ * 1.5.2 — Varios desencriptados por adjunto encriptado (.rar); ENCRIPTADO ve solo los desencriptados.
  */
-export const APP_VERSION = '1.5.1';
+export const APP_VERSION = '1.5.2';

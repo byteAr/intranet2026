@@ -5,7 +5,10 @@ import {
   computed,
   OnInit,
   HostListener,
+  DestroyRef,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -18,6 +21,7 @@ import {
 } from '../../core/services/mail.service';
 import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
+import { MtoShareComponent } from './mto-share.component';
 
 const FOLDER_LABELS: Record<MailFolder, string> = {
   informativos: 'Informativos',
@@ -29,7 +33,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 @Component({
   selector: 'app-mail',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, MtoShareComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -396,14 +400,17 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                   <span class="text-xs px-2 py-0.5 rounded-full" [ngClass]="folderBadgeClass(activeEmail()!.folder)">
                     {{ folderLabel(activeEmail()!.folder) }}
                   </span>
-                  <button (click)="printEmail()"
-                    class="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
-                    title="Imprimir email">
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/>
-                    </svg>
-                    Imprimir
-                  </button>
+                  <div class="flex items-center gap-3">
+                    <app-mto-share [email]="activeEmail()!" />
+                    <button (click)="printEmail()"
+                      class="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                      title="Imprimir email">
+                      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/>
+                      </svg>
+                      Imprimir
+                    </button>
+                  </div>
                 </div>
               </div>
               <div class="space-y-0.5 text-xs text-gray-500">
@@ -587,6 +594,9 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 export class MailComponent implements OnInit {
   readonly mailService = inject(MailService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly folders: MailFolder[] = ['ejecutivos', 'informativos', 'redgen', 'tx'];
 
@@ -771,6 +781,23 @@ export class MailComponent implements OnInit {
     this.mailService.connect();
     this.mailService.loadEmails();
     this.mailService.loadUnreadCounts();
+    // ?mto=<id>: abrir ese MTO directo (enlaces compartidos por el chat o copiados).
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const id = params.get('mto');
+      if (id) this.openSharedMto(id);
+    });
+  }
+
+  /** Abre un MTO por su id y saca el parámetro de la dirección. */
+  private openSharedMto(id: string): void {
+    void this.router.navigate([], { queryParams: { mto: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    this.mailService.getEmail(id).subscribe({
+      next: (email) => this.selectEmail(email),
+      error: () => {
+        this.loadingBody.set(false);
+        this.bodyLoadError.set(true);
+      },
+    });
   }
 
   @HostListener('document:keydown', ['$event'])

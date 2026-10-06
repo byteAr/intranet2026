@@ -19,11 +19,12 @@ import { ChatService, ChatMessage, UserSearchResult } from '../../core/services/
 import { AuthService } from '../../core/services/auth.service';
 import { AttachmentPreviewComponent } from './attachment-preview.component';
 import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
+import { LinkedTextComponent } from '../../shared/linked-text/linked-text.component';
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewComponent, AttachmentPreviewModalComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewComponent, AttachmentPreviewModalComponent, LinkedTextComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] bg-white rounded-xl shadow overflow-hidden">
 
@@ -218,7 +219,7 @@ import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../..
                   }
                   <!-- Text content -->
                   @if (msg.content) {
-                    <p class="px-4 py-2.5 break-words whitespace-pre-wrap">{{ msg.content }}</p>
+                    <p class="px-4 py-2.5 break-words whitespace-pre-wrap"><app-linked-text [text]="msg.content" /></p>
                   }
                 </div>
                 <p class="text-xs text-gray-400 mt-1" [class.text-right]="isOwn(msg)" [class.ml-1]="!isOwn(msg)">

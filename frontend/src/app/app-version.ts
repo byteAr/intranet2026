@@ -14,5 +14,6 @@
  * 1.4.1 — Grupo fecha-hora de los MTO y logs en hora de Argentina (antes UTC).
  * 1.4.2 — La intranet se actualiza sola en un momento seguro, sin recargar a mano.
  * 1.4.3 — Leyenda en cada pestaña de Archivos compartidos.
+ * 1.5.0 — Compartir un MTO por WhatsApp Web o por el chat (enlace que lo abre); enlaces clicables en el chat.
  */
-export const APP_VERSION = '1.4.3';
+export const APP_VERSION = '1.5.0';

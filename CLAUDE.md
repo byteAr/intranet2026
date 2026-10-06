@@ -123,6 +123,11 @@ Outlook declara `iso-8859-1` pero manda `windows-1252`: los bytes 0x80-0x9F (com
 ### No leídos
 `MAIL_UNREAD_SINCE` (ISO 8601): lo ingresado antes cuenta como leído para todos. Lo importado desde PST nunca cuenta como no leído.
 
+### Compartir un MTO (1.5.0, `features/mail/mto-share.component.ts`)
+- Botón "Compartir" junto a "Imprimir": WhatsApp Web (`web.whatsapp.com/send?text=`, asunto/De/Fecha/nombres de adjuntos + cuerpo recortado a 3500 caracteres; los adjuntos no viajan), por la intranet (elegir varias personas → un mensaje por persona en Conversaciones vía `ChatService.sendMessage`; a quien nunca entró se lo da de alta con `ensureUser`) y copiar enlace.
+- Enlace: `/correo?mto=<id>`; `MailComponent` lo lee de `queryParamMap`, abre el MTO y limpia el parámetro.
+- El chat muestra los enlaces clicables (`shared/linked-text`): los de la intranet navegan adentro y el de un MTO se ve como "Abrir el MTO". Nunca interpreta HTML.
+
 ### Árbol de referencias
 CTE recursiva con límite de profundidad < 10 + tracking de path para evitar ciclos infinitos.
 

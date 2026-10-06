@@ -20,8 +20,19 @@ export interface MailAttachment {
   contentType: string;
   size: number;
   hasDecrypted?: boolean;
-  /** Solo para TICOM y ENCRIPTADO, en adjuntos .~NN: la versión desencriptada que subió TICOM. */
-  decrypted?: { filename: string; size: number; uploadedByName: string; uploadedAt: string } | null;
+  /**
+   * Solo para TICOM y ENCRIPTADO, en adjuntos .~NN: lo que subió TICOM ya
+   * desencriptado. Puede ser más de uno (un .rar encriptado trae varios documentos).
+   */
+  decryptedFiles?: DecryptedFile[];
+}
+
+export interface DecryptedFile {
+  id: string;
+  filename: string;
+  size: number;
+  uploadedByName: string;
+  uploadedAt: string;
 }
 
 export interface MailReadStatus {
@@ -306,35 +317,18 @@ export class MailService {
       });
   }
 
-  uploadDecrypted(emailId: string, attachmentId: string, file: File): Observable<{ id: string; filename: string; size: number; uploadedAt: string; uploadedByName: string }> {
+  /** Sube uno o varios desencriptados de un adjunto .~NN (se suman a los que ya hay). */
+  uploadDecrypted(emailId: string, attachmentId: string, files: File[]): Observable<DecryptedFile[]> {
     const fd = new FormData();
-    fd.append('file', file, file.name);
-    return this.http.post<{ id: string; filename: string; size: number; uploadedAt: string; uploadedByName: string }>(
+    for (const file of files) fd.append('files', file, file.name);
+    return this.http.post<DecryptedFile[]>(
       `/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted`,
       fd,
     );
   }
 
-  downloadDecrypted(emailId: string, attachmentId: string, filename: string): void {
-    this.http
-      .get(`/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted`, { responseType: 'blob' })
-      .subscribe({
-        next: (blob) => {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filename.replace(/\.~\d{2}$/i, '');
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-        },
-        error: () => console.error('No se pudo descargar el archivo desencriptado'),
-      });
-  }
-
-  deleteDecrypted(emailId: string, attachmentId: string): Observable<{ ok: boolean }> {
-    return this.http.delete<{ ok: boolean }>(`/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted`);
+  deleteDecrypted(emailId: string, attachmentId: string, decryptedId: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted/${decryptedId}`);
   }
 
   uploadSienaFile(emailId: string, file: File): Observable<SienaFile> {

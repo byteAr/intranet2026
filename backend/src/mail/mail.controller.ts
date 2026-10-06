@@ -15,7 +15,7 @@ import {
   UploadedFile,
   UploadedFiles,
 } from '@nestjs/common';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { AnyFilesInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage, memoryStorage } from 'multer';
 import { Response } from 'express';
 import { existsSync, mkdirSync, createReadStream } from 'fs';
@@ -133,10 +133,12 @@ export class MailController {
     return this.smtpSender.send(dto, files ?? []);
   }
 
+  /** Uno o varios desencriptados (campo `files`; `file` es el de la versión anterior). */
   @Post('emails/:id/attachments/:aid/decrypted')
   @Roles('TICOM')
   @UseInterceptors(
-    FileInterceptor('file', {
+    AnyFilesInterceptor({
+      limits: { files: 50 },
       storage: diskStorage({
         destination: (_req, _file, cb) => {
           const dest = process.env.DECRYPTED_ATTACHMENTS_PATH ?? '/app/storage/decrypted-attachments';
@@ -153,35 +155,37 @@ export class MailController {
   async uploadDecrypted(
     @Param('id') id: string,
     @Param('aid') aid: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles() files: Express.Multer.File[],
     @Req() req: any,
   ) {
-    if (!file) throw new BadRequestException('Se requiere un archivo');
-    const dec = await this.decryptedService.upload(
-      id, aid, file, req.user.id, req.user.displayName ?? req.user.username,
+    if (!files?.length) throw new BadRequestException('Se requiere al menos un archivo');
+    const saved = await this.decryptedService.upload(
+      id, aid, files, req.user.id, req.user.displayName ?? req.user.username,
     );
-    return { id: dec.id, filename: dec.filename, size: dec.size, uploadedAt: dec.uploadedAt, uploadedByName: dec.uploadedByName };
+    return saved.map((d) => ({ id: d.id, filename: d.filename, size: d.size, uploadedAt: d.uploadedAt, uploadedByName: d.uploadedByName }));
   }
 
   /** El desencriptado: lo ven ENCRIPTADO y TICOM (que lo sube y puede revisar si se equivocó). */
-  @Get('emails/:id/attachments/:aid/decrypted')
+  @Get(['emails/:id/attachments/:aid/decrypted', 'emails/:id/attachments/:aid/decrypted/:did'])
   @Roles('ENCRIPTADO', 'TICOM')
   async downloadDecrypted(
     @Param('id') id: string,
     @Param('aid') aid: string,
+    @Param('did') did: string | undefined,
     @Res() res: Response,
   ) {
-    const dec = await this.decryptedService.get(id, aid);
+    const dec = await this.decryptedService.get(id, aid, did);
     res.download(dec.storagePath, dec.filename);
   }
 
-  @Delete('emails/:id/attachments/:aid/decrypted')
+  @Delete('emails/:id/attachments/:aid/decrypted/:did')
   @Roles('TICOM')
   async deleteDecrypted(
     @Param('id') id: string,
     @Param('aid') aid: string,
+    @Param('did') did: string,
   ) {
-    await this.decryptedService.remove(id, aid);
+    await this.decryptedService.remove(id, aid, did);
     return { ok: true };
   }
 

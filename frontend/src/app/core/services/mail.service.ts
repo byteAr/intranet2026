@@ -29,7 +29,10 @@ export interface MailAttachment {
 
 export interface DecryptedFile {
   id: string;
+  /** Como lo subió TICOM (a veces el nombre corto de DOS: CONTRO~1.DOC). */
   filename: string;
+  /** El nombre real, sacado del cuerpo del MTO ("CONTROL09" (DOCX) → CONTROL09.docx). */
+  displayName?: string;
   size: number;
   uploadedByName: string;
   uploadedAt: string;

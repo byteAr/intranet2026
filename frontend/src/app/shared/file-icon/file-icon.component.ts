@@ -85,13 +85,7 @@ function badgeFor(f: FileLike): Badge | null {
               class="fill-gray-50 stroke-gray-400 dark:fill-zinc-700 dark:stroke-zinc-500" stroke-width="1.6" stroke-linejoin="round" />
         <path d="M24.5 3.5V9a2 2 0 002 2H32"
               class="fill-gray-200 stroke-gray-400 dark:fill-zinc-600 dark:stroke-zinc-500" stroke-width="1.6" stroke-linejoin="round" />
-        @if (padlock() === 'open') {
-          <!-- Desencriptado (PON / SIENA, subido por TICOM): candado abierto, en verde -->
-          <path d="M15.6 20.6v-4.4a4.4 4.4 0 018.6-1.4" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" />
-          <rect x="12.4" y="20.6" width="15.2" height="12" rx="2.4" fill="#059669" />
-          <circle cx="20" cy="25.6" r="1.7" fill="#fff" />
-          <rect x="19.3" y="26.2" width="1.4" height="3.4" rx=".7" fill="#fff" />
-        } @else if (padlock() === 'closed') {
+        @if (padlock() === 'closed') {
           <!-- Encriptado (MTO .~00): candado en lugar de etiqueta -->
           <path d="M15.6 21.5v-3.2a4.4 4.4 0 018.8 0v3.2" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" />
           <rect x="12.4" y="20.6" width="15.2" height="12" rx="2.4" fill="#334155" />
@@ -105,6 +99,12 @@ function badgeFor(f: FileLike): Badge | null {
         } @else {
           <path d="M13 19h14M13 23.5h14M13 28h9" class="stroke-gray-300 dark:stroke-zinc-500" stroke-width="1.6" stroke-linecap="round" />
         }
+        @if (padlock() === 'open') {
+          <!-- Desencriptado (PON / SIENA, subido por TICOM): su tipo, y un candado abierto verde en la esquina -->
+          <circle cx="31" cy="9" r="8" fill="#059669" stroke="#fff" stroke-width="1.5" />
+          <path d="M28.6 8.6V6.6a2.3 2.3 0 014.5-.7" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" />
+          <rect x="27.4" y="8.6" width="7.2" height="5.4" rx="1.1" fill="#fff" />
+        }
       </svg>
     }
   `,
@@ -114,7 +114,7 @@ export class FileIconComponent {
   readonly size = input(44);
 
   readonly badge = computed(() => badgeFor(this.file()));
-  /** 'open': desencriptado (aunque el nombre tenga otra extensión); sin indicar, se deduce del nombre. */
+  /** 'open': desencriptado (su tipo + candado abierto en la esquina); sin indicar, se deduce del nombre. */
   readonly lock = input<'open' | 'closed' | null>(null);
   /** Adjuntos encriptados de MTO: .~00 (y extensiones solo numéricas, .001). */
   readonly encrypted = computed(() => /\.~?\d+$/.test(this.file().name));

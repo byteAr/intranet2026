@@ -107,6 +107,10 @@ services:
       - mail_attachments:/app/storage/attachments
       - mail_pst:/app/storage/pst
       - draft_attachments:/app/storage/draft-attachments
+      # Desencriptados de adjuntos .~00 y archivos SIENA. Hasta el 06/10/2026
+      # no estaban en un volumen: se perdían cada vez que se recreaba el backend.
+      - decrypted_attachments:/app/storage/decrypted-attachments
+      - siena_files:/app/storage/siena-files
       # Cuenta de servicio de Google (alta de usuarios en Workspace y
       # Archivos compartidos). Es la ruta de GOOGLE_SERVICE_ACCOUNT_PATH.
       - ./secrets/google-workspace-key.json:/run/secrets/google-workspace-key.json:ro
@@ -145,6 +149,8 @@ volumes:
   mail_attachments:
   mail_pst:
   draft_attachments:
+  decrypted_attachments:
+  siena_files:
 
 networks:
   intranet_shared:

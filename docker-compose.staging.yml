@@ -63,6 +63,10 @@ services:
       - intranet2026_mail_attachments:/app/storage/attachments:ro
       - intranet2026_mail_pst:/app/storage/pst:ro
       - intranet2026_draft_attachments:/app/storage/draft-attachments:ro
+      # Los de producción, solo lectura como los demás (los crea el primer pase de
+      # producción con estos volúmenes: hay que hacerlo antes de levantar staging).
+      - intranet2026_decrypted_attachments:/app/storage/decrypted-attachments:ro
+      - intranet2026_siena_files:/app/storage/siena-files:ro
       # Cuenta de servicio de Google (Workspace + Drive), la misma de producción
       - ./secrets/google-workspace-key.json:/run/google/google-workspace-key.json:ro
     secrets:
@@ -99,6 +103,10 @@ volumes:
   intranet2026_mail_pst:
     external: true
   intranet2026_draft_attachments:
+    external: true
+  intranet2026_decrypted_attachments:
+    external: true
+  intranet2026_siena_files:
     external: true
 
 networks:

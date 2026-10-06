@@ -15,6 +15,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import {
   MailService,
   Email,
+  MailAttachment,
   MailFolder,
   SienaFile,
   MailUnreadCounts,
@@ -438,33 +439,37 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                           <span class="text-[10px] text-gray-400 dark:text-zinc-500">{{ formatSize(att.size) }}</span>
                         </button>
 
-                        <!-- Zona desencriptado — solo para adjuntos .~00 -->
+                        <!-- Encriptado (.~NN): TICOM sube o reemplaza el desencriptado -->
                         @if (isEncryptedFile(att.filename)) {
                           @if (isTicom) {
-                            <label class="cursor-pointer" [title]="att.hasDecrypted ? 'Reemplazar desc.' : 'Subir desc.'">
+                            <label class="cursor-pointer" [title]="att.decrypted ? 'Reemplazar el desencriptado (si se subió uno equivocado)' : 'Subir la versión desencriptada'">
                               <input type="file" class="hidden"
                                      (change)="onDecryptedFileSelected(att, $event)"
                                      [disabled]="uploadingDecryptedId() === att.id" />
                               <span class="text-xs px-1 py-0.5 rounded border leading-none"
-                                    [class]="att.hasDecrypted ? 'border-green-400 text-green-700' : 'border-amber-400 text-amber-700'">
-                                {{ uploadingDecryptedId() === att.id ? '...' : (att.hasDecrypted ? '↑ desc.' : '↑ subir') }}
+                                    [class]="att.decrypted ? 'border-green-400 text-green-700' : 'border-amber-400 text-amber-700'">
+                                {{ uploadingDecryptedId() === att.id ? '...' : (att.decrypted ? '↻ reemplazar' : '↑ subir') }}
                               </span>
                             </label>
-                          }
-                          @if (isEncriptado) {
-                            @if (att.hasDecrypted) {
-                              <button
-                                (click)="mailService.downloadDecrypted(activeEmail()!.id, att.id, att.filename)"
-                                class="text-xs px-1 py-0.5 rounded border border-teal-400 text-teal-700 leading-none"
-                                title="Descargar versión desencriptada">
-                                &#x2193; desc.
-                              </button>
-                            } @else {
-                              <span class="text-xs text-gray-400 italic leading-none">sin desc.</span>
-                            }
+                          } @else if (isEncriptado && !att.decrypted) {
+                            <span class="text-[10px] text-gray-400 italic leading-none">sin desencriptar</span>
                           }
                         }
                       </div>
+
+                      <!-- Desencriptado (solo TICOM y ENCRIPTADO): candado abierto y quién lo subió -->
+                      @if (att.decrypted && (isEncriptado || isTicom)) {
+                        <div class="flex flex-col items-center gap-1">
+                          <button (click)="openDecryptedPreview(att)"
+                            class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 hover:bg-emerald-50 transition-colors w-24"
+                            [title]="'Archivo encriptado (' + att.filename + ') desencriptado y subido por ' + att.decrypted.uploadedByName + ' (TICOM) el ' + formatUploadDate(att.decrypted.uploadedAt)">
+                            <app-file-icon [file]="{ name: att.decrypted.filename }" lock="open" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
+                            <span class="w-full text-center text-[11px] leading-tight text-gray-700 line-clamp-2 break-all">{{ att.decrypted.filename }}</span>
+                            <span class="text-[10px] font-semibold text-emerald-700">Desencriptado</span>
+                          </button>
+                          <span class="w-24 text-center text-[10px] leading-tight text-gray-400">por {{ att.decrypted.uploadedByName }}<br>{{ formatUploadDate(att.decrypted.uploadedAt) }}</span>
+                        </div>
+                      }
                     }
                   </div>
                 </div>
@@ -476,24 +481,23 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               <div class="mt-3 pt-3 border-t border-gray-100">
                 <p class="text-xs font-semibold text-gray-500 mb-2">Archivos SIENA desencriptados</p>
 
-                <!-- Lista de archivos subidos -->
+                <!-- Archivos subidos: candado abierto y quién los subió (los ven TICOM y ENCRIPTADO) -->
                 @if (activeEmail()!.sienaFiles!.length > 0) {
-                  <div class="flex flex-col gap-1 mb-2">
+                  <div class="flex flex-wrap gap-2 mb-2">
                     @for (sf of activeEmail()!.sienaFiles!; track sf.id) {
-                      <div class="flex items-center gap-2 text-xs">
-                        @if (isEncriptado) {
-                          <button
-                            (click)="mailService.downloadSienaFile(activeEmail()!.id, sf.id, sf.filename)"
-                            class="text-teal-700 hover:underline truncate max-w-48 text-left"
-                            [title]="sf.filename">
-                            {{ sf.filename }}
-                          </button>
-                        } @else {
-                          <span class="text-gray-600 truncate max-w-48" [title]="sf.filename">{{ sf.filename }}</span>
-                        }
-                        <span class="text-gray-400 shrink-0">{{ formatSize(sf.size) }}</span>
+                      <div class="relative flex flex-col items-center gap-1">
+                        <button (click)="openSienaPreview(sf)"
+                          class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 hover:bg-emerald-50 transition-colors w-24"
+                          [title]="'Archivo SIENA desencriptado y subido por ' + sf.uploadedByName + ' (TICOM) el ' + formatUploadDate(sf.uploadedAt)">
+                          <app-file-icon [file]="{ name: sf.filename }" lock="open" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
+                          <span class="w-full text-center text-[11px] leading-tight text-gray-700 line-clamp-2 break-all">{{ sf.filename }}</span>
+                          <span class="text-[10px] font-semibold text-emerald-700">Desencriptado</span>
+                        </button>
+                        <span class="w-24 text-center text-[10px] leading-tight text-gray-400">por {{ sf.uploadedByName }}<br>{{ formatUploadDate(sf.uploadedAt) }}</span>
                         @if (isTicom) {
-                          <button (click)="onSienaFileDelete(sf.id)" class="text-red-400 hover:text-red-600 shrink-0" title="Eliminar">&#x2715;</button>
+                          <button (click)="onSienaFileDelete(sf.id)"
+                            class="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white border border-gray-200 text-red-500 hover:bg-red-50 text-[10px] leading-none shadow-sm"
+                            title="Eliminar (si se subió uno equivocado)">&#x2715;</button>
                         }
                       </div>
                     }
@@ -1056,6 +1060,25 @@ export class MailComponent implements OnInit {
       url: `/api/mail/emails/${emailId}/attachments/${attId}/preview`,
       filename,
       downloadUrl: `/api/mail/emails/${emailId}/attachments/${attId}`,
+    });
+  }
+
+  /** El desencriptado de un adjunto .~NN (solo TICOM y ENCRIPTADO; el servidor lo controla). */
+  openDecryptedPreview(att: MailAttachment): void {
+    const url = `/api/mail/emails/${this.activeEmail()!.id}/attachments/${att.id}/decrypted`;
+    this.previewRequest.set({ url, downloadUrl: url, filename: att.decrypted!.filename });
+  }
+
+  openSienaPreview(sf: SienaFile): void {
+    const url = `/api/mail/emails/${this.activeEmail()!.id}/siena-files/${sf.id}`;
+    this.previewRequest.set({ url, downloadUrl: url, filename: sf.filename });
+  }
+
+  /** "17/04/2026 11:43", en hora de Argentina. */
+  formatUploadDate(iso: string): string {
+    return new Date(iso).toLocaleString('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
   }
 

@@ -163,8 +163,9 @@ export class MailController {
     return { id: dec.id, filename: dec.filename, size: dec.size, uploadedAt: dec.uploadedAt, uploadedByName: dec.uploadedByName };
   }
 
+  /** El desencriptado: lo ven ENCRIPTADO y TICOM (que lo sube y puede revisar si se equivocó). */
   @Get('emails/:id/attachments/:aid/decrypted')
-  @Roles('ENCRIPTADO')
+  @Roles('ENCRIPTADO', 'TICOM')
   async downloadDecrypted(
     @Param('id') id: string,
     @Param('aid') aid: string,
@@ -213,7 +214,7 @@ export class MailController {
   }
 
   @Get('emails/:id/siena-files/:fid')
-  @Roles('ENCRIPTADO')
+  @Roles('ENCRIPTADO', 'TICOM')
   async downloadSienaFile(
     @Param('id') id: string,
     @Param('fid') fid: string,

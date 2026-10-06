@@ -20,6 +20,8 @@ export interface MailAttachment {
   contentType: string;
   size: number;
   hasDecrypted?: boolean;
+  /** Solo para TICOM y ENCRIPTADO, en adjuntos .~NN: la versión desencriptada que subió TICOM. */
+  decrypted?: { filename: string; size: number; uploadedByName: string; uploadedAt: string } | null;
 }
 
 export interface MailReadStatus {

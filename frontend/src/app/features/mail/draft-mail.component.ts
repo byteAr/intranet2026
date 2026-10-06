@@ -13,7 +13,7 @@ import { AppVersionService } from '../../core/services/app-version.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { Subject, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs';
+import { Subject, catchError, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   DraftMailService,
@@ -715,17 +715,20 @@ export class DraftMailComponent implements OnInit, OnDestroy {
       });
     });
 
+    // Si una búsqueda falla (la libreta LDAP no responde), esa da vacío y las
+    // siguientes siguen andando: sin el catchError, un solo error cortaba el
+    // autocompletado hasta recargar la página.
     this.toSearchSubject.pipe(
       debounceTime(250),
       distinctUntilChanged(),
-      switchMap((q) => q.length < 2 ? of([]) : this.mailService.searchRecipients(q)),
+      switchMap((q) => q.length < 2 ? of([]) : this.mailService.searchRecipients(q).pipe(catchError(() => of([])))),
       takeUntilDestroyed(this.destroyRef),
     ).subscribe((r) => this.toSuggestions.set(r));
 
     this.ccSearchSubject.pipe(
       debounceTime(250),
       distinctUntilChanged(),
-      switchMap((q) => q.length < 2 ? of([]) : this.mailService.searchRecipients(q)),
+      switchMap((q) => q.length < 2 ? of([]) : this.mailService.searchRecipients(q).pipe(catchError(() => of([])))),
       takeUntilDestroyed(this.destroyRef),
     ).subscribe((r) => this.ccSuggestions.set(r));
   }

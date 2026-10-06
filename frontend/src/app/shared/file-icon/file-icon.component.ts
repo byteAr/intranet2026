@@ -85,7 +85,13 @@ function badgeFor(f: FileLike): Badge | null {
               class="fill-gray-50 stroke-gray-400 dark:fill-zinc-700 dark:stroke-zinc-500" stroke-width="1.6" stroke-linejoin="round" />
         <path d="M24.5 3.5V9a2 2 0 002 2H32"
               class="fill-gray-200 stroke-gray-400 dark:fill-zinc-600 dark:stroke-zinc-500" stroke-width="1.6" stroke-linejoin="round" />
-        @if (encrypted()) {
+        @if (padlock() === 'open') {
+          <!-- Desencriptado (PON / SIENA, subido por TICOM): candado abierto, en verde -->
+          <path d="M15.6 20.6v-4.4a4.4 4.4 0 018.6-1.4" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" />
+          <rect x="12.4" y="20.6" width="15.2" height="12" rx="2.4" fill="#059669" />
+          <circle cx="20" cy="25.6" r="1.7" fill="#fff" />
+          <rect x="19.3" y="26.2" width="1.4" height="3.4" rx=".7" fill="#fff" />
+        } @else if (padlock() === 'closed') {
           <!-- Encriptado (MTO .~00): candado en lugar de etiqueta -->
           <path d="M15.6 21.5v-3.2a4.4 4.4 0 018.8 0v3.2" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" />
           <rect x="12.4" y="20.6" width="15.2" height="12" rx="2.4" fill="#334155" />
@@ -108,8 +114,11 @@ export class FileIconComponent {
   readonly size = input(44);
 
   readonly badge = computed(() => badgeFor(this.file()));
+  /** 'open': desencriptado (aunque el nombre tenga otra extensión); sin indicar, se deduce del nombre. */
+  readonly lock = input<'open' | 'closed' | null>(null);
   /** Adjuntos encriptados de MTO: .~00 (y extensiones solo numéricas, .001). */
   readonly encrypted = computed(() => /\.~?\d+$/.test(this.file().name));
+  readonly padlock = computed(() => this.lock() ?? (this.encrypted() ? 'closed' : null));
   /** Las etiquetas largas (EXCEL, HOJAS) se ensanchan para no achicar tanto la letra. */
   readonly labelWidth = computed(() => ((this.badge()?.label.length ?? 0) >= 5 ? 32 : 26));
   readonly fontSize = computed(() => {

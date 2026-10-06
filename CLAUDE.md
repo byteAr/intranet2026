@@ -189,7 +189,8 @@ draft → pending_review → approved → sent
 
 ### Adjuntos encriptados recibidos (`.~NN`) — permisos
 - Original cifrado: lo ve y descarga cualquier usuario logueado (ilegible sin la clave).
-- Desencriptado (`decrypted_attachments`, se desencripta fuera y se sube): sube/reemplaza/borra solo **TICOM**; descarga solo **ENCRIPTADO** (TICOM no, salvo que también lo sea); el indicador `hasDecrypted` solo lo reciben TICOM y ENCRIPTADO. SIENA (`siena_files`): igual.
+- Desencriptado (`decrypted_attachments`, se desencripta fuera y se sube): sube/reemplaza/borra solo **TICOM**; lo ven y descargan solo **ENCRIPTADO y TICOM** (TICOM para revisar si se equivocó, desde la 1.5.1). Los datos (`decrypted`: nombre, quién lo subió, cuándo) solo los reciben ellos. SIENA (`siena_files`): igual.
+- Se muestra como tarjeta con **candado abierto verde** (`<app-file-icon lock="open">`) al lado del original (candado cerrado gris), con "por <usuario TICOM>" y la fecha; abre el mismo visor que los adjuntos.
 - Se guardan en los volúmenes `decrypted_attachments` y `siena_files`. ⚠️ Hasta el 06/10/2026 no estaban en un volumen y se perdían al recrear el backend (se perdieron 5 desencriptados). `hasDecrypted` solo es verdadero si el archivo existe en disco.
 - Pendiente de definir con la institución: registro de descargas, cifrado en disco, plazo de conservación.
 

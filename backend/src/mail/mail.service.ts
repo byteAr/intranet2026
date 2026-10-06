@@ -479,25 +479,34 @@ export class MailService implements OnApplicationBootstrap {
       if (encryptedIds.length > 0) {
         const decryptedRows = await this.decryptedRepo.find({
           where: encryptedIds.map((aid) => ({ attachmentId: aid })),
-          select: ['attachmentId', 'storagePath'],
+          select: ['attachmentId', 'storagePath', 'filename', 'size', 'uploadedByName', 'uploadedAt'],
         });
         // Solo cuenta si el archivo existe: hasta el 06/10/2026 se guardaban fuera
         // de un volumen y se perdieron al recrear el backend. Así figuran como
         // pendientes y TICOM los puede volver a subir.
-        const decryptedSet = new Set(decryptedRows.filter((d) => existsSync(d.storagePath)).map((d) => d.attachmentId));
-        (email as any).attachments = email.attachments.map((att) => ({
-          ...att,
-          hasDecrypted: att.filename.endsWith('.~00') ? decryptedSet.has(att.id) : undefined,
-        }));
+        const decryptedOf = new Map(
+          decryptedRows
+            .filter((d) => existsSync(d.storagePath))
+            .map((d) => [d.attachmentId, { filename: d.filename, size: d.size, uploadedByName: d.uploadedByName, uploadedAt: d.uploadedAt }]),
+        );
+        (email as any).attachments = email.attachments.map((att) => {
+          if (!/\.~\d{2}$/.test(att.filename)) return att;
+          const decrypted = decryptedOf.get(att.id) ?? null;
+          return { ...att, hasDecrypted: !!decrypted, decrypted };
+        });
       }
     }
 
     // Incluir archivos SIENA para TICOM y ENCRIPTADO si el email es de tipo SIENA
     if (canSeeDecrypted && SienaFileService.isSienaBody(email.bodyText)) {
-      (email as any).sienaFiles = await this.sienaRepo.find({
+      const siena = await this.sienaRepo.find({
         where: { emailId: id },
         order: { uploadedAt: 'ASC' },
       });
+      // Sin la ruta del servidor, y solo los que existen en disco (ver arriba).
+      (email as any).sienaFiles = siena
+        .filter((f) => existsSync(f.storagePath))
+        .map(({ id: fileId, filename, size, uploadedByName, uploadedAt }) => ({ id: fileId, filename, size, uploadedByName, uploadedAt }));
     }
 
     return email;

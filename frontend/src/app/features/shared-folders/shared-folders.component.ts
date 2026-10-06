@@ -440,6 +440,16 @@ const MAX_FILES_PER_DROP = 1000;
         </ul>
       }
 
+      <!-- Qué pasa con lo que se guarda en esta pestaña -->
+      @if (tabLegend(); as legend) {
+        <div class="mt-auto flex items-start gap-2.5 px-4 py-3 border-t border-gray-100 dark:border-zinc-800 rounded-b-2xl bg-gray-50/60 dark:bg-zinc-900/60">
+          <svg class="h-4 w-4 mt-px flex-shrink-0 text-gray-400 dark:text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>
+          </svg>
+          <p class="text-xs leading-relaxed text-gray-500 dark:text-zinc-400">{{ legend }}</p>
+        </div>
+      }
+
       <!-- Zona de arrastre -->
       @if (dragOver()) {
         <div class="absolute inset-0 rounded-2xl border-2 border-dashed border-teal-500 bg-teal-50/90 dark:bg-teal-950/80
@@ -838,6 +848,22 @@ export class SharedFoldersComponent implements OnInit {
   readonly isPersonalTab = computed(() => this.tab() === PERSONAL_KEY);
   /** "Mis archivos" sin cuenta de Google: no hay dónde guardarlo. */
   readonly personalUnavailable = computed(() => this.isPersonalTab() && !this.info()?.googleEmail);
+
+  /** Leyenda al pie de la tarjeta: qué pasa con lo que se guarda en esta pestaña. */
+  readonly tabLegend = computed<string | null>(() => {
+    const tab = this.tab();
+    if (!tab || this.personalUnavailable()) return null;
+    if (tab === PERSONAL_KEY) {
+      return 'Estos archivos son privados: solo vos podés verlos, salvo lo que compartas con alguien. ' +
+        'Se guardan en tu Google Drive y no ocupan el espacio de tu oficina.';
+    }
+    if (tab === SHARED_TAB) {
+      return 'Acá aparece lo que otras personas compartieron con vos. Podés verlo o editarlo según el permiso ' +
+        'que te dieron; ocupa el espacio de quien lo compartió, no el tuyo.';
+    }
+    return `Todo lo que guardes acá lo ven y pueden editar todos los integrantes de ${tab}. ` +
+      'Para mostrarle algo a alguien de otra oficina, usá Compartir con clic derecho.';
+  });
   readonly atSharedRoot = computed(() => this.isSharedTab() && this.scope() === null);
   readonly currentFolderId = computed(() => this.path().at(-1)?.id ?? null);
 

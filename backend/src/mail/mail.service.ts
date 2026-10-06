@@ -8,6 +8,7 @@ import { Attachment } from './entities/attachment.entity';
 import { EmailReadStatus } from './entities/email-read-status.entity';
 import { EmailReference } from './entities/email-reference.entity';
 import { DecryptedAttachment } from './entities/decrypted-attachment.entity';
+import { decryptedDisplayName } from './decrypted-name.util';
 import { SienaFile } from './entities/siena-file.entity';
 import { SienaFileService } from './siena-file.service';
 import { QueryEmailsDto } from './dto/query-emails.dto';
@@ -485,11 +486,18 @@ export class MailService implements OnApplicationBootstrap {
         // Solo cuenta si el archivo existe: hasta el 06/10/2026 se guardaban fuera
         // de un volumen y se perdieron al recrear el backend. Así figuran como
         // pendientes y TICOM los puede volver a subir.
-        const decryptedOf = new Map<string, { id: string; filename: string; size: number; uploadedByName: string; uploadedAt: Date }[]>();
+        const decryptedOf = new Map<string, { id: string; filename: string; displayName: string; size: number; uploadedByName: string; uploadedAt: Date }[]>();
         for (const d of decryptedRows) {
           if (!existsSync(d.storagePath)) continue;
           const list = decryptedOf.get(d.attachmentId) ?? [];
-          list.push({ id: d.id, filename: d.filename, size: d.size, uploadedByName: d.uploadedByName, uploadedAt: d.uploadedAt });
+          list.push({
+            id: d.id,
+            filename: d.filename,
+            displayName: decryptedDisplayName(d.filename, d.storagePath, email.bodyText),
+            size: d.size,
+            uploadedByName: d.uploadedByName,
+            uploadedAt: d.uploadedAt,
+          });
           decryptedOf.set(d.attachmentId, list);
         }
         // Puede haber varios por adjunto: un .rar encriptado trae varios documentos.

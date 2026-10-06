@@ -175,7 +175,7 @@ export class MailController {
     @Res() res: Response,
   ) {
     const dec = await this.decryptedService.get(id, aid, did);
-    res.download(dec.storagePath, dec.filename);
+    res.download(dec.storagePath, dec.displayName);
   }
 
   @Delete('emails/:id/attachments/:aid/decrypted/:did')

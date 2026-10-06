@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { existsSync, unlinkSync } from 'fs';
 import { DecryptedAttachment } from './entities/decrypted-attachment.entity';
 import { Attachment } from './entities/attachment.entity';
+import { decryptedDisplayName } from './decrypted-name.util';
 
 @Injectable()
 export class DecryptedAttachmentService {
@@ -55,9 +56,12 @@ export class DecryptedAttachmentService {
     );
   }
 
-  /** Un desencriptado puntual; sin `decryptedId`, el primero (pestañas con la versión anterior). */
-  async get(emailId: string, attachmentId: string, decryptedId?: string): Promise<DecryptedAttachment> {
-    const att = await this.attachmentRepo.findOne({ where: { id: attachmentId, emailId } });
+  /**
+   * Un desencriptado puntual; sin `decryptedId`, el primero (pestañas con la versión
+   * anterior). `displayName`: el nombre real, sacado del cuerpo del MTO (ver util).
+   */
+  async get(emailId: string, attachmentId: string, decryptedId?: string): Promise<DecryptedAttachment & { displayName: string }> {
+    const att = await this.attachmentRepo.findOne({ where: { id: attachmentId, emailId }, relations: { email: true } });
     if (!att) throw new NotFoundException('Adjunto no encontrado');
 
     const dec = await this.repo.findOne({
@@ -66,7 +70,7 @@ export class DecryptedAttachmentService {
     });
     if (!dec) throw new NotFoundException('Archivo desencriptado no disponible aún');
     if (!existsSync(dec.storagePath)) throw new NotFoundException('Archivo no encontrado en disco');
-    return dec;
+    return { ...dec, displayName: decryptedDisplayName(dec.filename, dec.storagePath, att.email?.bodyText) };
   }
 
   async remove(emailId: string, attachmentId: string, decryptedId: string): Promise<void> {

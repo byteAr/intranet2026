@@ -467,9 +467,9 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                           <div class="relative flex flex-col items-center gap-1">
                             <button (click)="openDecryptedPreview(att, dec)"
                               class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 hover:bg-emerald-50 transition-colors w-24"
-                              [title]="'Archivo encriptado (' + att.filename + ') desencriptado y subido por ' + dec.uploadedByName + ' (TICOM) el ' + formatUploadDate(dec.uploadedAt)">
-                              <app-file-icon [file]="{ name: dec.filename }" lock="open" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
-                              <span class="w-full text-center text-[11px] leading-tight text-gray-700 line-clamp-2 break-all">{{ dec.filename }}</span>
+                              [title]="decryptedName(dec) + ' — archivo encriptado (' + att.filename + ') desencriptado y subido por ' + dec.uploadedByName + ' (TICOM) el ' + formatUploadDate(dec.uploadedAt) + (decryptedName(dec) !== dec.filename ? '. Subido como ' + dec.filename : '')">
+                              <app-file-icon [file]="{ name: decryptedName(dec) }" lock="open" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
+                              <span class="w-full text-center text-[11px] leading-tight text-gray-700 line-clamp-2 break-all">{{ decryptedName(dec) }}</span>
                               <span class="text-[10px] font-semibold text-emerald-700">Desencriptado</span>
                             </button>
                             <span class="w-24 text-center text-[10px] leading-tight text-gray-400">por {{ dec.uploadedByName }}<br>{{ formatUploadDate(dec.uploadedAt) }}</span>
@@ -1104,7 +1104,12 @@ export class MailComponent implements OnInit {
   /** Un desencriptado de un adjunto .~NN (solo TICOM y ENCRIPTADO; el servidor lo controla). */
   openDecryptedPreview(att: MailAttachment, dec: DecryptedFile): void {
     const url = `/api/mail/emails/${this.activeEmail()!.id}/attachments/${att.id}/decrypted/${dec.id}`;
-    this.previewRequest.set({ url, downloadUrl: url, filename: dec.filename });
+    this.previewRequest.set({ url, downloadUrl: url, filename: this.decryptedName(dec) });
+  }
+
+  /** El nombre real del desencriptado (el del cuerpo del MTO) o, si no se sabe, el subido. */
+  decryptedName(dec: DecryptedFile): string {
+    return dec.displayName || dec.filename;
   }
 
   openSienaPreview(sf: SienaFile): void {

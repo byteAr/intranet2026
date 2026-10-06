@@ -68,7 +68,7 @@ services:
       dockerfile: Dockerfile
     container_name: intranet_ad_bridge
     environment:
-      AD_HOST: ${AD_HOST:-10.98.40.22}
+      AD_HOST: ${AD_HOST:-10.98.40.1}
       AD_USER: ${AD_USER:-svc-pac}
       AD_DOMAIN: ${AD_DOMAIN:-IUGNAD}
       AD_BASE_DN: ${AD_BASE_DN:-DC=iugnad,DC=lan}

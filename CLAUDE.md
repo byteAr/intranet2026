@@ -41,7 +41,7 @@ scripts/rollout-frontend.sh -f docker-compose.yml -f docker-compose.prod.yml
 - **Backend**: NestJS 11, puerto 3000 (prod: `127.0.0.1:3001`, solo interno, prefix `/api`)
 - **Frontend**: Angular 20 standalone, puerto 4200 (prod: `8280` externo)
 - **DB**: PostgreSQL 16, TypeORM (`synchronize=true` salvo con `NODE_ENV=production`; ⚠️ producción corre con `NODE_ENV=development`, así que sincroniza el esquema solo). Log SQL: solo errores, avisos y consultas > 2 s; todas con `DB_LOG_QUERIES=true`.
-- **Auth**: AD/LDAP en `10.98.40.22`, dominio `iugnad.lan`
+- **Auth**: AD/LDAP en `10.98.40.1` (hasta el 06/10/2026 era `10.98.40.22`), dominio `iugnad.lan`. La IP se configura en el `.env` de la VM: `LDAP_URL` (backend: login y reseteo de contraseña) y, si está, `AD_HOST` (ad-bridge: alta de usuarios, grupos, limpieza); sin `AD_HOST` se usa el valor por defecto de `docker-compose.yml`.
 - **Real-time**: Socket.IO — namespaces: `/chat`, `/incidents`, `/reservations`, `/mail`, `/draft-mail`
 - **Deploy**: Docker Compose en `10.98.40.24`, path `/usr/local/proyectos/intranet2026`
 - **PC dev**: Windows 10, Docker Engine corre en WSL (Ubuntu). Levantar con `docker compose` desde WSL.

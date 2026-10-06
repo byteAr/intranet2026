@@ -58,7 +58,7 @@ const server = http.createServer(async (req, res) => {
 chcp 65001 | Out-Null
 Add-Type -AssemblyName System.DirectoryServices.Protocols
 $cred = New-Object System.Net.NetworkCredential("svc-pac", $env:AD_ADMIN_PASS, "iugnad")
-$ldapId = New-Object System.DirectoryServices.Protocols.LdapDirectoryIdentifier("10.98.40.22", 389)
+$ldapId = New-Object System.DirectoryServices.Protocols.LdapDirectoryIdentifier("10.98.40.1", 389)
 $conn = New-Object System.DirectoryServices.Protocols.LdapConnection($ldapId, $cred)
 $conn.AuthType = [System.DirectoryServices.Protocols.AuthType]::Negotiate
 $conn.SessionOptions.Signing = $true

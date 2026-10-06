@@ -135,7 +135,7 @@ export class PasswordResetService {
       throw new BadRequestException('No se encontró la cuenta de dominio del usuario');
     }
 
-    const ldapUrl = this.configService.get<string>('ldap.url') ?? 'ldap://10.98.40.22:389';
+    const ldapUrl = this.configService.get<string>('ldap.url') ?? 'ldap://10.98.40.1:389';
     const bindDn = this.configService.get<string>('ldap.bindDn')!;
     const bindCredentials = this.configService.get<string>('ldap.bindCredentials')!;
     const tlsOptions = { rejectUnauthorized: false };

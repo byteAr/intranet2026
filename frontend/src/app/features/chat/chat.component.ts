@@ -13,9 +13,11 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, switchMap, of, forkJoin } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ChatService, ChatMessage, UserSearchResult } from '../../core/services/chat.service';
+import { ChatService, ChatMessage, ChatAttachment, UserSearchResult } from '../../core/services/chat.service';
+import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
+import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
 import { AuthService } from '../../core/services/auth.service';
 import { AttachmentPreviewComponent } from './attachment-preview.component';
 import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
@@ -24,7 +26,7 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewComponent, AttachmentPreviewModalComponent, LinkedTextComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewComponent, AttachmentPreviewModalComponent, LinkedTextComponent, FileIconComponent, NewBadgeComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] bg-white rounded-xl shadow overflow-hidden">
 
@@ -179,33 +181,35 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
                   [class.bg-gray-300]="!isOwn(msg)"
                   [class.text-gray-900]="!isOwn(msg)"
                   [class.rounded-bl-sm]="!isOwn(msg)">
-                  <!-- Attachment -->
-                  @if (msg.attachmentUrl) {
-                    @if (isImage(msg.attachmentMimeType)) {
+                  <!-- Adjuntos: uno se ve grande; varios, las imágenes en grilla y los documentos en lista -->
+                  @let atts = attachmentsOf(msg);
+                  @if (atts.length === 1) {
+                    @let att = atts[0];
+                    @if (isImage(att.mimeType)) {
                       <!-- Image preview: cropped, WhatsApp style -->
-                      <button type="button" (click)="openChatPreview(msg)" class="block w-full text-left">
+                      <button type="button" (click)="openChatPreview(att)" class="block w-full text-left">
                         <div style="height:180px; overflow:hidden;">
-                          <img [src]="msg.attachmentUrl" [alt]="msg.attachmentName"
+                          <img [src]="att.url" [alt]="att.name"
                             style="width:100%; height:100%; object-fit:cover; display:block;" />
                         </div>
                       </button>
                     } @else {
                       <!-- Document preview -->
-                      <button type="button" (click)="openChatPreview(msg)"
+                      <button type="button" (click)="openChatPreview(att)"
                         class="block w-full text-left hover:opacity-90 transition-opacity"
                         [class.border-b]="msg.content"
                         [class.border-teal-500]="isOwn(msg)"
                         [class.border-gray-200]="!isOwn(msg)">
                         <app-attachment-preview
-                          [url]="msg.attachmentUrl!"
-                          [mimeType]="msg.attachmentMimeType ?? ''" />
+                          [url]="att.url"
+                          [mimeType]="att.mimeType" />
                         <!-- Filename + size -->
                         <div class="flex items-center gap-2 px-3 py-2.5"
                           [class.bg-teal-700]="isOwn(msg)"
                           [class.bg-gray-200]="!isOwn(msg)">
                           <span class="flex flex-col min-w-0 flex-1">
-                            <span class="truncate text-xs font-semibold leading-tight">{{ msg.attachmentName }}</span>
-                            <span class="text-xs opacity-60 leading-tight mt-0.5">{{ formatSize(msg.attachmentSize) }}</span>
+                            <span class="truncate text-xs font-semibold leading-tight">{{ att.name }}</span>
+                            <span class="text-xs opacity-60 leading-tight mt-0.5">{{ formatSize(att.size) }}</span>
                           </span>
                           <svg class="h-4 w-4 flex-shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -215,6 +219,34 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
                           </svg>
                         </div>
                       </button>
+                    }
+                  } @else if (atts.length > 1) {
+                    @let images = imagesOf(atts);
+                    @let docs = documentsOf(atts);
+                    @if (images.length) {
+                      <div class="grid gap-0.5" [class.grid-cols-2]="images.length > 1">
+                        @for (att of images; track att.url) {
+                          <button type="button" (click)="openChatPreview(att)" class="block w-full" [title]="att.name">
+                            <img [src]="att.url" [alt]="att.name" class="block w-full h-32 object-cover" />
+                          </button>
+                        }
+                      </div>
+                    }
+                    @if (docs.length) {
+                      <div class="p-1.5 space-y-1" [class.border-b]="msg.content"
+                        [class.border-teal-500]="isOwn(msg)" [class.border-gray-200]="!isOwn(msg)">
+                        @for (att of docs; track att.url) {
+                          <button type="button" (click)="openChatPreview(att)"
+                            class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:opacity-90 transition-opacity"
+                            [class.bg-teal-700]="isOwn(msg)" [class.bg-gray-200]="!isOwn(msg)" [title]="att.name">
+                            <app-file-icon [file]="{ name: att.name, mimeType: att.mimeType }" [size]="28" />
+                            <span class="flex flex-col min-w-0 flex-1">
+                              <span class="truncate text-xs font-semibold leading-tight">{{ att.name }}</span>
+                              <span class="text-xs opacity-60 leading-tight mt-0.5">{{ formatSize(att.size) }}</span>
+                            </span>
+                          </button>
+                        }
+                      </div>
                     }
                   }
                   <!-- Text content -->
@@ -253,29 +285,34 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
         <!-- Input -->
         <div class="border-t border-gray-200 flex-shrink-0"
              [class.invisible]="chatService.activeRecipientId() === null">
-          <!-- Selected file chip -->
-          @if (selectedFile()) {
-            <div class="px-5 pt-2 pb-1 flex items-center gap-2">
-              <span class="flex items-center gap-2 px-3 py-1.5 bg-teal-50 border border-teal-200 rounded-full text-xs text-teal-700 max-w-xs">
-                <span>{{ fileIcon(selectedFile()!.type) }}</span>
-                <span class="truncate max-w-[180px]">{{ selectedFile()!.name }}</span>
-                <span class="text-teal-400">{{ formatSize(selectedFile()!.size) }}</span>
-                <button (click)="clearFile()" class="ml-1 text-teal-400 hover:text-teal-700">
-                  <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </span>
+          <!-- Archivos elegidos (hasta 10 por mensaje) -->
+          @if (selectedFiles().length) {
+            <div class="px-5 pt-2 pb-1 flex flex-wrap items-center gap-2">
+              @for (file of selectedFiles(); track $index) {
+                <span class="flex items-center gap-2 px-3 py-1.5 bg-teal-50 border border-teal-200 rounded-full text-xs text-teal-700 max-w-xs">
+                  <span>{{ fileIcon(file.type) }}</span>
+                  <span class="truncate max-w-[180px]">{{ file.name }}</span>
+                  <span class="text-teal-400">{{ formatSize(file.size) }}</span>
+                  <button (click)="removeFile($index)" [disabled]="uploading()" class="ml-1 text-teal-400 hover:text-teal-700"
+                    title="Quitar este archivo">
+                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </span>
+              }
             </div>
           }
           <div class="px-5 py-3 flex items-center space-x-2">
             <!-- Hidden file input -->
-            <input #fileInput type="file"
+            <input #fileInput type="file" multiple
               class="hidden"
               (change)="onFileSelected($event)" />
             <!-- Paperclip button -->
-            <button (click)="fileInput.click()" [disabled]="uploading()"
-              class="h-9 w-9 rounded-full flex items-center justify-center text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors flex-shrink-0 disabled:opacity-40">
+            <button (click)="fileInput.click()" [disabled]="uploading() || selectedFiles().length >= maxFiles"
+              title="Adjuntar archivos (hasta 10 por mensaje)"
+              class="relative h-9 w-9 rounded-full flex items-center justify-center text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors flex-shrink-0 disabled:opacity-40">
+              <app-new-badge feature="chat-varios-adjuntos" [compact]="true" class="absolute -top-2 left-1/2 -translate-x-1/2 pointer-events-none" />
               <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -290,7 +327,7 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
             />
             <button
               (click)="send()"
-              [disabled]="(!newMessage.trim() && !selectedFile()) || uploading()"
+              [disabled]="(!newMessage.trim() && !selectedFiles().length) || uploading()"
               class="h-10 w-10 rounded-full bg-teal-600 flex items-center justify-center text-white transition-colors hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0">
               @if (uploading()) {
                 <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -323,7 +360,9 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   newMessage = '';
   private shouldScroll = false;
 
-  readonly selectedFile = signal<File | null>(null);
+  /** Archivos elegidos para el próximo mensaje (van todos juntos en uno solo). */
+  readonly selectedFiles = signal<File[]>([]);
+  readonly maxFiles = 10;
   readonly uploading = signal(false);
   readonly previewRequest = signal<AttachmentPreviewRequest | null>(null);
 
@@ -392,6 +431,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     if (!msg) return '';
     const isOwn = msg.senderId === this.authService.currentUser()?.id;
     const prefix = isOwn ? 'Tú: ' : '';
+    if ((msg.attachments?.length ?? 0) > 1) return `${prefix}📎 ${msg.attachments!.length} archivos`;
     if (msg.attachmentName) return `${prefix}📎 ${msg.attachmentName}`;
     return `${prefix}${msg.content}`;
   }
@@ -423,25 +463,26 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   send(): void {
     const content = this.newMessage.trim();
-    const file = this.selectedFile();
-    if (!content && !file) return;
+    const files = this.selectedFiles();
+    if (!content && !files.length) return;
     if (this.uploading()) return;
 
     const recipientId = this.chatService.activeRecipientId() ?? undefined;
 
-    if (file) {
+    if (files.length) {
+      // Se suben todos y recién ahí sale un único mensaje con todos los adjuntos.
       this.uploading.set(true);
-      this.chatService.uploadFile(file).subscribe({
-        next: (attachment) => {
-          this.chatService.sendMessage(content, recipientId, attachment);
+      forkJoin(files.map((f) => this.chatService.uploadFile(f))).subscribe({
+        next: (attachments) => {
+          this.chatService.sendMessage(content, recipientId, attachments);
           this.newMessage = '';
-          this.selectedFile.set(null);
+          this.selectedFiles.set([]);
           this.uploading.set(false);
           this.shouldScroll = true;
         },
         error: (err) => {
           this.uploading.set(false);
-          const msg = err?.error?.message ?? 'Error al subir el archivo. Intentá de nuevo.';
+          const msg = err?.error?.message ?? 'Error al subir los archivos. Intentá de nuevo.';
           alert(msg);
         },
       });
@@ -454,42 +495,63 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
+    const picked = Array.from(input.files ?? []);
     input.value = '';
-    if (!file) return;
+    if (!picked.length) return;
     const allowed = ['image/jpeg','image/png','image/gif','image/webp','application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/msword','application/vnd.ms-excel'];
-    if (!allowed.includes(file.type)) {
-      alert('Formato no permitido. Podés adjuntar imágenes (JPG, PNG, GIF), PDF, Word o Excel.');
-      return;
+    const problems: string[] = [];
+    const ok = picked.filter((file) => {
+      if (!allowed.includes(file.type)) {
+        problems.push(`${file.name}: formato no permitido`);
+        return false;
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        problems.push(`${file.name}: supera los 50 MB (${this.formatSize(file.size)})`);
+        return false;
+      }
+      return true;
+    });
+    const current = this.selectedFiles();
+    const room = this.maxFiles - current.length;
+    if (ok.length > room) problems.push(`Se pueden enviar hasta ${this.maxFiles} archivos por mensaje: quedaron afuera ${ok.length - room}.`);
+    this.selectedFiles.set([...current, ...ok.slice(0, Math.max(room, 0))]);
+    if (problems.length) {
+      alert(`No se adjuntaron algunos archivos:\n\n${problems.join('\n')}\n\nPodés adjuntar imágenes (JPG, PNG, GIF, WebP), PDF, Word o Excel.`);
     }
-    if (file.size > 50 * 1024 * 1024) {
-      alert(`El archivo supera el límite de 50 MB (tamaño: ${this.formatSize(file.size)}).`);
-      return;
-    }
-    this.selectedFile.set(file);
   }
 
-  clearFile(): void {
-    this.selectedFile.set(null);
+  removeFile(index: number): void {
+    this.selectedFiles.update((files) => files.filter((_, i) => i !== index));
   }
 
-  downloadUrl(msg: ChatMessage): string {
-    if (!msg.attachmentUrl) return '';
-    const name = msg.attachmentName ? encodeURIComponent(msg.attachmentName) : '';
-    return name ? `${msg.attachmentUrl}?name=${name}` : msg.attachmentUrl;
+  /** Los adjuntos del mensaje: la lista si son varios; si no, el único (mensajes de antes). */
+  attachmentsOf(msg: ChatMessage): ChatAttachment[] {
+    if (msg.attachments?.length) return msg.attachments;
+    if (!msg.attachmentUrl) return [];
+    return [{
+      url: msg.attachmentUrl,
+      name: msg.attachmentName ?? 'archivo',
+      size: msg.attachmentSize ?? 0,
+      mimeType: msg.attachmentMimeType ?? '',
+    }];
   }
 
-  openChatPreview(msg: ChatMessage): void {
-    if (!msg.attachmentUrl) return;
-    const name = msg.attachmentName ? encodeURIComponent(msg.attachmentName) : '';
-    const filename = msg.attachmentName ?? 'archivo';
-    const parts = msg.attachmentUrl.replace('/api/chat/', '').split('/');
-    const fileKey = parts[parts.length - 1];
+  imagesOf(atts: ChatAttachment[]): ChatAttachment[] {
+    return atts.filter((a) => this.isImage(a.mimeType));
+  }
+
+  documentsOf(atts: ChatAttachment[]): ChatAttachment[] {
+    return atts.filter((a) => !this.isImage(a.mimeType));
+  }
+
+  openChatPreview(att: ChatAttachment): void {
+    const name = att.name ? encodeURIComponent(att.name) : '';
+    const fileKey = att.url.split('/').pop()!;
     const previewUrl = `/api/chat/files/${fileKey}/preview${name ? '?name=' + name : ''}`;
-    this.previewRequest.set({ url: previewUrl, filename, downloadUrl: msg.attachmentUrl });
+    this.previewRequest.set({ url: previewUrl, filename: att.name || 'archivo', downloadUrl: att.url });
   }
 
   isImage(mimeType?: string): boolean {

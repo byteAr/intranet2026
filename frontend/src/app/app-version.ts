@@ -18,5 +18,6 @@
  * 1.5.1 — Desencriptados (PON y SIENA) con candado abierto y quién los subió; TICOM también los puede ver.
  * 1.5.2 — Varios desencriptados por adjunto encriptado (.rar); ENCRIPTADO ve solo los desencriptados.
  * 1.5.3 — Desencriptados con su nombre real (el del cuerpo del MTO) e ícono de su tipo con candado verde.
+ * 1.5.4 — Varios archivos SIENA a la vez (ícono de su tipo con "SIENA" celeste); varios adjuntos en un mensaje del chat.
  */
-export const APP_VERSION = '1.5.3';
+export const APP_VERSION = '1.5.4';

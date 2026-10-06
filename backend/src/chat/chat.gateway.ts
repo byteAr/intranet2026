@@ -11,7 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { extractSocketToken, scheduleSocketExpiry } from '../common/utils/socket-token.util';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { ChatService } from './chat.service';
+import { ChatService, sanitizeChatAttachments } from './chat.service';
 import { BroadcastDmService } from './broadcast-dm.service';
 import { UsersService } from '../users/users.service';
 import { PushService } from '../push/push.service';
@@ -187,9 +187,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       attachmentName?: string;
       attachmentSize?: number;
       attachmentMimeType?: string;
+      /** Varios adjuntos en un mismo mensaje (desde la 1.5.4). */
+      attachments?: unknown;
     },
   ) {
     const user = socket.data.user;
+    const attachments = sanitizeChatAttachments(data.attachments);
     const msg = await this.chatService.saveMessage({
       senderId: user.sub,
       senderName: user.displayName ?? user.username,
@@ -200,6 +203,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       attachmentName: data.attachmentName,
       attachmentSize: data.attachmentSize,
       attachmentMimeType: data.attachmentMimeType,
+      attachments,
     });
 
     if (data.recipientId) {
@@ -212,7 +216,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const senderName = user.displayName ?? user.username;
         const preview = data.content
           ? data.content.length > 60 ? data.content.slice(0, 60) + '…' : data.content
-          : '📎 Archivo adjunto';
+          : attachments.length > 1 ? `📎 ${attachments.length} archivos adjuntos` : '📎 Archivo adjunto';
         const senderHasAvatar = !!this.presence.get(user.sub)?.avatar;
         void this.pushService.sendToUser(data.recipientId, {
           title: senderName,

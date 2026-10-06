@@ -334,10 +334,11 @@ export class MailService {
     return this.http.delete<{ ok: boolean }>(`/api/mail/emails/${emailId}/attachments/${attachmentId}/decrypted/${decryptedId}`);
   }
 
-  uploadSienaFile(emailId: string, file: File): Observable<SienaFile> {
+  /** Sube uno o varios archivos SIENA (se suman a los que ya hay). */
+  uploadSienaFiles(emailId: string, files: File[]): Observable<SienaFile[]> {
     const fd = new FormData();
-    fd.append('file', file, file.name);
-    return this.http.post<SienaFile>(`/api/mail/emails/${emailId}/siena-files`, fd);
+    for (const file of files) fd.append('files', file, file.name);
+    return this.http.post<SienaFile[]>(`/api/mail/emails/${emailId}/siena-files`, fd);
   }
 
   downloadSienaFile(emailId: string, fileId: string, filename: string): void {

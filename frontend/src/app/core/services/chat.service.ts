@@ -26,8 +26,17 @@ export interface ChatMessage {
   attachmentName?: string;
   attachmentSize?: number;
   attachmentMimeType?: string;
+  /** Todos los adjuntos, cuando el mensaje lleva varios (el primero también va arriba). */
+  attachments?: ChatAttachment[] | null;
   readBy: string[];
   createdAt: string;
+}
+
+export interface ChatAttachment {
+  url: string;
+  name: string;
+  size: number;
+  mimeType: string;
 }
 
 export interface OnlineUser {
@@ -271,21 +280,19 @@ export class ChatService {
     this.loadingHistory.set(false);
   }
 
-  sendMessage(content: string, recipientId?: string, attachment?: { url: string; name: string; size: number; mimeType: string }): void {
+  /** Un mensaje, con texto y/o uno o varios adjuntos ya subidos con uploadFile(). */
+  sendMessage(content: string, recipientId?: string, attachments: ChatAttachment[] = []): void {
     this.socket?.emit('message:send', {
       content,
       recipientId: recipientId ?? null,
-      attachmentUrl: attachment?.url,
-      attachmentName: attachment?.name,
-      attachmentSize: attachment?.size,
-      attachmentMimeType: attachment?.mimeType,
+      attachments,
     });
   }
 
-  uploadFile(file: File): Observable<{ url: string; name: string; size: number; mimeType: string }> {
+  uploadFile(file: File): Observable<ChatAttachment> {
     const form = new FormData();
     form.append('file', file);
-    return this.http.post<{ url: string; name: string; size: number; mimeType: string }>('/api/chat/upload', form);
+    return this.http.post<ChatAttachment>('/api/chat/upload', form);
   }
 
   loadHistory(recipientId?: string | null): void {

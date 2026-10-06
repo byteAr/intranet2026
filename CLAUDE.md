@@ -80,7 +80,7 @@ Afecta: `ldap-search.service.ts`, `password-reset.service.ts`.
 
 ### Límites de archivo
 - Avatar: 6MB (base64 en DB, servido en `/api/users/:id/avatar` — público)
-- Chat adjuntos: 50MB (JPG, PNG, GIF, WebP, PDF, DOCX, XLS)
+- Chat adjuntos: 50MB (JPG, PNG, GIF, WebP, PDF, DOCX, XLS); hasta 10 en un mismo mensaje (1.5.4): se suben con `/api/chat/upload` y van juntos en `messages.attachments` (jsonb). El primero también en `attachmentUrl/Name/…`, que leen la lista de conversaciones y los mensajes viejos. El gateway solo acepta URLs `/api/chat/files/<uuid>` (`sanitizeChatAttachments`).
 - Incidencias: 10MB (solo imágenes)
 - Draft MTO — frontend: 5MB/archivo; backend multer: 20MB
 - ⚠️ Adjuntos de draft-mail siempre vía blob+JWT (`responseType:'blob'`) — nunca `<a href>` directo (retorna 401)
@@ -190,6 +190,7 @@ draft → pending_review → approved → sent
 ### Adjuntos encriptados recibidos (`.~NN`) — permisos
 - Original cifrado: lo ve y descarga cualquier usuario logueado (ilegible sin la clave).
 - Desencriptado (`decrypted_attachments`, se desencripta fuera y se sube): sube/borra solo **TICOM**; lo ven y descargan solo **ENCRIPTADO y TICOM** (TICOM para revisar si se equivocó, desde la 1.5.1). Los datos (`decryptedFiles`: id, nombre, quién lo subió, cuándo) solo los reciben ellos. SIENA (`siena_files`): igual.
+- SIENA (1.5.4): también varios a la vez (`POST …/siena-files`, campo `files`); ícono de su tipo con **"SIENA" celeste** en la esquina (`lock="siena"`) en lugar del candado verde.
 - **Varios por adjunto** (1.5.2): un `.rar` encriptado trae varios documentos. TICOM elige varios a la vez (`POST …/decrypted`, campo `files`), se suman a los que hay; si se equivocó, borra ese (✕, `DELETE …/decrypted/:did`). Descarga: `GET …/decrypted/:did` (sin `:did`, el primero).
 - **Nombre real** (1.5.3, `decrypted-name.util.ts`): el programa de PON devuelve el nombre corto de DOS (`CONTRO~1.DOC`); el verdadero está en el cuerpo (`ADJUNTO ARCHIVO "CONTROL09" (DOCX)`). Si el subido es un nombre corto y un único nombre entre comillas empieza igual, se muestra y se descarga como ese (`displayName`), con la extensión según lo que es por dentro (zip → .docx/.xlsx, OLE → .doc/.xls). Si no, el subido. En la base queda el nombre subido.
 - Se muestra como tarjeta con el **ícono de su tipo (WORD, EXCEL, PDF…) y un candado abierto verde en la esquina** (`<app-file-icon lock="open">`), con "por <usuario TICOM>" y la fecha; abre el mismo visor que los adjuntos. TICOM ve el original (candado cerrado gris) y los desencriptados. **ENCRIPTADO ve solo los desencriptados**; mientras no hay ninguno, ve el original con "Todavía no se cargó el desencriptado" (`showOriginalAttachment()`).

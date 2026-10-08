@@ -14,7 +14,7 @@ import { DataSource, LessThan, Repository } from 'typeorm';
 import { existsSync } from 'fs';
 import { copyFile, mkdir, readdir, rename, rm, stat, unlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { extname, join } from 'path';
+import { basename, extname, join } from 'path';
 import { randomInt, randomUUID } from 'crypto';
 import { Scan } from './entities/scan.entity';
 import { ScanAccount } from './entities/scan-account.entity';
@@ -37,6 +37,14 @@ const STABLE_MS = 15_000;
 const PASSWORD_PURPOSE = 'scan-inbox-password';
 /** Sin letras ni números que se confunden al tipearlos en el panel de la impresora. */
 const PASSWORD_CHARS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/**
+ * Lo que la impresora deja junto al escaneo y no es un escaneo: el Centro de
+ * digitalizaciones de Lexmark escribe un .xml con los datos de cada trabajo.
+ * Se borra de la bandeja sin mostrarlo.
+ */
+const IGNORED_EXT = new Set(['.xml']);
+const IGNORED_NAME = /^(thumbs\.db|desktop\.ini)$/i;
 
 const MIME_BY_EXT: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -238,8 +246,13 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
       this.seen.set(path, { size: info.size, mtimeMs: info.mtimeMs, since: now });
       return;
     }
-    if (info.size === 0 || now - prev.since < STABLE_MS) return;
+    if (now - prev.since < STABLE_MS) return;
     this.seen.delete(path);
+    if (IGNORED_EXT.has(extname(path).toLowerCase()) || IGNORED_NAME.test(basename(path))) {
+      await rm(path, { force: true });
+      return;
+    }
+    if (info.size === 0) return;
     await this.ingest(account, path, info.size, info.mtime);
   }
 

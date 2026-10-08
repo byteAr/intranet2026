@@ -5,7 +5,8 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
  * solo los integrantes de esa oficina; se borra solo a los 90 días.
  */
 @Entity('scans')
-@Index(['groupName', 'receivedAt'])
+// Mismo nombre que el que crea ScansService.ensureTables (staging no sincroniza).
+@Index('idx_scans_group_received', ['groupName', 'receivedAt'])
 export class Scan {
   @PrimaryGeneratedColumn('uuid')
   id: string;

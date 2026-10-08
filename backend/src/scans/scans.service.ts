@@ -10,7 +10,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
-import { LessThan, Repository } from 'typeorm';
+import { DataSource, LessThan, Repository } from 'typeorm';
 import { existsSync } from 'fs';
 import { copyFile, mkdir, readdir, rename, rm, stat, unlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -112,9 +112,11 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
     private readonly notifications: NotificationsService,
     private readonly sharedFolders: SharedFoldersService,
     private readonly config: ConfigService,
+    private readonly dataSource: DataSource,
   ) {}
 
-  onApplicationBootstrap(): void {
+  async onApplicationBootstrap(): Promise<void> {
+    await this.ensureTables();
     this.worker = existsSync(INBOX);
     if (!this.worker) {
       this.logger.log(`Sin bandeja de escaneo en ${INBOX}: este backend no toma escaneos`);
@@ -126,6 +128,40 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
 
   onModuleDestroy(): void {
     if (this.timer) clearInterval(this.timer);
+  }
+
+  /**
+   * Con NODE_ENV=production (staging) TypeORM no sincroniza: las tablas se crean
+   * acá si faltan, con las mismas columnas que las entidades.
+   */
+  private async ensureTables(): Promise<void> {
+    try {
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS "scans" (
+          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          "groupName" character varying NOT NULL,
+          "filename" character varying NOT NULL,
+          "contentType" character varying NOT NULL,
+          "size" bigint NOT NULL,
+          "storagePath" character varying NOT NULL,
+          "receivedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+        )`);
+      await this.dataSource.query(
+        `CREATE INDEX IF NOT EXISTS "idx_scans_group_received" ON "scans" ("groupName", "receivedAt")`,
+      );
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS "scan_accounts" (
+          "groupName" character varying PRIMARY KEY,
+          "folder" character varying NOT NULL UNIQUE,
+          "username" character varying NOT NULL UNIQUE,
+          "passwordEnc" text NOT NULL,
+          "lastScanAt" TIMESTAMP WITH TIME ZONE NULL,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+        )`);
+    } catch (err) {
+      this.logger.error(`No se pudieron crear las tablas de escaneos: ${(err as Error).message}`);
+    }
   }
 
   get retentionDays(): number {

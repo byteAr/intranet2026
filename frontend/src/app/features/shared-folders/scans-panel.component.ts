@@ -236,6 +236,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
       <div class="flex-1 overflow-auto px-5 py-3">
         @if (accountsLoading()) {
           <div class="flex justify-center py-10"><app-comet-spinner [size]="40" /></div>
+        } @else if (accountsError()) {
+          <div class="my-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-300">{{ accountsError() }}</div>
         } @else {
           <table class="w-full text-sm">
             <thead>
@@ -335,6 +337,7 @@ export class ScansPanelComponent implements OnInit {
 
   readonly accountsOpen = signal(false);
   readonly accountsLoading = signal(false);
+  readonly accountsError = signal<string | null>(null);
   readonly accounts = signal<ScanAccount[]>([]);
   readonly accountBusy = signal<string | null>(null);
   readonly shownPasswords = signal<ReadonlySet<string>>(new Set());
@@ -493,13 +496,17 @@ export class ScansPanelComponent implements OnInit {
   openAccounts(): void {
     this.accountsOpen.set(true);
     this.accountsLoading.set(true);
+    this.accountsError.set(null);
     this.copied.set(null);
     this.scansApi.accounts().subscribe({
       next: (list) => {
         this.accounts.set(list);
         this.accountsLoading.set(false);
       },
-      error: () => this.accountsLoading.set(false),
+      error: (err: HttpErrorResponse) => {
+        this.accountsLoading.set(false);
+        this.accountsError.set(err.error?.message ?? 'No se pudieron cargar los accesos.');
+      },
     });
   }
 
@@ -511,7 +518,10 @@ export class ScansPanelComponent implements OnInit {
         this.accounts.update((list) => list.map((x) => (x.groupName === updated.groupName ? updated : x)));
         this.shownPasswords.update((set) => new Set(set).add(updated.groupName));
       },
-      error: () => this.accountBusy.set(null),
+      error: (err: HttpErrorResponse) => {
+        this.accountBusy.set(null);
+        this.accountsError.set(err.error?.message ?? `No se pudo crear el acceso de ${a.groupName}.`);
+      },
     });
   }
 

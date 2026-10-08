@@ -24,6 +24,26 @@ import {
 import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { MtoShareComponent } from './mto-share.component';
+import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
+import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
+import { AppVersionService } from '../../core/services/app-version.service';
+import { forkJoin } from 'rxjs';
+
+/** Un lugar donde puede ir un archivo arrastrado sobre el MTO. */
+interface DropTarget {
+  /** Id del adjunto encriptado, o 'siena'. */
+  key: string;
+  label: string;
+  attachmentId?: string;
+  /** Nombre sin extensión, en mayúsculas, para emparejar por nombre (CONTRO~1). */
+  base: string | null;
+}
+
+/** "CONTRO~1.~00" y "contro~1.doc" → "CONTRO~1". */
+function baseName(filename: string): string {
+  const dot = filename.lastIndexOf('.');
+  return (dot > 0 ? filename.slice(0, dot) : filename).trim().toUpperCase();
+}
 
 const FOLDER_LABELS: Record<MailFolder, string> = {
   informativos: 'Informativos',
@@ -35,7 +55,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 @Component({
   selector: 'app-mail',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, MtoShareComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, MtoShareComponent, NewBadgeComponent, CometSpinnerComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -370,7 +390,12 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
       </div>
 
       <!-- ── Detail ───────────────────────────────────────── -->
-      <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <!-- TICOM arrastra acá los desencriptados / SIENA (solo en MTO encriptados o por SIENA) -->
+      <div class="relative flex-1 flex flex-col min-w-0 overflow-hidden"
+           (dragenter)="onMtoDragOver($event)"
+           (dragover)="onMtoDragOver($event)"
+           (dragleave)="onMtoDragLeave($event)"
+           (drop)="onMtoDrop($event)">
 
         @if (activeEmail()) {
           <div class="flex-1 overflow-y-auto p-5">
@@ -485,6 +510,16 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                   </div>
                 </div>
               }
+
+              @if (canDropFiles()) {
+                <p class="mt-2 flex items-center gap-1.5 text-[11px] text-gray-400">
+                  <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  Arrastrá sobre el MTO todos los {{ hasEncryptedAttachments() ? 'desencriptados' : 'archivos SIENA' }} juntos para subirlos de una vez.
+                  <app-new-badge feature="arrastrar-desencriptados" [compact]="true" />
+                </p>
+              }
             </div>
 
             <!-- Archivos SIENA — solo para TICOM y ENCRIPTADO en emails con SOFTWARE SIENA -->
@@ -578,6 +613,59 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 
             <!-- Reference tree -->
           </div>
+
+          <!-- Arrastrando archivos encima (solo TICOM, MTO encriptado o por SIENA) -->
+          @if (dropActive()) {
+            <div class="pointer-events-none absolute inset-2 z-20 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-teal-500 bg-teal-50/90 text-teal-800">
+              <svg class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              <p class="text-sm font-semibold">Soltá los archivos para subirlos a este MTO</p>
+              <p class="text-xs text-teal-700">{{ hasEncryptedAttachments() ? 'Como desencriptados' : 'Como archivos SIENA' }} — solo los ven TICOM y ENCRIPTADO</p>
+            </div>
+          }
+
+          <!-- Subiendo lo arrastrado -->
+          @if (dropUploading()) {
+            <div class="absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-2 bg-teal-600 px-4 py-2 text-xs font-medium text-white shadow">
+              <app-comet-spinner [size]="16" [thickness]="3" />
+              {{ dropUploading() }}
+            </div>
+          }
+
+          <!-- Archivos que no se sabe a qué encriptado corresponden -->
+          @if (dropAssign(); as da) {
+            <div class="absolute inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
+              <div class="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl dark:bg-zinc-800">
+                <h3 class="text-sm font-semibold text-gray-800 dark:text-zinc-100">¿A qué archivo corresponde cada uno?</h3>
+                <p class="mt-1 text-xs text-gray-500 dark:text-zinc-400">
+                  Estos no tienen el mismo nombre que ningún encriptado. Elegí dónde va cada uno.
+                </p>
+                <div class="mt-3 max-h-72 space-y-2 overflow-y-auto">
+                  @for (item of da.pending; track $index) {
+                    <div class="flex items-center gap-2">
+                      <app-file-icon [file]="{ name: item.file.name }" [size]="28" />
+                      <span class="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-zinc-200" [title]="item.file.name">{{ item.file.name }}</span>
+                      <select [(ngModel)]="item.targetKey"
+                        class="max-w-[45%] rounded-md border border-gray-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900 dark:text-white">
+                        @for (t of da.targets; track t.key) {
+                          <option [value]="t.key">{{ t.label }}</option>
+                        }
+                      </select>
+                    </div>
+                  }
+                </div>
+                <div class="mt-4 flex justify-end gap-2">
+                  <button (click)="dropAssign.set(null)"
+                    class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700">Cancelar</button>
+                  <button (click)="confirmDropAssign()"
+                    class="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700">
+                    Subir {{ da.pending.length + da.assigned.length }} archivo{{ da.pending.length + da.assigned.length === 1 ? '' : 's' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
 
         <!-- EMPTY STATE -->
         } @else {
@@ -818,6 +906,124 @@ export class MailComponent implements OnInit {
       },
     });
     input.value = '';
+  }
+
+  // ── Arrastrar desencriptados / SIENA sobre el MTO (solo TICOM) ──────────
+
+  readonly dropActive = signal(false);
+  /** Texto de la franja mientras sube lo arrastrado; null si no sube nada. */
+  readonly dropUploading = signal<string | null>(null);
+  /** Archivos cuyo nombre no coincide con ningún encriptado: TICOM elige a cuál van. */
+  readonly dropAssign = signal<{
+    targets: DropTarget[];
+    assigned: { file: File; targetKey: string }[];
+    pending: { file: File; targetKey: string }[];
+  } | null>(null);
+  private readonly sinRecarga = inject(AppVersionService).holdWhile('desencriptados', () => !!this.dropUploading() || !!this.dropAssign());
+
+  readonly hasEncryptedAttachments = computed(() =>
+    !!this.activeEmail()?.attachments?.some((a) => this.isEncryptedFile(a.filename)));
+
+  /** Solo TICOM, y solo en MTO con adjuntos encriptados o por SIENA. */
+  readonly canDropFiles = computed(() =>
+    this.isTicom && !!this.activeEmail() && (this.hasEncryptedAttachments() || this.activeEmail()!.sienaFiles !== undefined));
+
+  /** A dónde puede ir lo arrastrado: cada adjunto encriptado y, si es por SIENA, los archivos SIENA. */
+  private dropTargets(): DropTarget[] {
+    const email = this.activeEmail();
+    if (!email) return [];
+    const targets: DropTarget[] = (email.attachments ?? [])
+      .filter((a) => this.isEncryptedFile(a.filename))
+      .map((a) => ({ key: a.id, label: `Desencriptado de ${a.filename}`, attachmentId: a.id, base: baseName(a.filename) }));
+    if (email.sienaFiles !== undefined) targets.push({ key: 'siena', label: 'Archivos SIENA', base: null });
+    return targets;
+  }
+
+  onMtoDragOver(event: DragEvent): void {
+    if (!this.canDropFiles() || !event.dataTransfer?.types.includes('Files')) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    if (!this.dropUploading() && !this.dropAssign()) this.dropActive.set(true);
+  }
+
+  onMtoDragLeave(event: DragEvent): void {
+    // Pasar por encima de un hijo también dispara dragleave: solo vale si sale del panel
+    const panel = event.currentTarget as HTMLElement;
+    if (!panel.contains(event.relatedTarget as Node | null)) this.dropActive.set(false);
+  }
+
+  onMtoDrop(event: DragEvent): void {
+    if (!this.canDropFiles() || !event.dataTransfer?.types.includes('Files')) return;
+    event.preventDefault();
+    this.dropActive.set(false);
+    if (this.dropUploading() || this.dropAssign()) return;
+
+    // Solo archivos: las carpetas se ignoran
+    const items = Array.from(event.dataTransfer.items ?? []);
+    const files = items.length
+      ? items
+          .filter((it) => it.kind === 'file' && (it.webkitGetAsEntry?.()?.isFile ?? true))
+          .map((it) => it.getAsFile())
+          .filter((f): f is File => !!f)
+      : Array.from(event.dataTransfer.files);
+    if (!files.length) {
+      alert('No se pueden subir carpetas: arrastrá los archivos.');
+      return;
+    }
+
+    // Cada archivo va al encriptado con el mismo nombre (CONTRO~1.DOC → CONTRO~1.~00);
+    // si hay un solo lugar posible, todo va ahí; si no, TICOM elige.
+    const targets = this.dropTargets();
+    const assigned: { file: File; targetKey: string }[] = [];
+    const pending: { file: File; targetKey: string }[] = [];
+    for (const file of files) {
+      const match = targets.find((t) => t.base && t.base === baseName(file.name));
+      if (match) assigned.push({ file, targetKey: match.key });
+      else if (targets.length === 1) assigned.push({ file, targetKey: targets[0].key });
+      else pending.push({ file, targetKey: (targets.find((t) => t.key === 'siena') ?? targets[0]).key });
+    }
+    if (pending.length) {
+      this.dropAssign.set({ targets, assigned, pending });
+      return;
+    }
+    this.uploadDropped(assigned);
+  }
+
+  confirmDropAssign(): void {
+    const da = this.dropAssign();
+    if (!da) return;
+    this.dropAssign.set(null);
+    this.uploadDropped([...da.assigned, ...da.pending]);
+  }
+
+  /** Sube todo junto: un pedido por adjunto encriptado y otro para SIENA. */
+  private uploadDropped(items: { file: File; targetKey: string }[]): void {
+    const email = this.activeEmail();
+    if (!email || !items.length) return;
+    const byTarget = new Map<string, File[]>();
+    for (const { file, targetKey } of items) byTarget.set(targetKey, [...(byTarget.get(targetKey) ?? []), file]);
+
+    const requests = [...byTarget.entries()].map(([key, files]) =>
+      key === 'siena'
+        ? this.mailService.uploadSienaFiles(email.id, files)
+        : this.mailService.uploadDecrypted(email.id, key, files));
+
+    this.dropUploading.set(`Subiendo ${items.length} archivo${items.length === 1 ? '' : 's'}…`);
+    forkJoin(requests).subscribe({
+      next: () => {
+        this.dropUploading.set(null);
+        this.mailService.getEmail(email.id).subscribe((full) => {
+          if (this.activeEmail()?.id === email.id) this.activeEmail.set(full);
+        });
+      },
+      error: (err) => {
+        this.dropUploading.set(null);
+        alert(err?.error?.message ?? 'No se pudieron subir los archivos. Intentá de nuevo.');
+        this.mailService.getEmail(email.id).subscribe((full) => {
+          if (this.activeEmail()?.id === email.id) this.activeEmail.set(full);
+        });
+      },
+    });
   }
 
   ngOnInit(): void {

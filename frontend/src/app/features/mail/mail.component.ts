@@ -46,6 +46,36 @@ interface DropTarget {
   base: string | null;
 }
 
+/** Un renglón de al menos este largo lo cortó Outlook (corta en ~75), no quien escribió. */
+const WRAPPED_LINE_MIN = 60;
+/**
+ * Renglones que empiezan algo nuevo: listas (1. / a) / - / •) y etiquetas con
+ * algo después (FDO: 0812…, BT: …). "ADJUNTAN:" solo es el final de una frase.
+ */
+const STARTS_NEW = /^\s*(\d{1,3}[.)-]\s|\(?[a-z]\)\s|[-•*–]\s|[A-ZÁÉÍÓÚÑ]{2,8}\s*:\s*\S)/;
+
+/**
+ * Outlook manda el texto plano cortado a ~75 caracteres: cada renglón es "la
+ * última línea" de su párrafo y el justificado no estira nada. Para mostrarlo se
+ * unen los renglones que cortó Outlook (largos, que no terminan en ":" y cuyo
+ * siguiente no empieza una lista o una etiqueta). Solo para la vista: lo guardado no cambia.
+ */
+function reflowMailText(text: string): string {
+  const out: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const prev = out.length ? out[out.length - 1] : null;
+    const join =
+      prev !== null &&
+      prev.trim().length >= WRAPPED_LINE_MIN &&
+      !/:\s*$/.test(prev) &&
+      line.trim() !== '' &&
+      !STARTS_NEW.test(line);
+    if (join) out[out.length - 1] = `${prev!.trimEnd()} ${line.trimStart()}`;
+    else out.push(line);
+  }
+  return out.join('\n');
+}
+
 /** "CONTRO~1.~00" y "contro~1.doc" → "CONTRO~1". */
 function baseName(filename: string): string {
   const dot = filename.lastIndexOf('.');
@@ -1629,7 +1659,7 @@ export class MailComponent implements OnInit {
         `<div class="prose prose-sm max-w-none text-gray-700 text-sm leading-relaxed">${bodyHtml}</div>`
       );
     }
-    const raw = email.bodyText;
+    const raw = reflowMailText(email.bodyText);
     // HTML-escape the plain text first to prevent XSS
     const escaped = raw
       .replace(/&/g, '&amp;')

@@ -35,5 +35,6 @@
  * 1.7.7 — La banderita aparece y desaparece en vivo para todos los de TICOM.
  * 1.7.8 — Conversaciones: se pueden adjuntar .txt y .rar.
  * 1.7.9 — MTO: texto justificado y el pie (aviso de confidencialidad) a la mitad del tamaño.
+ * 1.7.10 — El justificado del MTO se ve: se unen los renglones que cortó Outlook.
  */
-export const APP_VERSION = '1.7.9';
+export const APP_VERSION = '1.7.10';

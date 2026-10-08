@@ -76,6 +76,21 @@ function reflowMailText(text: string): string {
   return out.join('\n');
 }
 
+/**
+ * Separa el aviso de confidencialidad (lo que sigue a la última línea "----",
+ * si habla de CONFIDENCIAL o del destinatario) y une sus renglones: es prosa
+ * cortada a mano. Sin aviso, footer = null.
+ */
+function splitMailFooter(text: string): { main: string; footer: string | null } {
+  const sep = /(^|\n)[ \t]*-{2,}[ \t]*(?=\n|$)/g;
+  let cut = -1;
+  for (let m = sep.exec(text); m; m = sep.exec(text)) cut = m.index + m[1].length;
+  if (cut < 0 || !/CONFIDENCIAL|destinatario/i.test(text.slice(cut))) return { main: text, footer: null };
+  const [line, ...rest] = text.slice(cut).split('\n');
+  const prose = rest.join('\n').trim().replace(/([^\n])\n(?!\n)/g, '$1 ');
+  return { main: text.slice(0, cut).replace(/\s+$/, ''), footer: `${line}\n${prose}` };
+}
+
 /** "CONTRO~1.~00" y "contro~1.doc" → "CONTRO~1". */
 function baseName(filename: string): string {
   const dot = filename.lastIndexOf('.');
@@ -1741,9 +1756,13 @@ export class MailComponent implements OnInit {
       .filter(([label, value]) => label !== 'CC:' || value)
       .map(([label, value]) => `<tr><th>${label}</th><td>${esc(value)}</td></tr>`)
       .join('');
-    const body = email.bodyText?.trim()
-      ? `<div class="body">${esc(email.bodyText)}</div>`
-      : `<div class="body html">${email.bodyHtml ?? ''}</div>`;
+    // Igual que en pantalla: renglones de Outlook unidos (para que el justificado
+    // se note) y el aviso de confidencialidad aparte, también justificado.
+    let body = `<div class="body html">${email.bodyHtml ?? ''}</div>`;
+    if (email.bodyText?.trim()) {
+      const { main, footer } = splitMailFooter(reflowMailText(email.bodyText));
+      body = `<div class="body">${esc(main)}</div>` + (footer ? `<div class="body footer">${esc(footer)}</div>` : '');
+    }
 
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <title>${esc(email.subject ?? '')}</title>
@@ -1756,8 +1775,9 @@ export class MailComponent implements OnInit {
   table { border-collapse: collapse; margin-bottom: 18pt; }
   th { text-align: left; font-weight: bold; vertical-align: top; padding: 0 22pt 1pt 0; white-space: nowrap; }
   td { vertical-align: top; padding: 0 0 1pt; }
-  .body { white-space: pre-wrap; word-wrap: break-word; line-height: 1.25; }
+  .body { white-space: pre-wrap; word-wrap: break-word; line-height: 1.25; text-align: justify; }
   .body.html { white-space: normal; }
+  .body.footer { margin-top: 14pt; }
 </style>
 </head><body>
   <div class="account">DIREDTOS@MTO.GNA</div>

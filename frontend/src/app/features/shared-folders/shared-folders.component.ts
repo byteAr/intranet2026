@@ -35,8 +35,8 @@ const LAST_TAB_KEY = 'pac_shared_folders_office';
 const SHARED_TAB = '__compartidos__';
 /** Pestaña "Escaneos": lo que mandan las impresoras a la bandeja de la oficina. */
 const SCANS_TAB = '__escaneos__';
-/** Máximo por archivo (subida directa a Google; igual que el backend). */
-const MAX_FILE_BYTES = 10 * 1024 ** 3;
+/** Máximo por archivo si el servidor no lo informa (lo manda en offices().maxFileBytes). */
+const MAX_FILE_BYTES = 100 * 1024 ** 3;
 /** Desde este tamaño el archivo va directo a Google (el servidor acepta hasta 200 MB). */
 const DIRECT_UPLOAD_FROM = 100 * 1024 * 1024;
 const MENU_WIDTH = 220;
@@ -1445,9 +1445,13 @@ export class SharedFoldersComponent implements OnInit {
     if (!scope || !folderId || this.busy() || (!plan.items.length && !plan.dirs.length)) return;
 
     const files = plan.items.map((i) => i.file);
-    const tooBig = files.filter((f) => f.size > MAX_FILE_BYTES);
+    const maxBytes = this.info()?.maxFileBytes ?? MAX_FILE_BYTES;
+    const tooBig = files.filter((f) => f.size > maxBytes);
     if (tooBig.length) {
-      this.error.set(`Superan el máximo de 10 GB: ${tooBig.slice(0, 5).map((f) => f.name).join(', ')}${tooBig.length > 5 ? '…' : ''}`);
+      this.error.set(
+        `Superan el máximo de ${Math.round(maxBytes / 1024 ** 3)} GB por archivo: ` +
+          `${tooBig.slice(0, 5).map((f) => f.name).join(', ')}${tooBig.length > 5 ? '…' : ''}`,
+      );
       return;
     }
     const total = files.reduce((sum, f) => sum + f.size, 0);

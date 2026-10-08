@@ -259,7 +259,7 @@ export class SharedFoldersController {
   }
 
   /**
-   * Archivos grandes (hasta 10 GB): la intranet abre la subida en Drive y el
+   * Archivos grandes (hasta 100 GB, SHARED_FOLDERS_MAX_FILE_GB): la intranet abre la subida en Drive y el
    * navegador manda el archivo directo a Google; al terminar avisa con
    * upload-complete para registrar el espacio y notificar.
    */

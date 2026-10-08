@@ -37,8 +37,15 @@ const MAX_FOLDER_DEPTH = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Como Google: 1 GB = 1024³ bytes. */
 const GB = 1024 ** 3;
-/** Subida directa a Google (archivos grandes): hasta 10 GB por archivo. */
-export const MAX_DIRECT_UPLOAD_BYTES = 10 * GB;
+/**
+ * Máximo por archivo (subida directa a Google): SHARED_FOLDERS_MAX_FILE_GB,
+ * 100 GB por defecto (hasta la 1.6.0 eran 10). Igual manda el espacio libre
+ * de la oficina; Google acepta hasta 750 GB por día y por cuenta.
+ */
+function maxFileBytes(): number {
+  const gb = Number(process.env.SHARED_FOLDERS_MAX_FILE_GB);
+  return (Number.isFinite(gb) && gb > 0 ? gb : 100) * GB;
+}
 /** Cada cuánto se vuelve a preguntar a Drive cuánto ocupa una unidad. */
 const USAGE_MAX_AGE_MS = 10 * 60_000;
 
@@ -439,13 +446,15 @@ export class SharedFoldersService implements OnApplicationBootstrap {
    * hay ninguna, pero igual puede ver lo que le compartieron.
    */
   async myOffices(user: CurrentUser) {
-    if (!this.gdrive.isConfigured) return { configured: false, offices: [], googleEmail: null };
+    if (!this.gdrive.isConfigured) return { configured: false, offices: [], googleEmail: null, maxFileBytes: maxFileBytes() };
     const { allowedModules } = await this.adminService.getEffectiveModules(user.roles ?? []);
     return {
       configured: true,
       offices: allowedModules.includes('carpetas') ? await this.userOffices(user) : [],
       // Para abrir en Documentos de Google con esa cuenta (authuser).
       googleEmail: await this.googleEmailOf(user.username, user.email),
+      // El navegador avisa antes de empezar a subir algo más grande.
+      maxFileBytes: maxFileBytes(),
     };
   }
 
@@ -964,7 +973,9 @@ export class SharedFoldersService implements OnApplicationBootstrap {
     const name = this.cleanName(body?.name ?? '');
     const size = Math.trunc(Number(body?.size));
     if (!Number.isFinite(size) || size <= 0) throw new BadRequestException('Falta el tamaño del archivo.');
-    if (size > MAX_DIRECT_UPLOAD_BYTES) throw new PayloadTooLargeException('El archivo supera el máximo de 10 GB.');
+    if (size > maxFileBytes()) {
+      throw new PayloadTooLargeException(`El archivo supera el máximo de ${Math.round(maxFileBytes() / GB)} GB.`);
+    }
     await this.assertRoomFor(scope.office, size);
     const mimeType = /^[\w.+-]+\/[\w.+-]+$/.test(body?.mimeType ?? '') ? body.mimeType! : 'application/octet-stream';
     // Solo una página web (la de la intranet) para que Google acepte sus pedidos.

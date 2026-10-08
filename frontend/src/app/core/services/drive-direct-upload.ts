@@ -1,6 +1,6 @@
 /**
  * Subida reanudable directa a Google Drive, para archivos grandes (hasta
- * 10 GB): el backend abre la sesión (valida acceso y espacio) y el navegador
+ * 100 GB, SHARED_FOLDERS_MAX_FILE_GB): el backend abre la sesión (valida acceso y espacio) y el navegador
  * manda el archivo a esa dirección en partes, sin pasar por el servidor de
  * la intranet. Si una parte falla (corte de red, error de Google) se pregunta
  * hasta dónde llegó y se sigue desde ahí.

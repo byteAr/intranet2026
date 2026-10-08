@@ -22,5 +22,6 @@
  * 1.5.5 — TICOM arrastra todos los desencriptados o SIENA sobre el MTO y se suben juntos.
  * 1.5.6 — En Conversaciones no aparece la burbuja flotante del chat (tapaba el botón de enviar).
  * 1.6.0 — Escaneos: las impresoras escanean a la bandeja de la oficina y aparece en Archivos → Escaneos.
+ * 1.6.1 — Archivos compartidos: archivos de hasta 100 GB (antes 10).
  */
-export const APP_VERSION = '1.6.0';
+export const APP_VERSION = '1.6.1';

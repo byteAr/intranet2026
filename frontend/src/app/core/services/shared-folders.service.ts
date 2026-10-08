@@ -22,6 +22,8 @@ export interface OfficesInfo {
   offices: string[];
   /** Cuenta @iugna.edu.ar del usuario; sin ella no puede abrir en Google. */
   googleEmail: string | null;
+  /** Máximo por archivo (lo fija el servidor; los anteriores a la 1.6.0 no lo mandan). */
+  maxFileBytes?: number;
 }
 
 export interface FolderListing {

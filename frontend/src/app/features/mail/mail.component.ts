@@ -455,15 +455,6 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
             }
             <!-- Header -->
             <div class="border-b border-gray-100 pb-4 mb-4">
-              <!-- Ejecutivo: es para cumplimentar, que se note -->
-              @if (activeEmail()!.folder === 'ejecutivos') {
-                <div class="mb-3 flex items-center gap-2 rounded-lg border-l-4 border-purple-600 bg-purple-50 px-3 py-2 text-sm text-purple-900">
-                  <svg class="h-5 w-5 flex-shrink-0 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5h.01"/>
-                  </svg>
-                  <span><strong>MTO EJECUTIVO</strong> — es para cumplimentar.</span>
-                </div>
-              }
               <div class="flex items-start justify-between gap-3 mb-2">
                 <h1 class="text-base font-semibold text-gray-900 leading-snug" [innerHTML]="highlightText(activeEmail()!.subject)"></h1>
                 <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -762,10 +753,10 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
     }
     .folder-btn:hover { background: #f3f4f6; }
     .folder-active { background: #f0fdfa !important; color: #0f766e !important; font-weight: 600; }
-    /* Ejecutivos: son para cumplimentar, se destacan en la lista */
-    .mto-ejecutivo { border-left: 4px solid #7c3aed; }
-    .mto-ejecutivo-bg { background: #faf5ff; }
-    .mto-ejecutivo-bg:hover { background: #f3e8ff; }
+    /* Ejecutivos: son para cumplimentar, se destacan en rojo en la lista */
+    .mto-ejecutivo { border-left: 4px solid #dc2626; }
+    .mto-ejecutivo-bg { background: #fef2f2; }
+    .mto-ejecutivo-bg:hover { background: #fee2e2; }
   `],
 })
 export class MailComponent implements OnInit {
@@ -1414,7 +1405,7 @@ export class MailComponent implements OnInit {
 
   folderDotClass(folder: MailFolder): string {
     const map: Record<MailFolder, string> = {
-      informativos: 'bg-blue-400', ejecutivos: 'bg-purple-400',
+      informativos: 'bg-blue-400', ejecutivos: 'bg-red-500',
       redgen: 'bg-amber-400', tx: 'bg-teal-400',
     };
     return map[folder];
@@ -1423,7 +1414,7 @@ export class MailComponent implements OnInit {
   folderBadgeClass(folder: MailFolder): string {
     const map: Record<MailFolder, string> = {
       // Ejecutivos, relleno fuerte: son para cumplimentar
-      informativos: 'bg-blue-100 text-blue-700', ejecutivos: 'bg-purple-600 text-white font-semibold',
+      informativos: 'bg-blue-100 text-blue-700', ejecutivos: 'bg-red-600 text-white font-semibold',
       redgen: 'bg-amber-100 text-amber-700', tx: 'bg-teal-100 text-teal-700',
     };
     return map[folder];

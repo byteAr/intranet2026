@@ -91,11 +91,21 @@ export interface MailFlag {
   at: string;
 }
 
+/** Búsqueda de una sola palabra que es un código (SNF) o una unidad (DIRTICOM): todos los de eso, por fecha. */
+export interface MailSearchListing {
+  word: string;
+  /** Hay MTO con ese código (SNF 3411/26…). */
+  code: boolean;
+  /** Hay MTO que mandó esa casilla (DIRTICOM@MTO.GNA). */
+  sender: boolean;
+}
+
 export interface EmailListResponse {
   data: Email[];
   total: number;
   page: number;
   limit: number;
+  listing?: MailSearchListing;
 }
 
 export interface MailUnreadCounts {
@@ -229,11 +239,15 @@ export class MailService {
       next: (res) => {
         this.emails.set(res.data);
         this.totalEmails.set(res.total);
+        this.searchListing.set(res.listing ?? null);
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
     });
   }
+
+  /** Qué está mostrando la búsqueda si es "todos los de un código o una unidad". */
+  readonly searchListing = signal<MailSearchListing | null>(null);
 
   getGroupedBySender(folder?: MailFolder, historical = false): Observable<{ sender: string; count: number; lastDate: string }[]> {
     let params = new HttpParams();
@@ -301,6 +315,7 @@ export class MailService {
         next: (res) => {
           this.emails.set(res.data);
           this.totalEmails.set(res.total);
+          this.searchListing.set(res.listing ?? null);
           this.loading.set(false);
         },
         error: () => this.loading.set(false),

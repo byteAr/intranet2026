@@ -19,6 +19,7 @@ import {
   DecryptedFile,
   MailFlag,
   MailFolder,
+  MailSearchListing,
   SienaFile,
   MailUnreadCounts,
 } from '../../core/services/mail.service';
@@ -191,8 +192,14 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 
         <!-- List header -->
         <div class="px-3 py-1.5 flex items-center justify-between border-b border-gray-100">
-          <span class="text-xs text-gray-400">
+          <span class="text-xs text-gray-400 min-w-0 truncate">
             @if (isAdvancedMode()) { Búsqueda avanzada }
+            @else if (isSearchMode() && mailService.searchListing(); as l) {
+              <!-- Una palabra que es un código o una unidad: todos los de eso, por fecha -->
+              <span [title]="listingLabel(l) + ' — del más reciente al más antiguo'">
+                <strong class="text-gray-600">{{ mailService.totalEmails() }}</strong> {{ listingLabel(l) }} · más recientes primero
+              </span>
+            }
             @else if (isSearchMode()) { Resultados }
             @else { &nbsp; }
           </span>
@@ -1243,6 +1250,13 @@ export class MailComponent implements OnInit {
   }
 
   // ─── Banderita (solo TICOM) ────────────────────────────────────────────────
+
+  /** "MTO SNF y de SNF@MTO.GNA", "MTO de DIRTICOM@MTO.GNA", "MTO SNF". */
+  listingLabel(l: MailSearchListing): string {
+    if (l.code && l.sender) return `MTO ${l.word} y de ${l.word}@MTO.GNA`;
+    if (l.code) return `MTO ${l.word}`;
+    return `MTO de ${l.word}@MTO.GNA`;
+  }
 
   readonly flagBusy = signal(false);
   /** La bandera (si-glyph:flag, SmartIcons, CC BY-SA 4.0), en un viewBox de 16×16. */

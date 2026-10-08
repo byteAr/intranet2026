@@ -216,6 +216,13 @@ export class MailService implements OnApplicationBootstrap {
     } catch (err) {
       this.logger.warn(`FTS: sin índices de trigramas (${(err as Error).message})`);
     }
+    // Buscar por unidad (DIRTICOM → DIRTICOM@MTO.GNA) sin recorrer los ~300k
+    // correos. CONCURRENTLY: no frena el ingreso de correo mientras se crea.
+    void this.dataSource
+      .query(
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_emails_from_local ON emails (upper(split_part("fromAddress", '@', 1)))`,
+      )
+      .catch((err: Error) => this.logger.warn(`Sin índice de remitente: ${err.message}`));
   }
 
   /**
@@ -387,7 +394,16 @@ export class MailService implements OnApplicationBootstrap {
       qb.andWhere('e.fromAddress = :sender', { sender: dto.sender.trim() });
     }
 
-    if (searchTerm) {
+    // Una sola palabra sin números (SNF, DIRTICOM): los MTO con ese código y los
+    // que mandó esa unidad, del más reciente al más antiguo.
+    const listing = searchTerm ? await this.unitListing(searchTerm) : null;
+    if (listing) {
+      const conds: string[] = [];
+      if (listing.code) conds.push(`e."mailCode" LIKE :codePrefix`);
+      if (listing.sender) conds.push(`upper(split_part(e."fromAddress", '@', 1)) = :senderWord`);
+      qb.andWhere(`(${conds.join(' OR ')})`, { codePrefix: `${listing.word} %`, senderWord: listing.word })
+        .orderBy('e.date', 'DESC');
+    } else if (searchTerm) {
       this.applySearch(qb, searchTerm);
     } else {
       qb.orderBy('e.date', 'DESC');
@@ -406,7 +422,31 @@ export class MailService implements OnApplicationBootstrap {
       for (const e of data) (e as any).flag = flags.get(e.id) ?? null;
     }
 
-    return { data, total, page, limit };
+    return { data, total, page, limit, ...(listing ? { listing } : {}) };
+  }
+
+  /**
+   * Si la búsqueda es una sola palabra sin números y es el prefijo de algún
+   * código (SNF → "SNF 3411/26") o el nombre de alguna casilla que mandó MTO
+   * (DIRTICOM → DIRTICOM@MTO.GNA), la búsqueda pasa a ser "todos los de eso",
+   * por fecha. Si no es ninguna de las dos, null: búsqueda de texto.
+   */
+  private async unitListing(term: string): Promise<{ word: string; code: boolean; sender: boolean } | null> {
+    if (!/^[A-Za-zÁÉÍÓÚÑáéíóúñ][A-Za-zÁÉÍÓÚÑáéíóúñ_-]{1,39}$/.test(term)) return null;
+    const word = term.toUpperCase();
+    try {
+      const [row]: { code: boolean; sender: boolean }[] = await this.dataSource.query(
+        `SELECT
+           ($3 AND EXISTS (SELECT 1 FROM emails WHERE "mailCode" LIKE $1)) AS code,
+           EXISTS (SELECT 1 FROM emails WHERE upper(split_part("fromAddress", '@', 1)) = $2) AS sender`,
+        [`${word} %`, word, /^[A-ZÁÉÍÓÚÑ]{2,5}$/.test(word)],
+      );
+      if (!row?.code && !row?.sender) return null;
+      return { word, code: !!row.code, sender: !!row.sender };
+    } catch (err) {
+      this.logger.warn(`Búsqueda por unidad/código: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   /**
@@ -452,11 +492,17 @@ export class MailService implements OnApplicationBootstrap {
        )`,
       { searchTerm, mailCodePattern, attTerm },
     )
-      .addSelect(`CASE WHEN e."mailCode" ~* :mailCodePattern THEN 1 ELSE 0 END`, 'coincide_codigo')
-      .addSelect(`ts_rank_cd(e.search_vector, ${tsquery})`, 'relevancia')
-      .orderBy('coincide_codigo', 'DESC')
-      .addOrderBy('relevancia', 'DESC')
-      .addOrderBy('e.date', 'DESC');
+    // Con números (SNF 3411/26, 2603): primero el código exacto y lo más
+    // parecido. Sin números (texto): del más reciente al más antiguo.
+    if (/\d/.test(searchTerm)) {
+      qb.addSelect(`CASE WHEN e."mailCode" ~* :mailCodePattern THEN 1 ELSE 0 END`, 'coincide_codigo')
+        .addSelect(`ts_rank_cd(e.search_vector, ${tsquery})`, 'relevancia')
+        .orderBy('coincide_codigo', 'DESC')
+        .addOrderBy('relevancia', 'DESC')
+        .addOrderBy('e.date', 'DESC');
+    } else {
+      qb.orderBy('e.date', 'DESC');
+    }
   }
 
   /**

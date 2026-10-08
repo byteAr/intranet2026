@@ -119,7 +119,10 @@ CC=DIREDTOS@MTO.GNA   → INFORMATIVOS  (fallback también)
 - Migración única en segundo plano (repara caracteres + reindexa ~300k correos, unos 5 min). La marca está en la tabla `app_markers` (`key='emails.fts'`, `value='fts:v3:<config>'`). Para forzar otra: `DELETE FROM app_markers WHERE key = 'emails.fts'` y reiniciar el backend. ⚠️ No usar el comentario de la tabla: la sincronización de TypeORM lo borra en cada arranque (así estuvo hasta el 05/10/2026 y se reindexaba siempre).
 
 ### Texto de los correos
-Outlook declara `iso-8859-1` pero manda `windows-1252`: los bytes 0x80-0x9F (comillas “ ”, raya –, …) quedan como controles C1 y se ven como □. `normalizeMailText()` (`mail-text.util.ts`) los convierte al ingresar, en bridge, IMAP y PST.
+Outlook declara `iso-8859-1` pero manda `windows-1252`: los bytes 0x80-0x9F (comillas “ ”, raya –, …) quedan como controles C1 y se ven como □. `normalizeMailText()` (`mail-text.util.ts`) los convierte al ingresar, en bridge, IMAP y PST. Además (08/10/2026):
+- **Quoted-printable sin decodificar** (`decodeQpResidue`): el aviso de confidencialidad que agrega el servidor llega codificado sin declararlo ("electr=F3nico"). Si hay al menos dos bytes altos `=[89A-F][0-9A-F]`, cada tira se decodifica como UTF-8 si lo es y si no como windows-1252; un `=E1` suelto no se toca.
+- **"�" (U+FFFD)** (`replaceLostSpaces`): eran espacios duros de Outlook (0xA0) en correos que decían ser UTF-8 (alinean "FDO:", "BT:", "TX:"). Se vuelven espacio, salvo pegados después de una letra ("est�"): ahí faltaba una letra con tilde y se deja.
+- Reparación única de lo ya guardado en segundo plano al arrancar (`repairEncodingResidue`, marca `app_markers` `emails.encoding` = `qp-fffd:v1`); el trigger reindexa cada correo reparado.
 
 ### No leídos
 `MAIL_UNREAD_SINCE` (ISO 8601): lo ingresado antes cuenta como leído para todos. Lo importado desde PST nunca cuenta como no leído.

@@ -12,7 +12,7 @@ import { decryptedDisplayName } from './decrypted-name.util';
 import { SienaFile } from './entities/siena-file.entity';
 import { SienaFileService } from './siena-file.service';
 import { QueryEmailsDto } from './dto/query-emails.dto';
-import { cp1252SqlRepair } from './mail-text.util';
+import { cp1252SqlRepair, normalizeMailText } from './mail-text.util';
 import { argentinaYear } from '../common/argentina-time';
 
 /**
@@ -85,6 +85,69 @@ export class MailService implements OnApplicationBootstrap {
     // Puede tardar varios minutos con cientos de miles de correos: no bloquea
     // el arranque. Mientras corre, la búsqueda funciona con el índice anterior.
     void this.migrateSearchData();
+    void this.repairEncodingResidue();
+  }
+
+  /**
+   * Una sola vez: aplica a los correos guardados la limpieza nueva de
+   * normalizeMailText() — quoted-printable sin decodificar ("electr=F3nico") y
+   * "�" que eran espacios duros de Outlook. Marca en app_markers 'emails.encoding'.
+   * Al actualizar, el trigger recalcula el índice de búsqueda de cada correo.
+   */
+  private async repairEncodingResidue(): Promise<void> {
+    const MARK = 'qp-fffd:v1';
+    try {
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS "app_markers" (
+          "key" varchar PRIMARY KEY,
+          "value" text NOT NULL,
+          "updatedAt" timestamptz NOT NULL DEFAULT now()
+        )`);
+      const [fila] = await this.dataSource.query(`SELECT "value" FROM "app_markers" WHERE "key" = 'emails.encoding'`);
+      if (fila?.value === MARK) return;
+
+      this.logger.log('Texto de los correos: reparando tildes (=F3) y "�" en segundo plano...');
+      const inicio = Date.now();
+      let ultimoId = '00000000-0000-0000-0000-000000000000';
+      let revisados = 0;
+      let reparados = 0;
+      for (;;) {
+        const filas: { id: string; subject: string | null; bodyText: string | null; bodyHtml: string | null }[] =
+          await this.dataSource.query(
+            `SELECT id, subject, "bodyText", "bodyHtml" FROM emails
+              WHERE id > $1
+                AND (subject ~ $2 OR "bodyText" ~ $2 OR "bodyHtml" ~ $2
+                     OR strpos(coalesce(subject, '') || coalesce("bodyText", '') || coalesce("bodyHtml", ''), chr(65533)) > 0)
+              ORDER BY id LIMIT 200`,
+            [ultimoId, '=[89A-F][0-9A-F]'],
+          );
+        if (!filas.length) break;
+        for (const f of filas) {
+          const subject = normalizeMailText(f.subject);
+          const bodyText = normalizeMailText(f.bodyText);
+          const bodyHtml = normalizeMailText(f.bodyHtml);
+          if (subject !== f.subject || bodyText !== f.bodyText || bodyHtml !== f.bodyHtml) {
+            await this.dataSource.query(
+              `UPDATE emails SET subject = $2, "bodyText" = $3, "bodyHtml" = $4 WHERE id = $1`,
+              [f.id, subject, bodyText, bodyHtml],
+            );
+            reparados++;
+          }
+        }
+        revisados += filas.length;
+        ultimoId = filas[filas.length - 1].id;
+      }
+      await this.dataSource.query(
+        `INSERT INTO "app_markers" ("key", "value") VALUES ('emails.encoding', $1)
+         ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
+        [MARK],
+      );
+      this.logger.log(
+        `Texto de los correos: ${reparados} reparados de ${revisados} revisados en ${Math.round((Date.now() - inicio) / 1000)} s`,
+      );
+    } catch (err) {
+      this.logger.error('Texto de los correos: la reparación falló; se reintenta en el próximo arranque', (err as Error).message);
+    }
   }
 
   /**

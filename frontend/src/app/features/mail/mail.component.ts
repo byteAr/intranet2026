@@ -751,13 +751,16 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
     }
     .folder-btn:hover { background: #f3f4f6; }
     .folder-active { background: #f0fdfa !important; color: #0f766e !important; font-weight: 600; }
-    /* Ejecutivo sin abrir: la etiqueta roja late hasta que se abre el MTO */
-    .badge-pulse { animation: badge-pulse 1.6s ease-in-out infinite; }
+    /*
+     * Ejecutivo sin abrir: la etiqueta roja late hasta que se abre el MTO.
+     * Sin excepción por "reducir movimiento": en muchas PC Windows tiene las
+     * animaciones apagadas (rendimiento, escritorio remoto) y no latía nunca.
+     */
+    .badge-pulse { animation: badge-pulse 1.4s ease-in-out infinite; will-change: transform, box-shadow; }
     @keyframes badge-pulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgb(220 38 38 / .55); transform: scale(1); }
-      50% { box-shadow: 0 0 0 5px rgb(220 38 38 / 0); transform: scale(1.06); }
+      0%, 100% { box-shadow: 0 0 0 0 rgb(220 38 38 / .7); transform: scale(1); opacity: 1; }
+      50% { box-shadow: 0 0 0 7px rgb(220 38 38 / 0); transform: scale(1.1); opacity: .85; }
     }
-    @media (prefers-reduced-motion: reduce) { .badge-pulse { animation: none; } }
   `],
 })
 export class MailComponent implements OnInit {

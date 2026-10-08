@@ -28,5 +28,6 @@
  * 1.7.0 — MTO: marcar todo como leído, banderita para TICOM, Ctrl+P imprime el MTO, Ejecutivos destacados.
  * 1.7.1 — Ejecutivos en rojo (antes violeta), sin el aviso "es para cumplimentar".
  * 1.7.2 — Ejecutivos: la fila como las demás; la etiqueta roja late hasta que se abre.
+ * 1.7.3 — El latido de los Ejecutivos se ve también con las animaciones de Windows apagadas, y es más notorio.
  */
-export const APP_VERSION = '1.7.2';
+export const APP_VERSION = '1.7.3';

@@ -358,7 +358,9 @@ import { HttpClient } from '@angular/common/http';
       </div>
     </div>
 
-    <!-- Floating chat button -->
+    <!-- Floating chat button. En Conversaciones no va: ahí ya está la lista de
+         conversaciones, y la burbuja tapaba el botón de enviar (en cualquier tamaño de pantalla). -->
+    @if (!isOnChatPage()) {
     <div class="fixed bottom-6 right-6 z-50">
       @if (chatPopupOpen()) {
         <div class="absolute bottom-16 right-0 w-72 bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-700 overflow-hidden mb-2">
@@ -497,6 +499,7 @@ import { HttpClient } from '@angular/common/http';
         }
       </button>
     </div>
+    }
 
     <!-- ── Toast ────────────────────────────────────── -->
     @if (toastMsg()) {

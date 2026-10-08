@@ -20,5 +20,6 @@
  * 1.5.3 — Desencriptados con su nombre real (el del cuerpo del MTO) e ícono de su tipo con candado verde.
  * 1.5.4 — Varios archivos SIENA a la vez (ícono de su tipo con "SIENA" celeste); varios adjuntos en un mensaje del chat.
  * 1.5.5 — TICOM arrastra todos los desencriptados o SIENA sobre el MTO y se suben juntos.
+ * 1.5.6 — En Conversaciones no aparece la burbuja flotante del chat (tapaba el botón de enviar).
  */
-export const APP_VERSION = '1.5.5';
+export const APP_VERSION = '1.5.6';

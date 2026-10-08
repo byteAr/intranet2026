@@ -28,10 +28,13 @@ import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.
 import { formatBytes, freeBytes } from '../../shared/storage-usage/storage-usage.component';
 import { StorageDriveComponent } from '../../shared/storage-usage/storage-drive.component';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
+import { ScansPanelComponent } from './scans-panel.component';
 
 const LAST_TAB_KEY = 'pac_shared_folders_office';
 /** Pestaña "Compartidos conmigo" (no puede coincidir con un grupo del AD). */
 const SHARED_TAB = '__compartidos__';
+/** Pestaña "Escaneos": lo que mandan las impresoras a la bandeja de la oficina. */
+const SCANS_TAB = '__escaneos__';
 /** Máximo por archivo (subida directa a Google; igual que el backend). */
 const MAX_FILE_BYTES = 10 * 1024 ** 3;
 /** Desde este tamaño el archivo va directo a Google (el servidor acepta hasta 200 MB). */
@@ -85,7 +88,7 @@ const MAX_FILES_PER_DROP = 1000;
 @Component({
   selector: 'app-shared-folders',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent, StorageDriveComponent, NewBadgeComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent, StorageDriveComponent, NewBadgeComponent, ScansPanelComponent],
   // La página ocupa todo el alto del <main> para que la tarjeta se estire hasta abajo.
   host: { class: 'flex flex-col min-h-full' },
   template: `
@@ -148,8 +151,23 @@ const MAX_FILES_PER_DROP = 1000;
           </span>
         }
       </button>
+      @if (info()!.offices.length) {
+        <button (click)="selectTab(SCANS_TAB)" role="tab" [attr.aria-selected]="isScansTab()"
+          class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+          [class]="isScansTab() ? tabOn : tabOff">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 13h10M8 17v4h8v-4"/>
+          </svg>
+          Escaneos
+          <app-new-badge feature="escaneos" />
+        </button>
+      }
     </div>
 
+    @if (isScansTab()) {
+      <app-scans-panel [offices]="info()!.offices" [googleEmail]="info()!.googleEmail" [focus]="focusScan()"
+        (saved)="loadUsage(true)" />
+    } @else {
     <div class="files-card flex-1 flex flex-col min-h-[24rem] bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm relative"
          (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)"
          (contextmenu)="onAreaContextMenu($event)" (dblclick)="onAreaDoubleClick($event)">
@@ -461,6 +479,7 @@ const MAX_FILES_PER_DROP = 1000;
         </div>
       }
     </div>
+    }
   }
 </div>
 
@@ -788,6 +807,9 @@ export class SharedFoldersComponent implements OnInit {
   private readonly focusUpload = signal<{ office: string; folderId?: string; fileId?: string } | null>(null);
 
   readonly SHARED_TAB = SHARED_TAB;
+  readonly SCANS_TAB = SCANS_TAB;
+  /** Escaneo al que hay que llevar al usuario (?escaneos=<oficina>&escaneo=<id>). */
+  readonly focusScan = signal<{ office: string; id?: string } | null>(null);
   readonly tabOn = 'bg-white dark:bg-zinc-700 text-gray-900 dark:text-zinc-100 shadow-sm';
   readonly tabOff = 'text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200';
 
@@ -844,6 +866,7 @@ export class SharedFoldersComponent implements OnInit {
   private readonly shareSearch$ = new Subject<string>();
 
   readonly isSharedTab = computed(() => this.tab() === SHARED_TAB);
+  readonly isScansTab = computed(() => this.tab() === SCANS_TAB);
   readonly PERSONAL_KEY = PERSONAL_KEY;
   readonly isPersonalTab = computed(() => this.tab() === PERSONAL_KEY);
   /** "Mis archivos" sin cuenta de Google: no hay dónde guardarlo. */
@@ -852,7 +875,8 @@ export class SharedFoldersComponent implements OnInit {
   /** Leyenda al pie de la tarjeta: qué pasa con lo que se guarda en esta pestaña. */
   readonly tabLegend = computed<string | null>(() => {
     const tab = this.tab();
-    if (!tab || this.personalUnavailable()) return null;
+    // Escaneos tiene su propia leyenda (en el panel).
+    if (!tab || tab === SCANS_TAB || this.personalUnavailable()) return null;
     if (tab === PERSONAL_KEY) {
       return 'Estos archivos son privados: solo vos podés verlos, salvo lo que compartas con alguien. ' +
         'Se guardan en tu Google Drive y no ocupan el espacio de tu oficina.';
@@ -906,10 +930,16 @@ export class SharedFoldersComponent implements OnInit {
     // Desde la campanita o una push:
     //   ?compartido=<shareId>                      → ese elemento en "Compartidos conmigo"
     //   ?oficina=<grupo>&carpeta=<id>&archivo=<id> → esa carpeta de la oficina, con el archivo resaltado
+    //   ?escaneos=<grupo>&escaneo=<id>             → pestaña Escaneos, con ese escaneo resaltado
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       const shareId = params.get('compartido');
       const office = params.get('oficina');
-      if (shareId) {
+      const scansOffice = params.get('escaneos');
+      if (scansOffice) {
+        this.focusScan.set({ office: scansOffice, id: params.get('escaneo') || undefined });
+        this.clearQueryParams(['escaneos', 'escaneo']);
+        if (this.info()?.configured) this.selectTab(SCANS_TAB);
+      } else if (shareId) {
         this.focusShareId.set(shareId);
         if (this.info()?.configured) this.selectTab(SHARED_TAB);
       } else if (office) {
@@ -945,9 +975,16 @@ export class SharedFoldersComponent implements OnInit {
           this.openFocusedUpload();
           return;
         }
+        if (this.focusScan() && info.offices.length) {
+          this.selectTab(SCANS_TAB);
+          return;
+        }
         let last: string | null = null;
         try { last = localStorage.getItem(LAST_TAB_KEY); } catch { /* sin storage */ }
-        const valid = last === SHARED_TAB || last === PERSONAL_KEY || (!!last && info.offices.includes(last));
+        const valid =
+          last === SHARED_TAB || last === PERSONAL_KEY ||
+          (last === SCANS_TAB && info.offices.length > 0) ||
+          (!!last && info.offices.includes(last));
         this.selectTab(valid ? last! : info.offices[0] ?? SHARED_TAB);
       },
       error: () => {
@@ -957,7 +994,8 @@ export class SharedFoldersComponent implements OnInit {
     });
   }
 
-  private loadUsage(fresh = false): void {
+  /** También lo llama la pestaña Escaneos al guardar una copia en la unidad. */
+  loadUsage(fresh = false): void {
     this.folders.usage(fresh).subscribe({
       next: (list) => this.usages.set(list),
       error: () => { /* sin el dato, la barra no se muestra; el backend igual controla */ },
@@ -975,7 +1013,14 @@ export class SharedFoldersComponent implements OnInit {
     this.tab.set(tab);
     try { localStorage.setItem(LAST_TAB_KEY, tab); } catch { /* sin storage */ }
     this.filter.set('');
-    if (tab === SHARED_TAB) {
+    if (tab === SCANS_TAB) {
+      // Lo maneja el panel de escaneos (están en el servidor, no en Drive).
+      this.scope.set(null);
+      this.path.set([]);
+      this.files.set([]);
+      this.canWrite.set(false);
+      this.loading.set(false);
+    } else if (tab === SHARED_TAB) {
       this.scope.set(null);
       this.path.set([{ id: '', name: 'Compartidos conmigo' }]);
       this.loadShared();

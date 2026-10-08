@@ -135,6 +135,14 @@ export class NotificationsService implements OnApplicationBootstrap {
       });
       return `/archivos?${params.toString()}`;
     }
+    if (n.type === 'scan') {
+      const params = new URLSearchParams({
+        escaneos: String(n.data['groupName'] ?? ''),
+        escaneo: String(n.data['scanId'] ?? ''),
+        notificacion: n.id,
+      });
+      return `/archivos?${params.toString()}`;
+    }
     return `/cuenta?notificacion=${n.id}`;
   }
 

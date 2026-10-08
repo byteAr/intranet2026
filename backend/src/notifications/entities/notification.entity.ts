@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-export type NotificationType = 'announcement' | 'share' | 'upload';
+export type NotificationType = 'announcement' | 'share' | 'upload' | 'scan';
 
 /** Notificación de la campanita: una fila por destinatario. */
 @Entity('notifications')

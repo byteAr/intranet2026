@@ -67,6 +67,9 @@ services:
       # producción con estos volúmenes: hay que hacerlo antes de levantar staging).
       - intranet2026_decrypted_attachments:/app/storage/decrypted-attachments:ro
       - intranet2026_siena_files:/app/storage/siena-files:ro
+      # Escaneos de producción, solo para verlos. Sin la bandeja montada, este
+      # backend no toma escaneos ni borra los vencidos (eso lo hace producción).
+      - intranet2026_scans:/app/storage/scans:ro
       # Cuenta de servicio de Google (Workspace + Drive), la misma de producción
       - ./secrets/google-workspace-key.json:/run/google/google-workspace-key.json:ro
     secrets:
@@ -107,6 +110,8 @@ volumes:
   intranet2026_decrypted_attachments:
     external: true
   intranet2026_siena_files:
+    external: true
+  intranet2026_scans:
     external: true
 
 networks:

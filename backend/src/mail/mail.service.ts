@@ -96,57 +96,69 @@ export class MailService implements OnApplicationBootstrap {
    */
   private async repairEncodingResidue(): Promise<void> {
     const MARK = 'qp-fffd:v1';
+    // Staging y producción comparten la base: la hace uno solo a la vez (candado
+    // de sesión de PostgreSQL, en una conexión propia que se suelta al terminar).
+    const runner = this.dataSource.createQueryRunner();
+    let locked = false;
     try {
-      await this.dataSource.query(`
+      await runner.connect();
+      await runner.query(`
         CREATE TABLE IF NOT EXISTS "app_markers" (
           "key" varchar PRIMARY KEY,
           "value" text NOT NULL,
           "updatedAt" timestamptz NOT NULL DEFAULT now()
         )`);
-      const [fila] = await this.dataSource.query(`SELECT "value" FROM "app_markers" WHERE "key" = 'emails.encoding'`);
+      const [fila] = await runner.query(`SELECT "value" FROM "app_markers" WHERE "key" = 'emails.encoding'`);
       if (fila?.value === MARK) return;
+      const [{ ok }] = await runner.query(`SELECT pg_try_advisory_lock(720260810) AS ok`);
+      if (!ok) {
+        this.logger.log('Texto de los correos: la reparación la está haciendo otro servidor');
+        return;
+      }
+      locked = true;
 
       this.logger.log('Texto de los correos: reparando tildes (=F3) y "�" en segundo plano...');
       const inicio = Date.now();
-      let ultimoId = '00000000-0000-0000-0000-000000000000';
-      let revisados = 0;
+      // Una sola pasada por la tabla para encontrar los candidatos. (La 1ª versión
+      // volvía a recorrerla entera en cada tanda: tardaba horas y tenía la tabla
+      // ocupada; el 08/10/2026 trabó el arranque del backend de producción.)
+      const candidatos: { id: string }[] = await runner.query(
+        `SELECT id FROM emails
+          WHERE subject ~ $1 OR "bodyText" ~ $1 OR "bodyHtml" ~ $1
+             OR strpos(coalesce(subject, '') || coalesce("bodyText", '') || coalesce("bodyHtml", ''), chr(65533)) > 0`,
+        ['=[89A-F][0-9A-F]'],
+      );
       let reparados = 0;
-      for (;;) {
+      for (let i = 0; i < candidatos.length; i += 100) {
+        const ids = candidatos.slice(i, i + 100).map((c) => c.id);
         const filas: { id: string; subject: string | null; bodyText: string | null; bodyHtml: string | null }[] =
-          await this.dataSource.query(
-            `SELECT id, subject, "bodyText", "bodyHtml" FROM emails
-              WHERE id > $1
-                AND (subject ~ $2 OR "bodyText" ~ $2 OR "bodyHtml" ~ $2
-                     OR strpos(coalesce(subject, '') || coalesce("bodyText", '') || coalesce("bodyHtml", ''), chr(65533)) > 0)
-              ORDER BY id LIMIT 200`,
-            [ultimoId, '=[89A-F][0-9A-F]'],
-          );
-        if (!filas.length) break;
+          await runner.query(`SELECT id, subject, "bodyText", "bodyHtml" FROM emails WHERE id = ANY($1::uuid[])`, [ids]);
         for (const f of filas) {
           const subject = normalizeMailText(f.subject);
           const bodyText = normalizeMailText(f.bodyText);
           const bodyHtml = normalizeMailText(f.bodyHtml);
           if (subject !== f.subject || bodyText !== f.bodyText || bodyHtml !== f.bodyHtml) {
-            await this.dataSource.query(
+            await runner.query(
               `UPDATE emails SET subject = $2, "bodyText" = $3, "bodyHtml" = $4 WHERE id = $1`,
               [f.id, subject, bodyText, bodyHtml],
             );
             reparados++;
           }
         }
-        revisados += filas.length;
-        ultimoId = filas[filas.length - 1].id;
       }
-      await this.dataSource.query(
+      await runner.query(
         `INSERT INTO "app_markers" ("key", "value") VALUES ('emails.encoding', $1)
          ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
         [MARK],
       );
       this.logger.log(
-        `Texto de los correos: ${reparados} reparados de ${revisados} revisados en ${Math.round((Date.now() - inicio) / 1000)} s`,
+        `Texto de los correos: ${reparados} reparados de ${candidatos.length} revisados en ${Math.round((Date.now() - inicio) / 1000)} s`,
       );
     } catch (err) {
       this.logger.error('Texto de los correos: la reparación falló; se reintenta en el próximo arranque', (err as Error).message);
+    } finally {
+      if (locked) await runner.query(`SELECT pg_advisory_unlock(720260810)`).catch(() => undefined);
+      await runner.release().catch(() => undefined);
     }
   }
 

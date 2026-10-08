@@ -80,7 +80,7 @@ Afecta: `ldap-search.service.ts`, `password-reset.service.ts`.
 
 ### Límites de archivo
 - Avatar: 6MB (base64 en DB, servido en `/api/users/:id/avatar` — público)
-- Chat adjuntos: 50MB (JPG, PNG, GIF, WebP, PDF, DOCX, XLS); hasta 10 en un mismo mensaje (1.5.4): se suben con `/api/chat/upload` y van juntos en `messages.attachments` (jsonb). El primero también en `attachmentUrl/Name/…`, que leen la lista de conversaciones y los mensajes viejos. El gateway solo acepta URLs `/api/chat/files/<uuid>` (`sanitizeChatAttachments`).
+- Chat adjuntos: 50MB (JPG, PNG, GIF, WebP, PDF, DOCX, XLS, y desde la 1.7.8 TXT y RAR — estos dos también por la extensión, porque Chrome en Windows manda los .rar sin tipo; el .rar se descarga directo, sin vista previa); hasta 10 en un mismo mensaje (1.5.4): se suben con `/api/chat/upload` y van juntos en `messages.attachments` (jsonb). El primero también en `attachmentUrl/Name/…`, que leen la lista de conversaciones y los mensajes viejos. El gateway solo acepta URLs `/api/chat/files/<uuid>` (`sanitizeChatAttachments`).
 - Incidencias: 10MB (solo imágenes)
 - Draft MTO — frontend: 5MB/archivo; backend multer: 20MB
 - ⚠️ Adjuntos de draft-mail siempre vía blob+JWT (`responseType:'blob'`) — nunca `<a href>` directo (retorna 401)

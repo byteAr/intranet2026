@@ -193,6 +193,18 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
                             style="width:100%; height:100%; object-fit:cover; display:block;" />
                         </div>
                       </button>
+                    } @else if (!hasThumbnail(att)) {
+                      <!-- Sin miniatura (.txt, .rar): tarjeta con su ícono -->
+                      <button type="button" (click)="openChatPreview(att)"
+                        class="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:opacity-90 transition-opacity"
+                        [class.bg-teal-700]="isOwn(msg)" [class.bg-gray-200]="!isOwn(msg)"
+                        [class.border-b]="msg.content" [class.border-teal-500]="isOwn(msg)" [class.border-gray-300]="!isOwn(msg)">
+                        <app-file-icon [file]="{ name: att.name, mimeType: att.mimeType }" [size]="36" />
+                        <span class="flex flex-col min-w-0 flex-1">
+                          <span class="truncate text-xs font-semibold leading-tight">{{ att.name }}</span>
+                          <span class="text-xs opacity-60 leading-tight mt-0.5">{{ formatSize(att.size) }}</span>
+                        </span>
+                      </button>
                     } @else {
                       <!-- Document preview -->
                       <button type="button" (click)="openChatPreview(att)"
@@ -290,7 +302,7 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
             <div class="px-5 pt-2 pb-1 flex flex-wrap items-center gap-2">
               @for (file of selectedFiles(); track $index) {
                 <span class="flex items-center gap-2 px-3 py-1.5 bg-teal-50 border border-teal-200 rounded-full text-xs text-teal-700 max-w-xs">
-                  <span>{{ fileIcon(file.type) }}</span>
+                  <span>{{ fileIcon(file.type, file.name) }}</span>
                   <span class="truncate max-w-[180px]">{{ file.name }}</span>
                   <span class="text-teal-400">{{ formatSize(file.size) }}</span>
                   <button (click)="removeFile($index)" [disabled]="uploading()" class="ml-1 text-teal-400 hover:text-teal-700"
@@ -503,8 +515,10 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/msword','application/vnd.ms-excel'];
     const problems: string[] = [];
+    // .txt y .rar por la extensión: Chrome en Windows suele mandar los .rar sin tipo.
+    const byExtension = /\.(txt|rar)$/i;
     const ok = picked.filter((file) => {
-      if (!allowed.includes(file.type)) {
+      if (!allowed.includes(file.type) && !byExtension.test(file.name)) {
         problems.push(`${file.name}: formato no permitido`);
         return false;
       }
@@ -519,7 +533,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     if (ok.length > room) problems.push(`Se pueden enviar hasta ${this.maxFiles} archivos por mensaje: quedaron afuera ${ok.length - room}.`);
     this.selectedFiles.set([...current, ...ok.slice(0, Math.max(room, 0))]);
     if (problems.length) {
-      alert(`No se adjuntaron algunos archivos:\n\n${problems.join('\n')}\n\nPodés adjuntar imágenes (JPG, PNG, GIF, WebP), PDF, Word o Excel.`);
+      alert(`No se adjuntaron algunos archivos:\n\n${problems.join('\n')}\n\nPodés adjuntar imágenes (JPG, PNG, GIF, WebP), PDF, Word, Excel, texto (.txt) o RAR.`);
     }
   }
 
@@ -549,16 +563,35 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   openChatPreview(att: ChatAttachment): void {
     const name = att.name ? encodeURIComponent(att.name) : '';
+    // Un .rar no se puede ver: se descarga directo, con su nombre.
+    if (/\.rar$/i.test(att.name) || att.mimeType?.includes('rar')) {
+      const a = document.createElement('a');
+      a.href = `${att.url}${name ? '?name=' + name : ''}`;
+      a.download = att.name || 'archivo.rar';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    }
     const fileKey = att.url.split('/').pop()!;
     const previewUrl = `/api/chat/files/${fileKey}/preview${name ? '?name=' + name : ''}`;
-    this.previewRequest.set({ url: previewUrl, filename: att.name || 'archivo', downloadUrl: att.url });
+    // Por el tipo que manda el servidor: así un .txt se muestra como texto.
+    this.previewRequest.set({ url: previewUrl, filename: att.name || 'archivo', downloadUrl: att.url, byContentType: true });
   }
 
   isImage(mimeType?: string): boolean {
     return !!mimeType?.startsWith('image/');
   }
 
-  fileIcon(mimeType?: string): string {
+  /** PDF, Word y Excel muestran una miniatura del contenido; el resto (.txt, .rar), una tarjeta con su ícono. */
+  hasThumbnail(att: ChatAttachment): boolean {
+    const m = att.mimeType ?? '';
+    return m === 'application/pdf' || m.includes('word') || m.includes('excel') || m.includes('spreadsheet');
+  }
+
+  fileIcon(mimeType?: string, name = ''): string {
+    if (/\.rar$/i.test(name) || mimeType?.includes('rar')) return '🗜️';
+    if (/\.txt$/i.test(name) || mimeType === 'text/plain') return '📃';
     if (!mimeType) return '📄';
     if (mimeType.startsWith('image/')) return '🖼️';
     if (mimeType === 'application/pdf') return '📕';

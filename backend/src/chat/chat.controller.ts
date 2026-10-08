@@ -28,6 +28,7 @@ function guessMime(filename: string): string {
     '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
     '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     '.xls': 'application/vnd.ms-excel', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.txt': 'text/plain; charset=utf-8', '.rar': 'application/vnd.rar',
   };
   return map[ext] ?? 'application/octet-stream';
 }
@@ -50,7 +51,31 @@ const ALLOWED_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/msword',
   'application/vnd.ms-excel',
+  'text/plain',
+  'application/vnd.rar',
+  'application/x-rar-compressed',
+  'application/x-rar',
 ]);
+
+/**
+ * Se aceptan también por la extensión: Chrome en Windows suele mandar los .rar
+ * sin tipo (o como application/octet-stream).
+ */
+const ALLOWED_BY_EXTENSION: Record<string, string> = {
+  '.txt': 'text/plain',
+  '.rar': 'application/vnd.rar',
+};
+
+type ChatFileInfo = Pick<Express.Multer.File, 'mimetype' | 'originalname'>;
+
+function isAllowedChatFile(file: ChatFileInfo): boolean {
+  return ALLOWED_TYPES.has(file.mimetype) || extname(file.originalname).toLowerCase() in ALLOWED_BY_EXTENSION;
+}
+
+/** El tipo con el que se guarda: el de la extensión para .txt / .rar (el navegador a veces no lo manda). */
+function chatMimeOf(file: ChatFileInfo): string {
+  return ALLOWED_BY_EXTENSION[extname(file.originalname).toLowerCase()] ?? file.mimetype;
+}
 
 @Controller('chat')
 export class ChatController {
@@ -77,7 +102,7 @@ export class ChatController {
       }),
       limits: { fileSize: 50 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
-        ALLOWED_TYPES.has(file.mimetype) ? cb(null, true) : cb(new BadRequestException('Tipo de archivo no permitido'), false);
+        isAllowedChatFile(file) ? cb(null, true) : cb(new BadRequestException('Tipo de archivo no permitido'), false);
       },
     }),
   )
@@ -98,7 +123,7 @@ export class ChatController {
       attachmentUrl: file ? `/api/chat/files/${file.filename}` : undefined,
       attachmentName: file?.originalname,
       attachmentSize: file?.size,
-      attachmentMimeType: file?.mimetype,
+      attachmentMimeType: file ? chatMimeOf(file) : undefined,
     });
 
     // 2. Entregar inmediatamente a todos los usuarios ya en DB
@@ -129,7 +154,7 @@ export class ChatController {
       }),
       limits: { fileSize: 50 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
-        if (ALLOWED_TYPES.has(file.mimetype)) {
+        if (isAllowedChatFile(file)) {
           cb(null, true);
         } else {
           cb(new BadRequestException('Tipo de archivo no permitido'), false);
@@ -144,7 +169,7 @@ export class ChatController {
       // multer entrega el nombre en latin1: así se conservan las tildes
       name: Buffer.from(file.originalname, 'latin1').toString('utf8'),
       size: file.size,
-      mimeType: file.mimetype,
+      mimeType: chatMimeOf(file),
     };
   }
 
@@ -169,6 +194,8 @@ export class ChatController {
       const realName = name && !name.includes('/') && !name.includes('..') ? name : filename;
       const mime = guessMime(realName);
       res.setHeader('Content-Type', mime);
+      // Que el navegador no adivine otro tipo (un .txt nunca se interpreta como HTML).
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Content-Disposition', `inline; filename="${realName}"`);
       createReadStream(filePath).pipe(res);
     } catch (err) {

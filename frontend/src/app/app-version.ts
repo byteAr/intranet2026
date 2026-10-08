@@ -33,5 +33,6 @@
  * 1.7.5 — Búsqueda: una palabra que es un código (SNF) o una unidad (DIRTICOM) trae todos los de eso, por fecha; el texto, por fecha.
  * 1.7.6 — Lista de MTO con scroll infinito (sin flechas de páginas); también en las búsquedas.
  * 1.7.7 — La banderita aparece y desaparece en vivo para todos los de TICOM.
+ * 1.7.8 — Conversaciones: se pueden adjuntar .txt y .rar.
  */
-export const APP_VERSION = '1.7.7';
+export const APP_VERSION = '1.7.8';

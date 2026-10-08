@@ -123,6 +123,13 @@ Outlook declara `iso-8859-1` pero manda `windows-1252`: los bytes 0x80-0x9F (com
 ### No leídos
 `MAIL_UNREAD_SINCE` (ISO 8601): lo ingresado antes cuenta como leído para todos. Lo importado desde PST nunca cuenta como no leído.
 
+### Marcar todo leído, banderita, Ctrl+P, Ejecutivos (1.7.0)
+- **Marcar todo leído** (botón en la columna de carpetas, `POST /api/mail/mark-all-read`): guarda en `mail_read_marks` la fecha del usuario; lo ingresado antes cuenta como leído **para él** (`cutoffFor()` = el más nuevo entre `MAIL_UNREAD_SINCE` y su marca), sin crear filas en `email_read_status` (no ensucia "Visto por").
+- **Banderita** (`mail_flags`, una por MTO: quién y cuándo): solo **TICOM** la ve y la pone (`POST/DELETE …/emails/:id/flag`, `@Roles('TICOM')`); es compartida entre ellos, como en el Outlook de DIREDTOS (el de turno marca hasta dónde leyó). Llega como `flag` en la lista y el detalle solo si el usuario es TICOM.
+- **Ctrl+P** con un MTO abierto imprime con el formato de Outlook (`printEmail()`), no la página.
+- **Ejecutivos** (son para cumplimentar): en la lista, borde violeta de 4 px, fondo violeta claro y etiqueta violeta llena; en el detalle, aviso "MTO EJECUTIVO — es para cumplimentar".
+- Tablas `mail_read_marks` y `mail_flags` sin entidad: las crea `MailService.ensureMarkTables()` al arrancar.
+
 ### Visto por (1.6.2, `features/mail/mto-viewers.component.ts`)
 - Debajo del asunto: fotos encimadas de quienes abrieron el MTO (las 5 últimas, más "+N") y "N vistos"; al tocar, un cuadro con cada uno y la fecha y hora (Argentina) de la primera vez. Lo ve cualquiera que abra el MTO.
 - Sale de `email_read_status` (`readAt` = primera apertura): `GET /api/mail/emails/:id/viewers` (sin la foto en base64: `hasAvatar` y se pide a `/api/users/:id/avatar`).

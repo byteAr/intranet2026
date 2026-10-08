@@ -25,5 +25,6 @@
  * 1.6.1 — Archivos compartidos: archivos de hasta 100 GB (antes 10).
  * 1.6.2 — "Visto por" en cada MTO: quiénes lo abrieron, con fecha y hora.
  * 1.6.3 — El MTO se imprime como en Outlook (cuenta arriba, De/Enviado el/Para/CC/Asunto, Calibri, sin encabezado del navegador).
+ * 1.7.0 — MTO: marcar todo como leído, banderita para TICOM, Ctrl+P imprime el MTO, Ejecutivos destacados.
  */
-export const APP_VERSION = '1.6.3';
+export const APP_VERSION = '1.7.0';

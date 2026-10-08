@@ -69,6 +69,7 @@ export class MailService implements OnApplicationBootstrap {
   }
 
   async onApplicationBootstrap(): Promise<void> {
+    await this.ensureMarkTables();
     try {
       this.searchConfig = await this.ensureSearchConfig();
       await this.ensureTrigramIndexes();
@@ -84,6 +85,91 @@ export class MailService implements OnApplicationBootstrap {
     // Puede tardar varios minutos con cientos de miles de correos: no bloquea
     // el arranque. Mientras corre, la búsqueda funciona con el índice anterior.
     void this.migrateSearchData();
+  }
+
+  /**
+   * Tablas sin entidad (staging no sincroniza):
+   * - mail_read_marks: "Marcar todo como leído" de cada usuario. Lo ingresado
+   *   antes de esa fecha cuenta como leído para él, sin crear una fila por
+   *   correo (así no aparece en "Visto por" de cosas que no abrió).
+   * - mail_flags: la banderita de TICOM (compartida entre ellos), como en Outlook.
+   */
+  private async ensureMarkTables(): Promise<void> {
+    try {
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS "mail_read_marks" (
+          "userId" character varying PRIMARY KEY,
+          "readAllAt" TIMESTAMP WITH TIME ZONE NOT NULL
+        )`);
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS "mail_flags" (
+          "emailId" character varying PRIMARY KEY,
+          "flaggedBy" character varying NOT NULL,
+          "flaggedByName" character varying NOT NULL,
+          "flaggedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+        )`);
+    } catch (err) {
+      this.logger.error(`No se pudieron crear mail_read_marks / mail_flags: ${(err as Error).message}`);
+    }
+  }
+
+  /** Corte de "no leídos" para este usuario: el global (MAIL_UNREAD_SINCE) o su "Marcar todo como leído", el más nuevo. */
+  private async cutoffFor(userId: string): Promise<Date | null> {
+    let mark: Date | null = null;
+    try {
+      const [row] = await this.dataSource.query(`SELECT "readAllAt" FROM "mail_read_marks" WHERE "userId" = $1`, [userId]);
+      mark = row?.readAllAt ? new Date(row.readAllAt) : null;
+    } catch {
+      /* sin la tabla, solo el corte global */
+    }
+    if (!mark) return this.unreadCutoff;
+    if (!this.unreadCutoff) return mark;
+    return mark > this.unreadCutoff ? mark : this.unreadCutoff;
+  }
+
+  /** Todo lo que llegó hasta ahora cuenta como leído para este usuario (las 4 carpetas). */
+  async markAllRead(userId: string) {
+    await this.dataSource.query(
+      `INSERT INTO "mail_read_marks" ("userId", "readAllAt") VALUES ($1, now())
+       ON CONFLICT ("userId") DO UPDATE SET "readAllAt" = EXCLUDED."readAllAt"`,
+      [userId],
+    );
+    return this.getUnreadCounts(userId);
+  }
+
+  // ─── Banderita (solo TICOM) ────────────────────────────────────────────────
+
+  async setFlag(emailId: string, user: { id: string; username: string; displayName?: string; firstName?: string; lastName?: string }) {
+    const email = await this.emailRepo.findOne({ where: { id: emailId }, select: ['id'] });
+    if (!email) throw new NotFoundException('Correo no encontrado');
+    const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.displayName || user.username;
+    await this.dataSource.query(
+      `INSERT INTO "mail_flags" ("emailId", "flaggedBy", "flaggedByName", "flaggedAt") VALUES ($1, $2, $3, now())
+       ON CONFLICT ("emailId") DO UPDATE SET "flaggedBy" = EXCLUDED."flaggedBy", "flaggedByName" = EXCLUDED."flaggedByName", "flaggedAt" = now()`,
+      [emailId, user.username, name],
+    );
+    return (await this.flagsOf([emailId])).get(emailId) ?? null;
+  }
+
+  async clearFlag(emailId: string): Promise<void> {
+    await this.dataSource.query(`DELETE FROM "mail_flags" WHERE "emailId" = $1`, [emailId]);
+  }
+
+  private async flagsOf(ids: string[]): Promise<Map<string, { byName: string; at: Date }>> {
+    if (!ids.length) return new Map();
+    try {
+      const rows: { emailId: string; flaggedByName: string; flaggedAt: Date }[] = await this.dataSource.query(
+        `SELECT "emailId", "flaggedByName", "flaggedAt" FROM "mail_flags" WHERE "emailId" = ANY($1::varchar[])`,
+        [ids],
+      );
+      return new Map(rows.map((r) => [r.emailId, { byName: r.flaggedByName, at: r.flaggedAt }]));
+    } catch {
+      return new Map();
+    }
+  }
+
+  private static isTicom(roles?: string[]): boolean {
+    return (roles ?? []).some((r) => r.toUpperCase() === 'TICOM');
   }
 
   /**
@@ -252,6 +338,7 @@ export class MailService implements OnApplicationBootstrap {
   async findAll(
     dto: QueryEmailsDto,
     userId: string,
+    roles?: string[],
   ): Promise<{ data: Email[]; total: number; page: number; limit: number }> {
     const page = dto.page ?? 1;
     const limit = dto.limit ?? 30;
@@ -313,6 +400,11 @@ export class MailService implements OnApplicationBootstrap {
     // Para históricos no se sigue la lectura: el frontend los muestra todos como leídos.
     if (!dto.historical) await this.attachReadStatuses(data, userId);
     if (searchTerm) await this.attachSnippets(data, searchTerm);
+    // La banderita la ven solo TICOM.
+    if (MailService.isTicom(roles)) {
+      const flags = await this.flagsOf(data.map((e) => e.id));
+      for (const e of data) (e as any).flag = flags.get(e.id) ?? null;
+    }
 
     return { data, total, page, limit };
   }
@@ -383,11 +475,12 @@ export class MailService implements OnApplicationBootstrap {
     const porCorreo = new Map(estados.map((s) => [s.emailId, s]));
 
     // Se decide en SQL y no en JavaScript por la zona horaria: ver cutoffSql().
+    const corte = await this.cutoffFor(userId);
     const filas: { id: string }[] = await this.dataSource.query(
       `SELECT id FROM emails
         WHERE id = ANY($1::uuid[])
           AND ("isFromPstImport" OR ($2::timestamptz IS NOT NULL AND "createdAt" < ${this.cutoffSql('$2')}))`,
-      [ids, this.unreadCutoff?.toISOString() ?? null],
+      [ids, corte?.toISOString() ?? null],
     );
     const leidosPorDefecto = new Set(filas.map((f) => f.id));
 
@@ -521,6 +614,11 @@ export class MailService implements OnApplicationBootstrap {
         .map(({ id: fileId, filename, size, uploadedByName, uploadedAt }) => ({ id: fileId, filename, size, uploadedByName, uploadedAt }));
     }
 
+    // La banderita la ven solo TICOM.
+    if (MailService.isTicom(userRoles)) {
+      (email as any).flag = (await this.flagsOf([email.id])).get(email.id) ?? null;
+    }
+
     return email;
   }
 
@@ -622,9 +720,11 @@ export class MailService implements OnApplicationBootstrap {
       .andWhere('e."isFromPstImport" = false')
       .groupBy('e.folder');
 
-    if (this.unreadCutoff) {
+    // El corte global o el "Marcar todo como leído" del usuario, el más nuevo.
+    const corte = await this.cutoffFor(userId);
+    if (corte) {
       qb.andWhere(`e."createdAt" >= ${this.cutoffSql(':corte')}`, {
-        corte: this.unreadCutoff.toISOString(),
+        corte: corte.toISOString(),
       });
     }
 

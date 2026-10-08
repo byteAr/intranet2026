@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
 
@@ -82,6 +82,13 @@ export interface Email {
    * delimitadas por U+0002 (inicio) y U+0003 (fin).
    */
   snippet?: string;
+  /** Banderita (solo llega a TICOM): quién la puso y cuándo. */
+  flag?: MailFlag | null;
+}
+
+export interface MailFlag {
+  byName: string;
+  at: string;
 }
 
 export interface EmailListResponse {
@@ -240,6 +247,26 @@ export class MailService {
     if (folder) params = params.set('folder', folder);
     if (historical) params = params.set('historical', 'true');
     return this.http.get<EmailListResponse>('/api/mail/emails', { params });
+  }
+
+  /** Todo lo que llegó hasta ahora pasa a leído (las 4 carpetas en cero) y se actualiza la lista. */
+  markAllRead(): Observable<MailUnreadCounts> {
+    return this.http.post<MailUnreadCounts>('/api/mail/mark-all-read', {}).pipe(
+      tap((counts) => {
+        this.unreadCounts.set(counts);
+        this.emails.update((list) =>
+          list.map((e) => (e.readStatuses?.[0]?.isRead ? e : { ...e, readStatuses: [{ isRead: true }] })),
+        );
+      }),
+    );
+  }
+
+  setFlag(id: string): Observable<MailFlag | null> {
+    return this.http.post<MailFlag | null>(`/api/mail/emails/${id}/flag`, {});
+  }
+
+  clearFlag(id: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/mail/emails/${id}/flag`);
   }
 
   loadUnreadCounts(): void {

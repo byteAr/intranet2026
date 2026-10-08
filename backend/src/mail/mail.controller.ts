@@ -52,13 +52,33 @@ export class MailController {
 
   @Get('emails')
   async findAll(@Query() query: QueryEmailsDto, @Req() req: any) {
-    return this.mailService.findAll(query, req.user.id);
+    return this.mailService.findAll(query, req.user.id, req.user.roles);
   }
 
   @Get('emails/search')
   async search(@Query('q') q: string, @Req() req: any) {
     if (!q?.trim()) throw new BadRequestException('Parámetro q requerido');
-    return this.mailService.findAll({ q: q.trim(), page: 1, limit: 30 }, req.user.id);
+    return this.mailService.findAll({ q: q.trim(), page: 1, limit: 30 }, req.user.id, req.user.roles);
+  }
+
+  /** "Marcar todo como leído": las 4 carpetas en cero para este usuario. Devuelve los contadores. */
+  @Post('mark-all-read')
+  async markAllRead(@Req() req: any) {
+    return this.mailService.markAllRead(req.user.id);
+  }
+
+  /** Banderita (como en Outlook): la ven y la ponen solo TICOM, compartida entre ellos. */
+  @Post('emails/:id/flag')
+  @Roles('TICOM')
+  async setFlag(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.mailService.setFlag(id, req.user);
+  }
+
+  @Delete('emails/:id/flag')
+  @Roles('TICOM')
+  async clearFlag(@Param('id', ParseUUIDPipe) id: string) {
+    await this.mailService.clearFlag(id);
+    return { ok: true };
   }
 
   @Get('emails/grouped-by-sender')

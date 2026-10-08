@@ -17,6 +17,7 @@ import {
   Email,
   MailAttachment,
   DecryptedFile,
+  MailFlag,
   MailFolder,
   SienaFile,
   MailUnreadCounts,
@@ -90,6 +91,16 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
         <div class="flex-1"></div>
 
         <div class="p-2 border-t border-gray-200 space-y-1.5">
+          <button (click)="markAllRead()"
+            [disabled]="markingAllRead() || isHistorical() || mailService.unreadCounts().total === 0"
+            class="w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-colors border border-teal-200 text-teal-700 bg-white hover:bg-teal-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Pone en cero Ejecutivos, Informativos, Redgen y Enviados (solo para vos)">
+            <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12l5 5L18 6M12 17l1.5 1.5L22 10"/>
+            </svg>
+            {{ markingAllRead() ? 'Marcando…' : 'Marcar todo leído' }}
+            <app-new-badge feature="marcar-todo-leido" [compact]="true" />
+          </button>
           <button (click)="toggleHistorical()"
             class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors"
             [class.bg-amber-600]="isHistorical()"
@@ -290,7 +301,9 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                           class="w-full text-left px-4 py-2.5 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50 focus:outline-none"
                           [ngClass]="{
                             'bg-teal-50 shadow-sm relative z-10': activeEmail()?.id === email.id,
-                            'border-l-2 border-l-teal-500': !isRead(email)
+                            'border-l-2 border-l-teal-500': !isRead(email) && email.folder !== 'ejecutivos',
+                            'mto-ejecutivo': email.folder === 'ejecutivos',
+                            'mto-ejecutivo-bg': email.folder === 'ejecutivos' && activeEmail()?.id !== email.id
                           }">
                           <div class="flex items-center justify-between gap-1">
                             <p class="text-sm truncate flex-1"
@@ -300,6 +313,12 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                               {{ email.subject }}
                             </p>
                             <div class="flex items-center gap-1 flex-shrink-0">
+                              @if (email.flag) {
+                                <svg class="h-3.5 w-3.5 text-red-600" viewBox="0 0 24 24" fill="currentColor" aria-label="Con bandera">
+                                  <title>Bandera de {{ email.flag.byName }}</title>
+                                  <path d="M5 21V4h11l-1.5 4L16 12H7v9z"/>
+                                </svg>
+                              }
                               @if (email.attachmentCount) {
                                 <svg class="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -310,7 +329,10 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                             </div>
                           </div>
                           <div class="flex items-center justify-between mt-1">
-                            <span class="text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
+                            <span class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
+                              @if (email.folder === 'ejecutivos') {
+                                <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6M12 17h.01"/></svg>
+                              }
                               {{ folderLabel(email.folder) }}
                             </span>
                           </div>
@@ -337,7 +359,9 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 class="w-full text-left px-3 py-3 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50 focus:outline-none"
                 [ngClass]="{
                   'bg-teal-50 -translate-y-0.5 shadow-md relative z-10': activeEmail()?.id === email.id,
-                  'border-l-2 border-l-teal-500': !isRead(email)
+                  'border-l-2 border-l-teal-500': !isRead(email) && email.folder !== 'ejecutivos',
+                  'mto-ejecutivo': email.folder === 'ejecutivos',
+                  'mto-ejecutivo-bg': email.folder === 'ejecutivos' && activeEmail()?.id !== email.id
                 }">
                 <div class="flex items-center justify-between gap-1">
                   <p class="text-xs font-medium text-gray-700 truncate flex-1"
@@ -345,6 +369,12 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                     {{ email.fromAddress }}
                   </p>
                   <div class="flex items-center gap-1 flex-shrink-0">
+                    @if (email.flag) {
+                      <svg class="h-3.5 w-3.5 text-red-600" viewBox="0 0 24 24" fill="currentColor" aria-label="Con bandera">
+                        <title>Bandera de {{ email.flag.byName }}</title>
+                        <path d="M5 21V4h11l-1.5 4L16 12H7v9z"/>
+                      </svg>
+                    }
                     @if (email.attachmentCount) {
                       <svg class="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Tiene adjuntos">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -365,7 +395,10 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                      [innerHTML]="snippetHtml(email.snippet)"></p>
                 }
                 <div class="flex items-center justify-end mt-1">
-                  <span class="text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
+                  <span class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
+                    @if (email.folder === 'ejecutivos') {
+                      <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6M12 17h.01"/></svg>
+                    }
                     {{ folderLabel(email.folder) }}
                   </span>
                 </div>
@@ -422,6 +455,15 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
             }
             <!-- Header -->
             <div class="border-b border-gray-100 pb-4 mb-4">
+              <!-- Ejecutivo: es para cumplimentar, que se note -->
+              @if (activeEmail()!.folder === 'ejecutivos') {
+                <div class="mb-3 flex items-center gap-2 rounded-lg border-l-4 border-purple-600 bg-purple-50 px-3 py-2 text-sm text-purple-900">
+                  <svg class="h-5 w-5 flex-shrink-0 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5h.01"/>
+                  </svg>
+                  <span><strong>MTO EJECUTIVO</strong> — es para cumplimentar.</span>
+                </div>
+              }
               <div class="flex items-start justify-between gap-3 mb-2">
                 <h1 class="text-base font-semibold text-gray-900 leading-snug" [innerHTML]="highlightText(activeEmail()!.subject)"></h1>
                 <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -429,10 +471,25 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                     {{ folderLabel(activeEmail()!.folder) }}
                   </span>
                   <div class="flex items-center gap-3">
+                    @if (isTicom) {
+                      <!-- Banderita (como en Outlook): solo TICOM, compartida entre ellos -->
+                      <button (click)="toggleFlag()" [disabled]="flagBusy()"
+                        class="flex items-center gap-1 text-xs transition-colors hover:opacity-75 disabled:opacity-50"
+                        [class.text-red-600]="!!activeEmail()!.flag"
+                        [class.font-semibold]="!!activeEmail()!.flag"
+                        [class.text-gray-400]="!activeEmail()!.flag"
+                        [title]="activeEmail()!.flag ? 'Quitar la bandera (la puso ' + activeEmail()!.flag!.byName + ')' : 'Marcar con bandera: hasta acá se leyó'">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" [attr.fill]="activeEmail()!.flag ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                          <path d="M5 21V4h11l-1.5 4L16 12H7v9z"/>
+                        </svg>
+                        {{ activeEmail()!.flag ? 'Con bandera' : 'Bandera' }}
+                        <app-new-badge feature="bandera-mto" [compact]="true" />
+                      </button>
+                    }
                     <app-mto-share [email]="activeEmail()!" />
                     <button (click)="printEmail()"
                       class="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
-                      title="Imprimir email">
+                      title="Imprimir (Ctrl+P)">
                       <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/>
                       </svg>
@@ -451,9 +508,15 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 <p><span class="font-medium text-gray-600">Asunto:</span> <span [innerHTML]="highlightText(activeEmail()!.subject)"></span></p>
               </div>
               <!-- Quiénes lo abrieron (fotos encimadas + cantidad; al tocar, la lista con fecha y hora) -->
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <app-mto-viewers [emailId]="activeEmail()!.id" [subject]="activeEmail()!.mailCode || activeEmail()!.subject" [version]="viewsVersion()" />
                 <app-new-badge feature="vistos-mto" [compact]="true" class="mt-2" />
+                @if (activeEmail()!.flag; as f) {
+                  <span class="mt-2 inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs text-red-700">
+                    <svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 21V4h11l-1.5 4L16 12H7v9z"/></svg>
+                    Bandera de {{ f.byName }} · {{ formatUploadDate(f.at) }}
+                  </span>
+                }
               </div>
 
               <!-- Attachments — horizontal, below metadata -->
@@ -699,6 +762,10 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
     }
     .folder-btn:hover { background: #f3f4f6; }
     .folder-active { background: #f0fdfa !important; color: #0f766e !important; font-weight: 600; }
+    /* Ejecutivos: son para cumplimentar, se destacan en la lista */
+    .mto-ejecutivo { border-left: 4px solid #7c3aed; }
+    .mto-ejecutivo-bg { background: #faf5ff; }
+    .mto-ejecutivo-bg:hover { background: #f3e8ff; }
   `],
 })
 export class MailComponent implements OnInit {
@@ -1153,6 +1220,65 @@ export class MailComponent implements OnInit {
   /** Cambia cuando el usuario quedó registrado como que vio el MTO: "Visto por" se actualiza. */
   readonly viewsVersion = signal(0);
 
+  // ─── Marcar todo como leído ────────────────────────────────────────────────
+
+  readonly markingAllRead = signal(false);
+
+  /** Las 4 carpetas en cero para este usuario; lo que llegue después aparece como no leído. */
+  markAllRead(): void {
+    if (!confirm('¿Marcar como leídos todos los MTO? Ejecutivos, Informativos, Redgen y Enviados quedan en cero (solo para vos). Los que lleguen después aparecen como no leídos.')) return;
+    this.markingAllRead.set(true);
+    this.mailService.markAllRead().subscribe({
+      next: () => {
+        this.markingAllRead.set(false);
+        // Vista agrupada por remitente: se vuelve a cargar con el estado nuevo.
+        if (this.groupBy() === 'from') {
+          this.senderGroups.set([]);
+          this.groupEmailsMap.set(new Map());
+          this.expandedGroups.set(new Set());
+          this.loadSenderGroups();
+        }
+      },
+      error: () => {
+        this.markingAllRead.set(false);
+        alert('No se pudo marcar todo como leído. Intentá de nuevo.');
+      },
+    });
+  }
+
+  // ─── Banderita (solo TICOM) ────────────────────────────────────────────────
+
+  readonly flagBusy = signal(false);
+
+  toggleFlag(): void {
+    const email = this.activeEmail();
+    if (!email || this.flagBusy()) return;
+    this.flagBusy.set(true);
+    const done = (flag: MailFlag | null) => {
+      this.flagBusy.set(false);
+      const apply = (e: Email) => (e.id === email.id ? { ...e, flag } : e);
+      this.activeEmail.update((e) => (e ? apply(e) : e));
+      this.mailService.emails.update((list) => list.map(apply));
+      const groups = new Map(this.groupEmailsMap());
+      for (const [sender, state] of groups) groups.set(sender, { ...state, emails: state.emails.map(apply) });
+      this.groupEmailsMap.set(groups);
+    };
+    if (email.flag) {
+      this.mailService.clearFlag(email.id).subscribe({ next: () => done(null), error: () => this.flagBusy.set(false) });
+    } else {
+      this.mailService.setFlag(email.id).subscribe({ next: (flag) => done(flag), error: () => this.flagBusy.set(false) });
+    }
+  }
+
+  /** Ctrl+P con un MTO abierto: lo imprime con el formato de Outlook, como el botón Imprimir. */
+  @HostListener('window:keydown', ['$event'])
+  onPrintShortcut(event: KeyboardEvent): void {
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'p' && this.activeEmail()) {
+      event.preventDefault();
+      this.printEmail();
+    }
+  }
+
   /** Marca el MTO como visto por el usuario (el backend no duplica) y actualiza "Visto por". */
   private recordView(emailId: string, after?: () => void): void {
     this.mailService.markRead(emailId).subscribe({
@@ -1296,7 +1422,8 @@ export class MailComponent implements OnInit {
 
   folderBadgeClass(folder: MailFolder): string {
     const map: Record<MailFolder, string> = {
-      informativos: 'bg-blue-100 text-blue-700', ejecutivos: 'bg-purple-100 text-purple-700',
+      // Ejecutivos, relleno fuerte: son para cumplimentar
+      informativos: 'bg-blue-100 text-blue-700', ejecutivos: 'bg-purple-600 text-white font-semibold',
       redgen: 'bg-amber-100 text-amber-700', tx: 'bg-teal-100 text-teal-700',
     };
     return map[folder];

@@ -1466,48 +1466,77 @@ export class MailComponent implements OnInit {
     );
   }
 
+  /**
+   * Impresión como la de Outlook (así se archivaban en papel): la cuenta arriba
+   * con una línea gruesa, De / Enviado el / Para / CC / Asunto / Datos adjuntos
+   * en negrita, y el cuerpo en Calibri. Sin el encabezado ni el pie del
+   * navegador (fecha, about:blank, 1/1): los márgenes los pone la página.
+   */
   printEmail(): void {
     const email = this.activeEmail();
     if (!email) return;
-    const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const meta = [
-      `<tr><th>De</th><td>${escHtml(email.fromAddress)}</td></tr>`,
-      `<tr><th>Para</th><td>${escHtml((email.toAddresses ?? []).join(', '))}</td></tr>`,
-      email.ccAddresses?.length ? `<tr><th>CC</th><td>${escHtml(email.ccAddresses.join(', '))}</td></tr>` : '',
-      `<tr><th>Fecha</th><td>${this.formatFullDate(email.date)}</td></tr>`,
-      `<tr><th>Asunto</th><td>${escHtml(email.subject)}</td></tr>`,
-      `<tr><th>Tipo</th><td>${this.folderLabel(email.folder)}</td></tr>`,
-      email.mailCode ? `<tr><th>Código</th><td>${escHtml(email.mailCode)}</td></tr>` : '',
-    ].filter(Boolean).join('');
-    const attachList = email.attachments?.length
-      ? `<div class="attachments"><strong>Adjuntos:</strong> ${email.attachments.map(a => escHtml(a.filename)).join(', ')}</div>`
-      : '';
-    const body = email.bodyText
-      ? `<pre>${escHtml(email.bodyText)}</pre>`
-      : (email.bodyHtml ?? '');
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
-      <title>${escHtml(email.subject)}</title>
-      <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 20px; }
-        table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
-        th { text-align: left; width: 70px; color: #555; font-weight: 600; padding: 2px 8px 2px 0; vertical-align: top; }
-        td { padding: 2px 0; }
-        hr { border: none; border-top: 1px solid #ccc; margin: 12px 0; }
-        pre { white-space: pre-wrap; font-family: Arial, sans-serif; font-size: 12px; margin: 0; }
-        .attachments { margin-top: 12px; font-size: 11px; color: #555; }
-        @media print { body { margin: 0; } }
-      </style>
-    </head><body>
-      <table>${meta}</table>
-      <hr>
-      ${attachList}
-      ${body}
-    </body></html>`);
-    win.document.close();
-    win.focus();
-    win.print();
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    /** Como los muestra Outlook: el nombre de la casilla (DIREDTOS@MTO.GNA → DIREDTOS). */
+    const nameOf = (address: string) => address.split('@')[0].trim();
+    const names = (list: string[] | undefined) => (list ?? []).map(nameOf).filter(Boolean).join('; ');
+
+    const zone = 'America/Argentina/Buenos_Aires';
+    const when = new Date(email.date);
+    // "jueves, 8 de octubre de 2026 12:42", en hora de Argentina
+    const sentAt =
+      when.toLocaleDateString('es-AR', { timeZone: zone, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) +
+      ' ' +
+      when.toLocaleTimeString('es-AR', { timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false });
+
+    const rows: [string, string][] = [
+      ['De:', `${nameOf(email.fromAddress)} <${email.fromAddress}>`],
+      ['Enviado el:', sentAt],
+      ['Para:', names(email.toAddresses)],
+      ['CC:', names(email.ccAddresses)],
+      ['Asunto:', email.subject ?? ''],
+    ];
+    if (email.attachments?.length) rows.push(['Datos adjuntos:', email.attachments.map((a) => a.filename).join('; ')]);
+    const header = rows
+      .filter(([label, value]) => label !== 'CC:' || value)
+      .map(([label, value]) => `<tr><th>${label}</th><td>${esc(value)}</td></tr>`)
+      .join('');
+    const body = email.bodyText?.trim()
+      ? `<div class="body">${esc(email.bodyText)}</div>`
+      : `<div class="body html">${email.bodyHtml ?? ''}</div>`;
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>${esc(email.subject ?? '')}</title>
+<style>
+  /* Sin margen de página: así el navegador no imprime su encabezado ni su pie. */
+  @page { margin: 0; }
+  html, body { margin: 0; }
+  body { padding: 16mm 18mm; color: #000; font-family: Calibri, Carlito, 'Segoe UI', Arial, sans-serif; font-size: 11pt; }
+  .account { font-weight: bold; font-size: 13pt; padding-bottom: 2pt; border-bottom: 3px solid #000; margin-bottom: 10pt; }
+  table { border-collapse: collapse; margin-bottom: 18pt; }
+  th { text-align: left; font-weight: bold; vertical-align: top; padding: 0 22pt 1pt 0; white-space: nowrap; }
+  td { vertical-align: top; padding: 0 0 1pt; }
+  .body { white-space: pre-wrap; word-wrap: break-word; line-height: 1.25; }
+  .body.html { white-space: normal; }
+</style>
+</head><body>
+  <div class="account">DIREDTOS@MTO.GNA</div>
+  <table>${header}</table>
+  ${body}
+</body></html>`;
+
+    // Iframe oculto: no abre otra pestaña ni lo frena el bloqueador de ventanas.
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument!;
+    doc.open();
+    doc.write(html);
+    doc.close();
+    setTimeout(() => {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+      setTimeout(() => frame.remove(), 1000);
+    }, 200);
   }
 
   onBodyCodeClick(event: MouseEvent): void {

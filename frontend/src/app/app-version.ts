@@ -24,5 +24,6 @@
  * 1.6.0 — Escaneos: las impresoras escanean a la bandeja de la oficina y aparece en Archivos → Escaneos.
  * 1.6.1 — Archivos compartidos: archivos de hasta 100 GB (antes 10).
  * 1.6.2 — "Visto por" en cada MTO: quiénes lo abrieron, con fecha y hora.
+ * 1.6.3 — El MTO se imprime como en Outlook (cuenta arriba, De/Enviado el/Para/CC/Asunto, Calibri, sin encabezado del navegador).
  */
-export const APP_VERSION = '1.6.2';
+export const APP_VERSION = '1.6.3';

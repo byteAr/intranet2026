@@ -2,7 +2,9 @@ import { Injectable, Logger, NotFoundException, OnApplicationBootstrap } from '@
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository, SelectQueryBuilder } from 'typeorm';
-import { existsSync } from 'fs';
+import { constants as fsConstants, existsSync, promises as fsp } from 'fs';
+import { join } from 'path';
+import { expandTnef, isTnefAttachment } from './tnef.util';
 import { Email } from './entities/email.entity';
 import { Attachment } from './entities/attachment.entity';
 import { EmailReadStatus } from './entities/email-read-status.entity';
@@ -86,6 +88,84 @@ export class MailService implements OnApplicationBootstrap {
     // el arranque. Mientras corre, la búsqueda funciona con el índice anterior.
     void this.migrateSearchData();
     void this.repairEncodingResidue();
+    void this.repairTnefAttachments();
+  }
+
+  /**
+   * Una sola vez: los winmail.dat que ya estaban guardados (Outlook en "Texto
+   * enriquecido" mete los adjuntos ahí; desde el 31/03/2026 llegaron 159) se
+   * reemplazan por los archivos de adentro. El winmail.dat queda en el disco
+   * como respaldo; se quita de la lista. Lo hace producción: staging tiene los
+   * adjuntos de solo lectura. Marca en app_markers 'emails.tnef'.
+   */
+  private async repairTnefAttachments(): Promise<void> {
+    const MARK = 'tnef:v1';
+    const runner = this.dataSource.createQueryRunner();
+    let locked = false;
+    try {
+      await runner.connect();
+      const [fila] = await runner.query(`SELECT "value" FROM "app_markers" WHERE "key" = 'emails.tnef'`).catch(() => []);
+      if (fila?.value === MARK) return;
+      const base = process.env.MAIL_ATTACHMENTS_PATH ?? '/app/storage/attachments';
+      try {
+        await fsp.access(base, fsConstants.W_OK);
+      } catch {
+        this.logger.log('winmail.dat: los adjuntos son de solo lectura acá; la reparación la hace producción');
+        return;
+      }
+      const [{ ok }] = await runner.query(`SELECT pg_try_advisory_lock(720261008) AS ok`);
+      if (!ok) return;
+      locked = true;
+
+      const filas: { id: string; emailId: string; filename: string; contentType: string; storagePath: string }[] =
+        await runner.query(
+          `SELECT id, "emailId", filename, "contentType", "storagePath" FROM attachments
+            WHERE lower(filename) = 'winmail.dat' OR "contentType" ILIKE '%ms-tnef%'`,
+        );
+      this.logger.log(`winmail.dat: abriendo ${filas.length} paquetes guardados...`);
+      let abiertos = 0;
+      let archivos = 0;
+      for (const f of filas) {
+        try {
+          if (!existsSync(f.storagePath)) continue;
+          const data = await fsp.readFile(f.storagePath);
+          if (!isTnefAttachment({ filename: f.filename, contentType: f.contentType, data })) continue;
+          const adentro = expandTnef([{ filename: f.filename, contentType: f.contentType, data }]);
+          if (adentro.length === 1 && adentro[0].data === data) continue; // no se pudo abrir: queda como está
+          for (const a of adentro) {
+            const safe = a.filename.replace(/[^a-zA-Z0-9._-]/g, '_') || 'adjunto';
+            let destino = join(base, `${f.emailId}_${safe}`);
+            for (let n = 2; existsSync(destino); n++) destino = join(base, `${f.emailId}_${n}_${safe}`);
+            await fsp.writeFile(destino, a.data);
+            await this.attachmentRepo.save(
+              this.attachmentRepo.create({
+                emailId: f.emailId,
+                filename: a.filename,
+                contentType: a.contentType,
+                size: a.data.length,
+                storagePath: destino,
+              }),
+            );
+            archivos++;
+          }
+          await this.attachmentRepo.delete(f.id);
+          abiertos++;
+        } catch (err) {
+          this.logger.warn(`winmail.dat ${f.id}: ${(err as Error).message}`);
+        }
+      }
+      await runner.query(
+        `INSERT INTO "app_markers" ("key", "value") VALUES ('emails.tnef', $1)
+         ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
+        [MARK],
+      );
+      this.logger.log(`winmail.dat: ${abiertos} paquetes abiertos, ${archivos} archivos recuperados`);
+    } catch (err) {
+      this.logger.error('winmail.dat: la reparación falló; se reintenta en el próximo arranque', (err as Error).message);
+    } finally {
+      if (locked) await runner.query(`SELECT pg_advisory_unlock(720261008)`).catch(() => undefined);
+      await runner.release().catch(() => undefined);
+    }
   }
 
   /**

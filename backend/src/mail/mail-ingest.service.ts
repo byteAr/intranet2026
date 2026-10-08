@@ -11,6 +11,7 @@ import { Attachment } from './entities/attachment.entity';
 import { EmailReference } from './entities/email-reference.entity';
 import { IMailGateway } from './imap-poller.service';
 import { normalizeMailText } from './mail-text.util';
+import { expandTnef } from './tnef.util';
 
 export interface IngestData {
   internetMessageId: string;
@@ -112,7 +113,8 @@ export class MailIngestService {
 
     const saved = await this.emailRepo.save(email);
 
-    await this.saveAttachments(saved, data.attachments);
+    // winmail.dat (Outlook en "Texto enriquecido"): se guardan los archivos de adentro.
+    await this.saveAttachments(saved, expandTnef(data.attachments));
 
     await this.mailParserService.saveReferences(
       saved.id,

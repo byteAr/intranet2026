@@ -124,6 +124,9 @@ Outlook declara `iso-8859-1` pero manda `windows-1252`: los bytes 0x80-0x9F (com
 - **"�" (U+FFFD)** (`replaceLostSpaces`): eran espacios duros de Outlook (0xA0) en correos que decían ser UTF-8 (alinean "FDO:", "BT:", "TX:"). Se vuelven espacio, salvo pegados después de una letra ("est�"): ahí faltaba una letra con tilde y se deja.
 - Reparación única de lo ya guardado en segundo plano al arrancar (`repairEncodingResidue`, marca `app_markers` `emails.encoding` = `qp-fffd:v1`); el trigger reindexa cada correo reparado.
 
+### winmail.dat (TNEF) — adjuntos dentro de un paquete
+Si el remitente manda desde Outlook en "Texto enriquecido", los adjuntos no viajan sueltos: van todos dentro de un `winmail.dat` (`application/ms-tnef`). Outlook lo abre solo; la intranet mostraba el paquete y los archivos (muchas veces encriptados `.~00`) no se veían (159 MTO del 31/03 al 08/10/2026). `tnef.util.ts` (`parseTnef`/`expandTnef`, lector propio: firma 0x223E9F78, atributos de nivel 2 `attAttachRendData`/`attAttachTitle`/`attAttachData` y nombre largo de las propiedades MAPI) los saca: al ingresar (`MailIngestService`) se guardan los archivos de adentro; si el paquete no se puede abrir, queda como estaba. Reparación única de lo guardado (`repairTnefAttachments`, marca `emails.tnef` = `tnef:v1`, `pg_try_advisory_lock`): crea los adjuntos nuevos y quita el `winmail.dat` de la lista (el archivo queda en el disco). La hace **producción**: staging tiene los adjuntos de solo lectura y la saltea.
+
 ### No leídos
 `MAIL_UNREAD_SINCE` (ISO 8601): lo ingresado antes cuenta como leído para todos. Lo importado desde PST nunca cuenta como no leído.
 

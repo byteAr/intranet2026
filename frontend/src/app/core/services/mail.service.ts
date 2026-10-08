@@ -6,6 +6,9 @@ import { AuthService } from './auth.service';
 
 export type MailFolder = 'informativos' | 'ejecutivos' | 'redgen' | 'tx';
 
+/** MTO por pedido; la lista trae la siguiente tanda al llegar al final (scroll infinito). */
+const PAGE_SIZE = 30;
+
 export interface SienaFile {
   id: string;
   filename: string;
@@ -222,27 +225,80 @@ export class MailService {
   loadEmails(
     folder?: MailFolder,
     page = 1,
-    limit = 30,
+    limit = PAGE_SIZE,
     historical = false,
     advanced?: { q?: string; dateFrom?: string; dateTo?: string; year?: number },
   ): void {
-    this.loading.set(true);
-    let params = new HttpParams().set('page', page).set('limit', limit);
+    let params = new HttpParams().set('limit', limit);
     if (folder) params = params.set('folder', folder);
     if (historical) params = params.set('historical', 'true');
     if (advanced?.q?.trim()) params = params.set('q', advanced.q.trim());
     if (advanced?.dateFrom) params = params.set('dateFrom', advanced.dateFrom);
     if (advanced?.dateTo) params = params.set('dateTo', advanced.dateTo);
     if (advanced?.year) params = params.set('year', advanced.year);
+    this.startList(params, page);
+  }
 
-    this.http.get<EmailListResponse>('/api/mail/emails', { params }).subscribe({
+  // ─── Lista con scroll infinito ─────────────────────────────────────────────
+
+  /** Pedidos de la lista que se está mostrando (carpeta, búsqueda…), sin la página. */
+  private listParams: HttpParams | null = null;
+  /** Páginas ya traídas del servidor (las de PAGE_SIZE). */
+  private loadedPages = 0;
+  /** Cambia con cada lista nueva (otra carpeta, otra búsqueda): la vista vuelve arriba. */
+  readonly listVersion = signal(0);
+  /** Trayendo la página siguiente al llegar al final de la lista. */
+  readonly loadingMore = signal(false);
+  /** Quedan MTO por traer en el servidor. */
+  readonly hasMore = signal(false);
+
+  private startList(params: HttpParams, pages = 1): void {
+    this.listParams = params;
+    this.loadedPages = 0;
+    this.loading.set(true);
+    this.loadingMore.set(false);
+    this.listVersion.update((v) => v + 1);
+    const version = this.listVersion();
+    // Si se pide más de una página de una vez (volver a la misma lista), se trae todo junto.
+    const limit = Number(params.get('limit') ?? PAGE_SIZE) * Math.max(1, pages);
+    this.http.get<EmailListResponse>('/api/mail/emails', { params: params.set('page', 1).set('limit', limit) }).subscribe({
       next: (res) => {
+        if (version !== this.listVersion()) return;
         this.emails.set(res.data);
         this.totalEmails.set(res.total);
         this.searchListing.set(res.listing ?? null);
+        this.loadedPages = Math.max(1, pages);
+        this.hasMore.set(res.data.length < res.total);
         this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        if (version === this.listVersion()) this.loading.set(false);
+      },
+    });
+  }
+
+  /** La página siguiente de la misma lista, al final (sin repetir los que ya están). */
+  loadMore(): void {
+    if (!this.listParams || this.loading() || this.loadingMore() || !this.hasMore()) return;
+    const version = this.listVersion();
+    const limit = Number(this.listParams.get('limit') ?? PAGE_SIZE);
+    const page = this.loadedPages + 1;
+    this.loadingMore.set(true);
+    this.http.get<EmailListResponse>('/api/mail/emails', { params: this.listParams.set('page', page) }).subscribe({
+      next: (res) => {
+        if (version !== this.listVersion()) return;
+        this.loadedPages = page;
+        this.emails.update((list) => {
+          const seen = new Set(list.map((e) => e.id));
+          return [...list, ...res.data.filter((e) => !seen.has(e.id))];
+        });
+        this.totalEmails.set(res.total);
+        this.hasMore.set(page * limit < res.total && res.data.length > 0);
+        this.loadingMore.set(false);
+      },
+      error: () => {
+        if (version === this.listVersion()) this.loadingMore.set(false);
+      },
     });
   }
 
@@ -306,20 +362,7 @@ export class MailService {
     if (!q.trim()) return;
     this.isSearchActive.set(true);
     this.emails.set([]);
-    this.loading.set(true);
-    this.http
-      .get<EmailListResponse>('/api/mail/emails', {
-        params: new HttpParams().set('q', q).set('limit', 50),
-      })
-      .subscribe({
-        next: (res) => {
-          this.emails.set(res.data);
-          this.totalEmails.set(res.total);
-          this.searchListing.set(res.listing ?? null);
-          this.loading.set(false);
-        },
-        error: () => this.loading.set(false),
-      });
+    this.startList(new HttpParams().set('q', q.trim()).set('limit', PAGE_SIZE));
   }
 
   getEmail(id: string): Observable<Email> {

@@ -6,6 +6,10 @@ import {
   OnInit,
   HostListener,
   DestroyRef,
+  ElementRef,
+  ViewChild,
+  effect,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -251,8 +255,8 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
           </div>
         </div>
 
-        <!-- Email rows -->
-        <div class="flex-1 overflow-y-auto">
+        <!-- Email rows: al acercarse al final se trae la siguiente tanda (scroll infinito) -->
+        <div #listEl class="flex-1 overflow-y-auto" (scroll)="onListScroll()">
           @if (mailService.loading()) {
             <div class="flex items-center justify-center h-24">
               <svg class="h-8 w-8 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -358,11 +362,12 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
             }
           } @else {
             <!-- Vista plana (por fecha) -->
-            @for (email of mailService.emails(); track email.id) {
+            @for (email of mailService.emails(); track email.id; let i = $index) {
               <button
                 (click)="selectEmail(email)"
                 [attr.data-email-id]="email.id"
-                class="w-full text-left px-3 py-3 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50 focus:outline-none"
+                class="mto-row w-full text-left px-3 py-3 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50 focus:outline-none"
+                [style.animation-delay.ms]="(i % 30) * 22"
                 [ngClass]="{
                   'bg-teal-50 -translate-y-0.5 shadow-md relative z-10': activeEmail()?.id === email.id,
                   'border-l-2 border-l-teal-500': !isRead(email)
@@ -409,21 +414,32 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 </div>
               </button>
             }
+
+            <!-- Trayendo la siguiente tanda: filas fantasma que brillan -->
+            @if (mailService.loadingMore()) {
+              @for (s of skeletonRows; track s) {
+                <div class="px-3 py-3 border-b border-gray-50" aria-hidden="true">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="mto-shimmer h-2.5 rounded-full" [style.width.%]="s.from"></div>
+                    <div class="mto-shimmer h-2.5 w-8 rounded-full"></div>
+                  </div>
+                  <div class="mto-shimmer mt-2.5 h-3 rounded-full" [style.width.%]="s.subject"></div>
+                  <div class="flex justify-end mt-2.5"><div class="mto-shimmer h-4 w-20 rounded-full"></div></div>
+                </div>
+              }
+            } @else if (!mailService.hasMore() && mailService.emails().length > 0 && !mailService.loading()) {
+              <div class="flex items-center justify-center gap-1.5 py-5 text-[11px] text-gray-400">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+                No hay más MTO
+              </div>
+            }
           }
         </div>
 
-        <!-- Pagination -->
-        @if (totalPages() > 1) {
-          <div class="flex items-center justify-between px-3 py-2 border-t border-gray-100">
-            <button (click)="prevPage()" [disabled]="currentPage() === 1"
-              class="text-xs px-2 py-1 rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50">
-              ← Ant
-            </button>
-            <span class="text-xs text-gray-400">{{ currentPage() }} / {{ totalPages() }}</span>
-            <button (click)="nextPage()" [disabled]="currentPage() >= totalPages()"
-              class="text-xs px-2 py-1 rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50">
-              Sig →
-            </button>
+        <!-- Cuántos hay cargados (la lista sigue sola al llegar al final) -->
+        @if (groupBy() === 'none' && mailService.emails().length && !mailService.loading()) {
+          <div class="px-3 py-1.5 border-t border-gray-100 text-[11px] text-gray-400 text-center">
+            {{ mailService.emails().length.toLocaleString('es-AR') }} de {{ mailService.totalEmails().toLocaleString('es-AR') }}
           </div>
         }
       </div>
@@ -759,6 +775,17 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
     }
     .folder-btn:hover { background: #f3f4f6; }
     .folder-active { background: #f0fdfa !important; color: #0f766e !important; font-weight: 600; }
+    /* Scroll infinito: cada fila entra deslizándose (escalonadas) y las fantasma brillan */
+    /* backwards: al terminar no pisa el transform de la fila activa */
+    .mto-row { animation: mto-row-in .38s cubic-bezier(.2,.8,.2,1) backwards; }
+    @keyframes mto-row-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    .mto-shimmer {
+      background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 40%, #f1f5f9 80%);
+      background-size: 200% 100%;
+      animation: mto-shimmer 1.2s ease-in-out infinite;
+    }
+    @keyframes mto-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+
     /*
      * Ejecutivo sin abrir: la etiqueta roja late hasta que se abre el MTO.
      * Sin excepción por "reducir movimiento": en muchas PC Windows tiene las
@@ -782,7 +809,6 @@ export class MailComponent implements OnInit {
 
   readonly previewRequest = signal<AttachmentPreviewRequest | null>(null);
   readonly activeFolder = signal<MailFolder | null>(null);
-  readonly currentPage = signal(1);
   readonly activeEmail = signal<Email | null>(null);
   readonly detailLoading = signal(false);
   readonly isSearchMode = signal(false);
@@ -804,9 +830,42 @@ export class MailComponent implements OnInit {
 
   searchQuery = '';
 
-  readonly totalPages = computed(() =>
-    Math.max(1, Math.ceil(this.mailService.totalEmails() / 30))
-  );
+  // ─── Scroll infinito ───────────────────────────────────────────────────────
+
+  @ViewChild('listEl') private listEl?: ElementRef<HTMLElement>;
+  /** Filas fantasma mientras llega la siguiente tanda (anchos variados, para que parezcan MTO). */
+  readonly skeletonRows = [
+    { from: 46, subject: 78 },
+    { from: 38, subject: 64 },
+    { from: 52, subject: 71 },
+  ];
+  /** A cuánto del final se pide la siguiente tanda: llega antes de que se vea el final. */
+  private readonly LOAD_AHEAD_PX = 400;
+
+  onListScroll(): void {
+    const el = this.listEl?.nativeElement;
+    if (!el || this.groupBy() !== 'none') return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - this.LOAD_AHEAD_PX) this.mailService.loadMore();
+  }
+
+  private readonly scrollEffects = (() => {
+    // Lista nueva (otra carpeta, otra búsqueda): arriba de todo.
+    effect(() => {
+      this.mailService.listVersion();
+      untracked(() => {
+        const el = this.listEl?.nativeElement;
+        if (el) el.scrollTop = 0;
+      });
+    });
+    // Si lo cargado no llena la columna (pantallas altas), se pide más sin esperar al scroll.
+    effect(() => {
+      this.mailService.emails();
+      this.mailService.loading();
+      this.mailService.loadingMore();
+      untracked(() => setTimeout(() => this.onListScroll(), 0));
+    });
+    return true;
+  })();
 
   readonly groupBy = signal<'none' | 'from'>('none');
   readonly showGroupByMenu = signal(false);
@@ -1157,7 +1216,6 @@ export class MailComponent implements OnInit {
   selectFolder(folder: MailFolder | null): void {
     this.isHistorical.set(false);
     this.activeFolder.set(folder);
-    this.currentPage.set(1);
     this.activeEmail.set(null);
     this.isSearchMode.set(false);
     if (this.groupBy() === 'from') { this.senderGroups.set([]); this.groupEmailsMap.set(new Map()); this.expandedGroups.set(new Set()); this.loadSenderGroups(); }
@@ -1171,7 +1229,6 @@ export class MailComponent implements OnInit {
     const next = !this.isHistorical();
     this.isHistorical.set(next);
     this.activeFolder.set(null);
-    this.currentPage.set(1);
     this.activeEmail.set(null);
     this.isSearchMode.set(false);
     this.isAdvancedMode.set(false);
@@ -1357,7 +1414,7 @@ export class MailComponent implements OnInit {
     this.isSearchMode.set(false);
     this.activeSearchTerm.set('');
     this.mailService.exitSearch();
-    this.mailService.loadEmails(this.activeFolder() ?? undefined, this.currentPage(), 30, this.isHistorical());
+    this.mailService.loadEmails(this.activeFolder() ?? undefined, 1, 30, this.isHistorical());
   }
 
   toggleAdvanced(): void {
@@ -1374,7 +1431,6 @@ export class MailComponent implements OnInit {
     this.isAdvancedMode.set(true);
     this.isSearchMode.set(false);
     this.showAdvanced.set(false);
-    this.currentPage.set(1);
     this.activeEmail.set(null);
     this.activeSearchTerm.set(this.searchQuery.trim());
     this.mailService.isSearchActive.set(true);
@@ -1402,20 +1458,6 @@ export class MailComponent implements OnInit {
     this.activeSearchTerm.set('');
     this.mailService.exitSearch();
     this.mailService.loadEmails(this.activeFolder() ?? undefined, 1, 30, this.isHistorical());
-  }
-
-  prevPage(): void {
-    if (this.currentPage() <= 1) return;
-    const p = this.currentPage() - 1;
-    this.currentPage.set(p);
-    this.mailService.loadEmails(this.activeFolder() ?? undefined, p, 30, this.isHistorical());
-  }
-
-  nextPage(): void {
-    if (this.currentPage() >= this.totalPages()) return;
-    const p = this.currentPage() + 1;
-    this.currentPage.set(p);
-    this.mailService.loadEmails(this.activeFolder() ?? undefined, p, 30, this.isHistorical());
   }
 
   folderLabel(folder: MailFolder): string { return FOLDER_LABELS[folder]; }

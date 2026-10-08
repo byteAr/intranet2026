@@ -67,9 +67,11 @@ services:
       # producción con estos volúmenes: hay que hacerlo antes de levantar staging).
       - intranet2026_decrypted_attachments:/app/storage/decrypted-attachments:ro
       - intranet2026_siena_files:/app/storage/siena-files:ro
-      # Escaneos de producción, solo para verlos. Sin la bandeja montada, este
-      # backend no toma escaneos ni borra los vencidos (eso lo hace producción).
-      - intranet2026_scans:/app/storage/scans:ro
+      # Escaneos: bandeja, cuentas y almacén propios de staging (la base es la
+      # de producción: cada ambiente muestra y borra solo los escaneos que tiene).
+      - scan_inbox:/app/storage/scan-inbox
+      - scan_config:/app/storage/scan-config
+      - scans:/app/storage/scans
       # Cuenta de servicio de Google (Workspace + Drive), la misma de producción
       - ./secrets/google-workspace-key.json:/run/google/google-workspace-key.json:ro
     secrets:
@@ -82,6 +84,25 @@ services:
     networks:
       - default
       - intranet_shared
+
+  # Bandeja de escaneo para probar en staging. ⚠️ Usa los mismos puertos que la
+  # de producción (445, 21, 30000-30009: las impresoras no permiten otro para
+  # SMB): solo puede estar prendida una de las dos. Por eso va con perfil:
+  #   docker compose -p intranet_staging -f docker-compose.staging.yml --profile escaneos up -d --build scan-inbox
+  scan-inbox:
+    build: ./scan-inbox
+    container_name: intranet_staging_scan_inbox
+    profiles: ['escaneos']
+    restart: unless-stopped
+    environment:
+      SCAN_PUBLIC_IP: ${SCAN_PUBLIC_IP:-10.98.40.24}
+    ports:
+      - '445:445'
+      - '21:21'
+      - '30000-30009:30000-30009'
+    volumes:
+      - scan_inbox:/inbox
+      - scan_config:/config:ro
 
   frontend:
     build:
@@ -111,8 +132,9 @@ volumes:
     external: true
   intranet2026_siena_files:
     external: true
-  intranet2026_scans:
-    external: true
+  scan_inbox:
+  scan_config:
+  scans:
 
 networks:
   default:

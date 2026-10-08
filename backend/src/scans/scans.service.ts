@@ -137,8 +137,13 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
     return this.config.get<string>('SCAN_PUBLIC_IP') || '10.98.40.24';
   }
 
+  /**
+   * Las contraseñas se cifran con el secreto del ad-bridge, que staging y
+   * producción comparten (secrets/bridge_secret.txt): staging comparte la base,
+   * y así los accesos creados al probar en staging siguen andando en producción.
+   */
   private get secret(): string {
-    return this.config.get<string>('jwt.secret') ?? '';
+    return this.config.get<string>('BRIDGE_SECRET') ?? 'pac-bridge-secret-change-me';
   }
 
   // ─── Bandeja ───────────────────────────────────────────────────────────────
@@ -275,12 +280,17 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
     this.lastAccountsFile = content;
   }
 
-  /** Todos los días: borra lo que pasó el plazo de conservación. */
+  /**
+   * Todos los días: borra lo que pasó el plazo de conservación. Solo lo que
+   * está en este servidor: staging comparte la base y tiene sus propios escaneos.
+   */
   @Cron('30 3 * * *')
   async purgeExpired(): Promise<void> {
     if (!this.worker) return;
     const limit = new Date(Date.now() - this.retentionDays * 24 * 60 * 60 * 1000);
-    const old = await this.scans.find({ where: { receivedAt: LessThan(limit) } });
+    const old = (await this.scans.find({ where: { receivedAt: LessThan(limit) } })).filter((s) =>
+      existsSync(s.storagePath),
+    );
     for (const scan of old) {
       await rm(scan.storagePath, { force: true });
       await this.scans.delete(scan.id);
@@ -316,7 +326,8 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
   async list(user: ScanUser, groupName: string): Promise<ScanDto[]> {
     const office = await this.assertMember(user, groupName);
     const rows = await this.scans.find({ where: { groupName: office }, order: { receivedAt: 'DESC' } });
-    return rows.map((s) => this.toDto(s));
+    // Solo los que están en este servidor: staging comparte la base pero no los archivos.
+    return rows.filter((s) => existsSync(s.storagePath)).map((s) => this.toDto(s));
   }
 
   async get(user: ScanUser, groupName: string, id: string): Promise<Scan> {
@@ -389,13 +400,12 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
       this.accounts.find(),
       this.scans
         .createQueryBuilder('s')
-        .select('s.groupName', 'groupName')
-        .addSelect('COUNT(*)', 'count')
-        .groupBy('s.groupName')
-        .getRawMany<{ groupName: string; count: string }>(),
+        .select(['s.groupName', 's.storagePath'])
+        .getMany(),
     ]);
     const byGroup = new Map(accounts.map((a) => [a.groupName, a]));
-    const countOf = new Map(counts.map((c) => [c.groupName, Number(c.count)]));
+    const countOf = new Map<string, number>();
+    for (const s of counts) if (existsSync(s.storagePath)) countOf.set(s.groupName, (countOf.get(s.groupName) ?? 0) + 1);
     return offices
       .map((o) => o.groupName)
       .sort((a, b) => a.localeCompare(b, 'es'))

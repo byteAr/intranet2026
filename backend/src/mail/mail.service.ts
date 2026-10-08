@@ -99,7 +99,8 @@ export class MailService implements OnApplicationBootstrap {
    * adjuntos de solo lectura. Marca en app_markers 'emails.tnef'.
    */
   private async repairTnefAttachments(): Promise<void> {
-    const MARK = 'tnef:v1';
+    // v2: además se quitan de la lista los que solo traían formato o el escudo pegado.
+    const MARK = 'tnef:v2';
     const runner = this.dataSource.createQueryRunner();
     let locked = false;
     try {
@@ -129,9 +130,13 @@ export class MailService implements OnApplicationBootstrap {
         try {
           if (!existsSync(f.storagePath)) continue;
           const data = await fsp.readFile(f.storagePath);
-          if (!isTnefAttachment({ filename: f.filename, contentType: f.contentType, data })) continue;
-          const adentro = expandTnef([{ filename: f.filename, contentType: f.contentType, data }]);
-          if (adentro.length === 1 && adentro[0].data === data) continue; // no se pudo abrir: queda como está
+          const original = { filename: f.filename, contentType: f.contentType, data };
+          if (!isTnefAttachment(original)) continue;
+          const resultado = expandTnef([original]);
+          // Si el winmail.dat sigue en el resultado, trae algo que no se supo leer: se deja.
+          const conservar = resultado.includes(original);
+          const adentro = resultado.filter((a) => a !== original);
+          if (conservar && !adentro.length) continue;
           for (const a of adentro) {
             const safe = a.filename.replace(/[^a-zA-Z0-9._-]/g, '_') || 'adjunto';
             let destino = join(base, `${f.emailId}_${safe}`);
@@ -148,7 +153,7 @@ export class MailService implements OnApplicationBootstrap {
             );
             archivos++;
           }
-          await this.attachmentRepo.delete(f.id);
+          if (!conservar) await this.attachmentRepo.delete(f.id);
           abiertos++;
         } catch (err) {
           this.logger.warn(`winmail.dat ${f.id}: ${(err as Error).message}`);
@@ -159,7 +164,7 @@ export class MailService implements OnApplicationBootstrap {
          ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
         [MARK],
       );
-      this.logger.log(`winmail.dat: ${abiertos} paquetes abiertos, ${archivos} archivos recuperados`);
+      this.logger.log(`winmail.dat: ${abiertos} paquetes resueltos, ${archivos} archivos recuperados (los que solo traían formato o el escudo, quitados de la lista)`);
     } catch (err) {
       this.logger.error('winmail.dat: la reparación falló; se reintenta en el próximo arranque', (err as Error).message);
     } finally {

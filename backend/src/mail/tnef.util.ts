@@ -22,6 +22,9 @@ const PR_ATTACH_LONG_FILENAME = 0x3707;
 const PR_ATTACH_FILENAME = 0x3704;
 const PR_ATTACH_MIME_TAG = 0x370e;
 const PR_DISPLAY_NAME = 0x3001;
+const PR_ATTACH_METHOD = 0x3705;
+/** Objeto OLE pegado en el texto (el escudo de Gendarmería, una firma): no es un archivo adjunto. */
+const ATTACH_OLE = 6;
 
 export interface TnefAttachment {
   filename: string;
@@ -52,23 +55,26 @@ export function isTnefAttachment(att: { filename: string; contentType?: string |
 }
 
 /**
- * Reemplaza cada winmail.dat por los archivos que trae adentro. Si un paquete no
- * se puede abrir (o viene vacío), queda como estaba: nunca se pierde nada.
+ * Reemplaza cada winmail.dat por los archivos que trae adentro. Si solo traía el
+ * formato del texto o imágenes pegadas (el escudo), desaparece: no hay nada para
+ * descargar y confundía. Si trae algún adjunto que no se supo leer, el
+ * winmail.dat se conserva junto a lo que sí salió: nunca se pierde nada.
  */
 export function expandTnef<T extends { filename: string; contentType: string; data: Buffer }>(
   attachments: T[],
 ): { filename: string; contentType: string; data: Buffer }[] {
   const out: { filename: string; contentType: string; data: Buffer }[] = [];
   for (const att of attachments) {
-    const inner = isTnefAttachment(att) ? parseTnef(att.data) : [];
-    if (!inner.length) {
+    if (!isTnefAttachment(att)) {
       out.push(att);
       continue;
     }
-    for (const f of inner) {
+    const { files, unreadable } = inspectTnef(att.data);
+    for (const f of files) {
       const ext = f.filename.split('.').pop()?.toLowerCase() ?? '';
       out.push({ filename: f.filename, contentType: f.contentType || MIME_BY_EXT[ext] || 'application/octet-stream', data: f.data });
     }
+    if (unreadable > 0) out.push(att);
   }
   return out;
 }
@@ -79,8 +85,17 @@ export function isTnef(buf: Buffer): boolean {
 
 /** Los adjuntos del paquete. Si no es TNEF o viene roto, lo que se pudo leer (o []). */
 export function parseTnef(buf: Buffer): TnefAttachment[] {
-  if (!isTnef(buf)) return [];
-  const out: { title?: string; longName?: string; mime?: string; data?: Buffer }[] = [];
+  return inspectTnef(buf).files;
+}
+
+/**
+ * Qué trae el paquete: los archivos que se pudieron sacar, cuántos eran objetos
+ * pegados en el texto (imágenes OLE, como el escudo) y cuántos adjuntos no se
+ * supieron leer. Con `unreadable` > 0 el winmail.dat no se debe esconder.
+ */
+export function inspectTnef(buf: Buffer): { files: TnefAttachment[]; pasted: number; unreadable: number } {
+  if (!isTnef(buf)) return { files: [], pasted: 0, unreadable: 0 };
+  const out: { title?: string; longName?: string; mime?: string; method?: number; data?: Buffer }[] = [];
   let current: (typeof out)[number] | null = null;
   let pos = 6; // firma + clave
 
@@ -106,16 +121,22 @@ export function parseTnef(buf: Buffer): TnefAttachment[] {
       const props = readMapiProps(data);
       current.longName = props.get(PR_ATTACH_LONG_FILENAME) ?? props.get(PR_ATTACH_FILENAME) ?? props.get(PR_DISPLAY_NAME);
       current.mime = props.get(PR_ATTACH_MIME_TAG);
+      const method = props.get(PR_ATTACH_METHOD);
+      if (method !== undefined) current.method = Number(method);
     }
   }
 
-  return out
-    .filter((a) => a.data && a.data.length > 0)
-    .map((a, i) => ({
+  const withData = out.filter((a) => a.data && a.data.length > 0);
+  const withoutData = out.filter((a) => !a.data || a.data.length === 0);
+  return {
+    files: withData.map((a, i) => ({
       filename: (a.longName || a.title || `adjunto-${i + 1}`).trim(),
       contentType: a.mime ?? null,
       data: a.data!,
-    }));
+    })),
+    pasted: withoutData.filter((a) => a.method === ATTACH_OLE).length,
+    unreadable: withoutData.filter((a) => a.method !== ATTACH_OLE).length,
+  };
 }
 
 function cString(data: Buffer, encoding: 'latin1' | 'utf16le'): string {
@@ -164,6 +185,8 @@ function readMapiProps(buf: Buffer): Map<number, string> {
           if (v === 0 && type === 0x001e) props.set(propId, cString(raw, 'latin1'));
           if (v === 0 && type === 0x001f) props.set(propId, cString(raw, 'utf16le'));
         } else {
+          // PT_LONG: hace falta PR_ATTACH_METHOD (6 = objeto pegado en el texto)
+          if (v === 0 && type === 0x0003) props.set(propId, String(buf.readUInt32LE(p)));
           p += pad4(fixedSize(type));
         }
       }

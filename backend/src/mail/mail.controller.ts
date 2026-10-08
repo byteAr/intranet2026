@@ -27,6 +27,7 @@ import { MailIngestService } from './mail-ingest.service';
 import { LdapRecipientsService } from './ldap-recipients.service';
 import { DecryptedAttachmentService } from './decrypted-attachment.service';
 import { SienaFileService } from './siena-file.service';
+import { MailGateway } from './mail.gateway';
 import { BridgeSecretGuard } from './guards/bridge-secret.guard';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 import { SendEmailDto } from './dto/send-email.dto';
@@ -43,6 +44,7 @@ export class MailController {
     private readonly ldapRecipientsService: LdapRecipientsService,
     private readonly decryptedService: DecryptedAttachmentService,
     private readonly sienaFileService: SienaFileService,
+    private readonly mailGateway: MailGateway,
   ) {}
 
   @Get('unread-counts')
@@ -71,13 +73,17 @@ export class MailController {
   @Post('emails/:id/flag')
   @Roles('TICOM')
   async setFlag(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
-    return this.mailService.setFlag(id, req.user);
+    const flag = await this.mailService.setFlag(id, req.user);
+    // En vivo a los demás de TICOM que tengan los MTO abiertos.
+    this.mailGateway.notifyFlag(id, flag);
+    return flag;
   }
 
   @Delete('emails/:id/flag')
   @Roles('TICOM')
   async clearFlag(@Param('id', ParseUUIDPipe) id: string) {
     await this.mailService.clearFlag(id);
+    this.mailGateway.notifyFlag(id, null);
     return { ok: true };
   }
 

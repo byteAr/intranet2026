@@ -1320,18 +1320,28 @@ export class MailComponent implements OnInit {
   readonly FLAG_PATH =
     'M1 0h1.994v15.913H1zm3.056.52v7.575S5.667 6.664 9.244 8c3.576 1.338 4.305.974 5.712.742c0 0-2.048-.871-3.222-4.029c0 0 2.987-2.755 3.222-4.274c0 0-3.7 1.212-5.751.241C7.152-.293 4.994-.089 4.056.52';
 
+  /** La banderita de un MTO cambió (acá o en vivo, desde otro de TICOM): lista, MTO abierto y vista agrupada. */
+  private applyFlag(emailId: string, flag: MailFlag | null): void {
+    const apply = (e: Email) => (e.id === emailId ? { ...e, flag } : e);
+    this.activeEmail.update((e) => (e ? apply(e) : e));
+    this.mailService.emails.update((list) => list.map(apply));
+    const groups = new Map(this.groupEmailsMap());
+    for (const [sender, state] of groups) groups.set(sender, { ...state, emails: state.emails.map(apply) });
+    this.groupEmailsMap.set(groups);
+    this.navHistory.update((list) => list.map(apply));
+  }
+
+  private readonly liveFlags = this.mailService.flagChanges
+    .pipe(takeUntilDestroyed())
+    .subscribe(({ emailId, flag }) => this.applyFlag(emailId, flag));
+
   toggleFlag(): void {
     const email = this.activeEmail();
     if (!email || this.flagBusy()) return;
     this.flagBusy.set(true);
     const done = (flag: MailFlag | null) => {
       this.flagBusy.set(false);
-      const apply = (e: Email) => (e.id === email.id ? { ...e, flag } : e);
-      this.activeEmail.update((e) => (e ? apply(e) : e));
-      this.mailService.emails.update((list) => list.map(apply));
-      const groups = new Map(this.groupEmailsMap());
-      for (const [sender, state] of groups) groups.set(sender, { ...state, emails: state.emails.map(apply) });
-      this.groupEmailsMap.set(groups);
+      this.applyFlag(email.id, flag);
     };
     if (email.flag) {
       this.mailService.clearFlag(email.id).subscribe({ next: () => done(null), error: () => this.flagBusy.set(false) });

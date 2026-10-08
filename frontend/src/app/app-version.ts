@@ -32,5 +32,6 @@
  * 1.7.4 — Bandera nueva; el botón dice "Marcar"/"Marcado" y al lado de los vistos, "Marcado por <usuario>".
  * 1.7.5 — Búsqueda: una palabra que es un código (SNF) o una unidad (DIRTICOM) trae todos los de eso, por fecha; el texto, por fecha.
  * 1.7.6 — Lista de MTO con scroll infinito (sin flechas de páginas); también en las búsquedas.
+ * 1.7.7 — La banderita aparece y desaparece en vivo para todos los de TICOM.
  */
-export const APP_VERSION = '1.7.6';
+export const APP_VERSION = '1.7.7';

@@ -14,9 +14,12 @@ import { ImapPollerService, IMailGateway } from './imap-poller.service';
 
 interface AuthenticatedSocket extends Socket {
   data: {
-    user: { sub: string; username: string; displayName?: string };
+    user: { sub: string; username: string; displayName?: string; roles?: string[] };
   };
 }
+
+/** Sala de los usuarios de TICOM: la banderita solo la ven ellos. */
+const TICOM_ROOM = 'role:ticom';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -49,6 +52,7 @@ export class MailGateway
           sub: string;
           username: string;
           displayName?: string;
+          roles?: string[];
           exp?: number;
         }>(token, { secret: this.configService.get<string>('jwt.secret') });
         socket.data.user = payload;
@@ -67,7 +71,13 @@ export class MailGateway
       return;
     }
     socket.join(`user:${userId}`);
+    if ((socket.data.user.roles ?? []).some((r) => r.toUpperCase() === 'TICOM')) socket.join(TICOM_ROOM);
     this.logger.debug(`Mail WS connected: ${userId}`);
+  }
+
+  /** La banderita cambió (puesta o sacada): les llega en vivo a los de TICOM. */
+  notifyFlag(emailId: string, flag: { byName: string; at: Date } | null): void {
+    this.server.to(TICOM_ROOM).emit('mail_flag', { emailId, flag });
   }
 
   handleDisconnect(socket: AuthenticatedSocket): void {

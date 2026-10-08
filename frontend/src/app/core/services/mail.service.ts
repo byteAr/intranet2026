@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, Subject, tap } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
 
@@ -203,7 +203,16 @@ export class MailService {
         return [newEntry, ...list];
       });
     });
+
+    // Banderita puesta o sacada por alguien de TICOM (solo les llega a ellos).
+    this.socket.on('mail_flag', (payload: { emailId: string; flag: MailFlag | null }) => {
+      this.emails.update((list) => list.map((e) => (e.id === payload.emailId ? { ...e, flag: payload.flag } : e)));
+      this.flagChanges.next(payload);
+    });
   }
+
+  /** Cambios de banderita en vivo (para el MTO abierto y la vista agrupada). */
+  readonly flagChanges = new Subject<{ emailId: string; flag: MailFlag | null }>();
 
   disconnect(): void {
     this.socket?.disconnect();

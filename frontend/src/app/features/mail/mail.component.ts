@@ -775,6 +775,9 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
     }
     .folder-btn:hover { background: #f3f4f6; }
     .folder-active { background: #f0fdfa !important; color: #0f766e !important; font-weight: 600; }
+    /* Pie del MTO (aviso de confidencialidad): la mitad del cuerpo (14 px → 7 px). Va por innerHTML: sin encapsular. */
+    :host ::ng-deep .mto-footer { font-size: 7px; line-height: 1.45; }
+
     /* Scroll infinito: cada fila entra deslizándose (escalonadas) y las fantasma brillan */
     /* backwards: al terminar no pisa el transform de la fila activa */
     .mto-row { animation: mto-row-in .38s cubic-bezier(.2,.8,.2,1) backwards; }
@@ -1653,8 +1656,24 @@ export class MailComponent implements OnInit {
 
     highlighted = applySearchHighlight(highlighted);
 
+    // El pie (aviso de confidencialidad, después de una línea "----") va aparte:
+    // a la mitad del tamaño. Sus renglones vienen cortados a mano; se unen para
+    // que el justificado funcione (si no, cada renglón es "el último" y no se estira).
+    const sep = /(^|\n)[ \t]*-{2,}[ \t]*(?=\n|$)/g;
+    let cut = -1;
+    for (let m = sep.exec(highlighted); m; m = sep.exec(highlighted)) cut = m.index + m[1].length;
+    let footerHtml = '';
+    // Solo si lo que sigue es el aviso: un "----" en medio del MTO (una tabla, un separador) no se achica.
+    if (cut >= 0 && /CONFIDENCIAL|destinatario/i.test(highlighted.slice(cut))) {
+      const footer = highlighted.slice(cut);
+      highlighted = highlighted.slice(0, cut).replace(/\s+$/, '');
+      const [line, ...rest] = footer.split('\n');
+      const prose = rest.join('\n').trim().replace(/([^\n])\n(?!\n)/g, '$1 ');
+      footerHtml = `<pre class="mto-footer whitespace-pre-wrap font-sans text-gray-500 text-justify mt-6">${line}\n${prose}</pre>`;
+    }
+
     return this.sanitizer.bypassSecurityTrustHtml(
-      `<pre class="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">${highlighted}</pre>`
+      `<pre class="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed text-justify">${highlighted}</pre>${footerHtml}`
     );
   }
 

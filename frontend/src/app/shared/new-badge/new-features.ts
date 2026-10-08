@@ -14,6 +14,7 @@ export const NEW_FEATURES = {
   'chat-varios-adjuntos': '2026-10-06',
   'arrastrar-desencriptados': '2026-10-08',
   escaneos: '2026-10-08',
+  'vistos-mto': '2026-10-08',
 } as const;
 
 export type NewFeature = keyof typeof NEW_FEATURES;

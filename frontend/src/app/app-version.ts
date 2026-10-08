@@ -23,5 +23,6 @@
  * 1.5.6 — En Conversaciones no aparece la burbuja flotante del chat (tapaba el botón de enviar).
  * 1.6.0 — Escaneos: las impresoras escanean a la bandeja de la oficina y aparece en Archivos → Escaneos.
  * 1.6.1 — Archivos compartidos: archivos de hasta 100 GB (antes 10).
+ * 1.6.2 — "Visto por" en cada MTO: quiénes lo abrieron, con fecha y hora.
  */
-export const APP_VERSION = '1.6.1';
+export const APP_VERSION = '1.6.2';

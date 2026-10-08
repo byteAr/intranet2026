@@ -25,6 +25,7 @@ import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../..
 import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { MtoShareComponent } from './mto-share.component';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
+import { MtoViewersComponent } from './mto-viewers.component';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
 import { AppVersionService } from '../../core/services/app-version.service';
 import { forkJoin } from 'rxjs';
@@ -55,7 +56,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 @Component({
   selector: 'app-mail',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, MtoShareComponent, NewBadgeComponent, CometSpinnerComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, MtoShareComponent, NewBadgeComponent, CometSpinnerComponent, MtoViewersComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -448,6 +449,11 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 }
                 <p><span class="font-medium text-gray-600">Fecha:</span> {{ formatFullDate(activeEmail()!.date) }}</p>
                 <p><span class="font-medium text-gray-600">Asunto:</span> <span [innerHTML]="highlightText(activeEmail()!.subject)"></span></p>
+              </div>
+              <!-- Quiénes lo abrieron (fotos encimadas + cantidad; al tocar, la lista con fecha y hora) -->
+              <div class="flex items-center gap-2">
+                <app-mto-viewers [emailId]="activeEmail()!.id" [subject]="activeEmail()!.mailCode || activeEmail()!.subject" [version]="viewsVersion()" />
+                <app-new-badge feature="vistos-mto" [compact]="true" class="mt-2" />
               </div>
 
               <!-- Attachments — horizontal, below metadata -->
@@ -1126,23 +1132,35 @@ export class MailComponent implements OnInit {
       },
     });
 
-    // Mark as read
-    if (!this.isRead(email)) {
-      this.mailService.markRead(email.id).subscribe({
-        next: () => {
-          this.mailService.emails.update((list) =>
-            list.map((e) =>
-              e.id === email.id
-                ? { ...e, readStatuses: [{ isRead: true, readAt: new Date().toISOString() }] }
-                : e,
-            ),
-          );
-          if (!this.isHistorical()) {
-            this.mailService.decrementUnread(email.folder);
-          }
-        },
-      });
-    }
+    // Se registra siempre que se abre (aunque ya contara como leído: los
+    // anteriores a MAIL_UNREAD_SINCE o los históricos), para "Visto por".
+    const wasUnread = !this.isRead(email);
+    this.recordView(email.id, () => {
+      if (!wasUnread) return;
+      this.mailService.emails.update((list) =>
+        list.map((e) =>
+          e.id === email.id
+            ? { ...e, readStatuses: [{ isRead: true, readAt: new Date().toISOString() }] }
+            : e,
+        ),
+      );
+      if (!this.isHistorical()) {
+        this.mailService.decrementUnread(email.folder);
+      }
+    });
+  }
+
+  /** Cambia cuando el usuario quedó registrado como que vio el MTO: "Visto por" se actualiza. */
+  readonly viewsVersion = signal(0);
+
+  /** Marca el MTO como visto por el usuario (el backend no duplica) y actualiza "Visto por". */
+  private recordView(emailId: string, after?: () => void): void {
+    this.mailService.markRead(emailId).subscribe({
+      next: () => {
+        after?.();
+        this.viewsVersion.update((v) => v + 1);
+      },
+    });
   }
 
   /**
@@ -1503,6 +1521,7 @@ export class MailComponent implements OnInit {
         this.navHistory.set([...truncated, email]);
         this.navIndex.set(truncated.length);
         this.activeEmail.set(email);
+        this.recordView(email.id);
       },
     });
   }

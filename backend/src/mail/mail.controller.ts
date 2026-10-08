@@ -10,6 +10,7 @@ import {
   Body,
   NotFoundException,
   BadRequestException,
+  ParseUUIDPipe,
   UseInterceptors,
   UseGuards,
   UploadedFiles,
@@ -114,6 +115,12 @@ export class MailController {
     const att = await this.mailService.getAttachment(id, aid);
     if (!existsSync(att.storagePath)) throw new NotFoundException('Archivo no encontrado en disco');
     res.download(att.storagePath, att.filename);
+  }
+
+  /** Quiénes abrieron el MTO y cuándo (fila "Visto por" debajo del asunto). */
+  @Get('emails/:id/viewers')
+  async viewers(@Param('id', ParseUUIDPipe) id: string) {
+    return this.mailService.getViewers(id);
   }
 
   @Post('emails/:id/read')

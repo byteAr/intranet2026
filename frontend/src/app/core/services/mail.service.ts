@@ -38,6 +38,16 @@ export interface DecryptedFile {
   uploadedAt: string;
 }
 
+/** Alguien que abrió el MTO (fila "Visto por"). */
+export interface MtoViewer {
+  userId: string;
+  username: string;
+  name: string;
+  /** Si tiene foto: está en /api/users/:id/avatar. */
+  hasAvatar: boolean;
+  readAt: string;
+}
+
 export interface MailReadStatus {
   isRead: boolean;
   readAt?: string;
@@ -276,6 +286,11 @@ export class MailService {
 
   getTree(id: string): Observable<MailTreeNode[]> {
     return this.http.get<MailTreeNode[]>(`/api/mail/emails/${id}/tree`);
+  }
+
+  /** Quiénes abrieron el MTO y cuándo, del primero al último. */
+  getViewers(id: string): Observable<MtoViewer[]> {
+    return this.http.get<MtoViewer[]>(`/api/mail/emails/${id}/viewers`);
   }
 
   markRead(id: string): Observable<{ ok: boolean }> {

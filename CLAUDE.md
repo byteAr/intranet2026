@@ -123,6 +123,11 @@ Outlook declara `iso-8859-1` pero manda `windows-1252`: los bytes 0x80-0x9F (com
 ### No leídos
 `MAIL_UNREAD_SINCE` (ISO 8601): lo ingresado antes cuenta como leído para todos. Lo importado desde PST nunca cuenta como no leído.
 
+### Visto por (1.6.2, `features/mail/mto-viewers.component.ts`)
+- Debajo del asunto: fotos encimadas de quienes abrieron el MTO (las 5 últimas, más "+N") y "N vistos"; al tocar, un cuadro con cada uno y la fecha y hora (Argentina) de la primera vez. Lo ve cualquiera que abra el MTO.
+- Sale de `email_read_status` (`readAt` = primera apertura): `GET /api/mail/emails/:id/viewers` (sin la foto en base64: `hasAvatar` y se pide a `/api/users/:id/avatar`).
+- El frontend llama a `POST …/read` **cada vez** que se abre un MTO (también los que ya contaban como leídos —anteriores a `MAIL_UNREAD_SINCE`, históricos— y los que se abren desde una referencia); el backend no duplica. Hasta la 1.6.1 solo se llamaba si figuraba como no leído, así que los vistos se cuentan desde esa versión.
+
 ### Compartir un MTO (1.5.0, `features/mail/mto-share.component.ts`)
 - Botón "Compartir" junto a "Imprimir": WhatsApp Web (`web.whatsapp.com/send?text=`, asunto/De/Fecha/nombres de adjuntos + cuerpo recortado a 3500 caracteres; los adjuntos no viajan), por la intranet (elegir varias personas → un mensaje por persona en Conversaciones vía `ChatService.sendMessage`; a quien nunca entró se lo da de alta con `ensureUser`) y copiar enlace.
 - Enlace: `/correo?mto=<id>`; `MailComponent` lo lee de `queryParamMap`, abre el MTO y limpia el parámetro.

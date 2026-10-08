@@ -553,6 +553,34 @@ export class MailService implements OnApplicationBootstrap {
     return result;
   }
 
+  /**
+   * Quiénes abrieron el MTO y cuándo (la primera vez), del más antiguo al más
+   * nuevo. Sin la foto (es base64): solo si tiene, para pedirla a /users/:id/avatar.
+   */
+  async getViewers(emailId: string): Promise<
+    { userId: string; username: string; name: string; hasAvatar: boolean; readAt: Date }[]
+  > {
+    const email = await this.emailRepo.findOne({ where: { id: emailId }, select: ['id'] });
+    if (!email) throw new NotFoundException('Correo no encontrado');
+    const rows: { userId: string; username: string; displayName: string | null; firstName: string | null; lastName: string | null; hasAvatar: boolean; readAt: Date }[] =
+      await this.dataSource.query(
+        `SELECT u.id AS "userId", u.username, u."displayName", u."firstName", u."lastName",
+                (u.avatar IS NOT NULL AND u.avatar <> '') AS "hasAvatar", rs."readAt"
+           FROM email_read_status rs
+           JOIN users u ON u.id::text = rs."userId"::text
+          WHERE rs."emailId"::text = $1 AND rs."isRead" = true AND rs."readAt" IS NOT NULL
+          ORDER BY rs."readAt" ASC`,
+        [emailId],
+      );
+    return rows.map((r) => ({
+      userId: r.userId,
+      username: r.username,
+      name: [r.firstName, r.lastName].filter(Boolean).join(' ') || r.displayName || r.username,
+      hasAvatar: !!r.hasAvatar,
+      readAt: r.readAt,
+    }));
+  }
+
   async markRead(emailId: string, userId: string): Promise<void> {
     const email = await this.emailRepo.findOne({ where: { id: emailId } });
     if (!email) throw new NotFoundException('Correo no encontrado');

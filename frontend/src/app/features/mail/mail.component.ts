@@ -301,9 +301,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                           class="w-full text-left px-4 py-2.5 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50 focus:outline-none"
                           [ngClass]="{
                             'bg-teal-50 shadow-sm relative z-10': activeEmail()?.id === email.id,
-                            'border-l-2 border-l-teal-500': !isRead(email) && email.folder !== 'ejecutivos',
-                            'mto-ejecutivo': email.folder === 'ejecutivos',
-                            'mto-ejecutivo-bg': email.folder === 'ejecutivos' && activeEmail()?.id !== email.id
+                            'border-l-2 border-l-teal-500': !isRead(email)
                           }">
                           <div class="flex items-center justify-between gap-1">
                             <p class="text-sm truncate flex-1"
@@ -329,7 +327,8 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                             </div>
                           </div>
                           <div class="flex items-center justify-between mt-1">
-                            <span class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
+                            <span class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)"
+                                  [class.badge-pulse]="email.folder === 'ejecutivos' && !isRead(email)">
                               @if (email.folder === 'ejecutivos') {
                                 <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6M12 17h.01"/></svg>
                               }
@@ -359,9 +358,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 class="w-full text-left px-3 py-3 border-b border-gray-50 transition-all duration-150 hover:bg-gray-50 focus:outline-none"
                 [ngClass]="{
                   'bg-teal-50 -translate-y-0.5 shadow-md relative z-10': activeEmail()?.id === email.id,
-                  'border-l-2 border-l-teal-500': !isRead(email) && email.folder !== 'ejecutivos',
-                  'mto-ejecutivo': email.folder === 'ejecutivos',
-                  'mto-ejecutivo-bg': email.folder === 'ejecutivos' && activeEmail()?.id !== email.id
+                  'border-l-2 border-l-teal-500': !isRead(email)
                 }">
                 <div class="flex items-center justify-between gap-1">
                   <p class="text-xs font-medium text-gray-700 truncate flex-1"
@@ -395,7 +392,8 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                      [innerHTML]="snippetHtml(email.snippet)"></p>
                 }
                 <div class="flex items-center justify-end mt-1">
-                  <span class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)">
+                  <span class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full" [ngClass]="folderBadgeClass(email.folder)"
+                                  [class.badge-pulse]="email.folder === 'ejecutivos' && !isRead(email)">
                     @if (email.folder === 'ejecutivos') {
                       <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6M12 17h.01"/></svg>
                     }
@@ -753,10 +751,13 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
     }
     .folder-btn:hover { background: #f3f4f6; }
     .folder-active { background: #f0fdfa !important; color: #0f766e !important; font-weight: 600; }
-    /* Ejecutivos: son para cumplimentar, se destacan en rojo en la lista */
-    .mto-ejecutivo { border-left: 4px solid #dc2626; }
-    .mto-ejecutivo-bg { background: #fef2f2; }
-    .mto-ejecutivo-bg:hover { background: #fee2e2; }
+    /* Ejecutivo sin abrir: la etiqueta roja late hasta que se abre el MTO */
+    .badge-pulse { animation: badge-pulse 1.6s ease-in-out infinite; }
+    @keyframes badge-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgb(220 38 38 / .55); transform: scale(1); }
+      50% { box-shadow: 0 0 0 5px rgb(220 38 38 / 0); transform: scale(1.06); }
+    }
+    @media (prefers-reduced-motion: reduce) { .badge-pulse { animation: none; } }
   `],
 })
 export class MailComponent implements OnInit {

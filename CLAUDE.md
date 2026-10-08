@@ -127,7 +127,7 @@ Outlook declara `iso-8859-1` pero manda `windows-1252`: los bytes 0x80-0x9F (com
 - **Marcar todo leído** (botón en la columna de carpetas, `POST /api/mail/mark-all-read`): guarda en `mail_read_marks` la fecha del usuario; lo ingresado antes cuenta como leído **para él** (`cutoffFor()` = el más nuevo entre `MAIL_UNREAD_SINCE` y su marca), sin crear filas en `email_read_status` (no ensucia "Visto por").
 - **Banderita** (`mail_flags`, una por MTO: quién y cuándo): solo **TICOM** la ve y la pone (`POST/DELETE …/emails/:id/flag`, `@Roles('TICOM')`); es compartida entre ellos, como en el Outlook de DIREDTOS (el de turno marca hasta dónde leyó). Llega como `flag` en la lista y el detalle solo si el usuario es TICOM.
 - **Ctrl+P** con un MTO abierto imprime con el formato de Outlook (`printEmail()`), no la página.
-- **Ejecutivos** (son para cumplimentar): en **rojo** (1.7.1; antes violeta) — en la lista, borde de 4 px, fondo rojo claro y etiqueta roja llena; punto rojo en la carpeta. Sin aviso en el detalle (se sacó en la 1.7.1).
+- **Ejecutivos** (son para cumplimentar): etiqueta **roja** llena y punto rojo en la carpeta. La fila es como las demás (se distingue leído/no leído); mientras no se abrió, la etiqueta **late** (`.badge-pulse`) y se detiene al abrirlo (1.7.2; en la 1.7.0-1.7.1 la fila entera iba coloreada y no se veía si estaba leído). Sin aviso en el detalle.
 - Tablas `mail_read_marks` y `mail_flags` sin entidad: las crea `MailService.ensureMarkTables()` al arrancar.
 
 ### Visto por (1.6.2, `features/mail/mto-viewers.component.ts`)

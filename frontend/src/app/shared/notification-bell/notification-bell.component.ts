@@ -70,6 +70,13 @@ import { NewBadgeComponent } from '../new-badge/new-badge.component';
                       <path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3" />
                     </svg>
                   </span>
+                } @else if (n.type === 'scan') {
+                  <!-- Escaneo de una impresora -->
+                  <span class="h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                    <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M6 9V3h12v6" /><rect x="3" y="9" width="18" height="8" rx="2" /><path d="M7 13h10M8 17v4h8v-4" />
+                    </svg>
+                  </span>
                 } @else {
                   <span class="h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
                     <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -194,6 +201,10 @@ export class NotificationBellComponent {
       const fileIds = (n.data['fileIds'] as string[] | undefined) ?? [];
       void this.router.navigate(['/archivos'], {
         queryParams: { oficina: n.data['groupName'], carpeta: n.data['folderId'], archivo: fileIds[0] },
+      });
+    } else if (n.type === 'scan') {
+      void this.router.navigate(['/archivos'], {
+        queryParams: { escaneos: n.data['groupName'], escaneo: n.data['scanId'] },
       });
     }
   }

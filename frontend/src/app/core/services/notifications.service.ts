@@ -4,7 +4,7 @@ import { Subject } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
 
-export type NotificationType = 'announcement' | 'share' | 'upload';
+export type NotificationType = 'announcement' | 'share' | 'upload' | 'scan';
 
 export interface AppNotification {
   id: string;

@@ -27,6 +27,9 @@ import { OfficeDrive } from './shared-folders/entities/office-drive.entity';
 import { SharedItem } from './shared-folders/entities/shared-item.entity';
 import { NotificationsModule } from './notifications/notifications.module';
 import { Notification } from './notifications/entities/notification.entity';
+import { ScansModule } from './scans/scans.module';
+import { Scan } from './scans/entities/scan.entity';
+import { ScanAccount } from './scans/entities/scan-account.entity';
 import { DailyReport } from './daily-report/entities/daily-report.entity';
 import { DailyReportEntry } from './daily-report/entities/daily-report-entry.entity';
 import { SituationType } from './daily-report/entities/situation-type.entity';
@@ -75,7 +78,7 @@ import { DraftMailSigner } from './draft-mail/entities/draft-mail-signer.entity'
         database: configService.get<string>('database.database'),
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
-        entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailSigner, Department, AdminAuditLog, GroupPermission, DailyReport, DailyReportEntry, SituationType, ActiveSituation, NonWorkingDay, OfficeDrive, SharedItem, Notification],
+        entities: [User, Message, BroadcastMessage, BroadcastDelivery, Incident, Reservation, BlockedPeriod, PushSubscription, Email, Attachment, EmailReadStatus, EmailReference, PstImportLog, MailPendingSend, DecryptedAttachment, SienaFile, DraftEmail, DraftEmailAttachment, DraftMailSigner, Department, AdminAuditLog, GroupPermission, DailyReport, DailyReportEntry, SituationType, ActiveSituation, NonWorkingDay, OfficeDrive, SharedItem, Notification, Scan, ScanAccount],
         synchronize: configService.get<string>('app.nodeEnv') !== 'production',
         // Cada consulta SQL al log solo con DB_LOG_QUERIES=true (para depurar).
         // Siempre: errores, avisos y las consultas de más de 2 s. Va aparte de
@@ -104,6 +107,7 @@ import { DraftMailSigner } from './draft-mail/entities/draft-mail-signer.entity'
     DailyReportModule,
     SharedFoldersModule,
     NotificationsModule,
+    ScansModule,
   ],
   controllers: [HealthController],
   providers: [

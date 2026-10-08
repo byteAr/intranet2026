@@ -275,6 +275,19 @@ Toda funcionalidad nueva visible lleva la etiqueta **NUEVO** una semana desde su
 
 ---
 
+## Escaneos de impresoras (1.6.0, `scans/`, pestaña "Escaneos" de Archivos)
+
+Reemplaza las carpetas de `\\serverad2`. Las impresoras escanean a una **bandeja por oficina** en la VM; lo que llega lo ven solo los integrantes de esa oficina. **No va a Drive** (no ocupa espacio) y se borra a los **90 días** (`SCANS_RETENTION_DAYS`).
+
+- **Contenedor `scan-inbox`** (`scan-inbox/`): Samba (SMB2/3, sin SMB1) en el 445 y vsftpd en el 21 + pasivo 30000-30009 (`pasv_address` = `SCAN_PUBLIC_IP`, default `10.98.40.24`). Lee `accounts.conf` (`usuario<TAB>contraseña<TAB>carpeta`) del volumen `scan_config` cada 15 s: crea los usuarios `esc-<carpeta>`, una carpeta compartida `[escaneo-<carpeta>]` por oficina (`valid users` = solo ese usuario, `browseable = no`) y recarga; quita a los que ya no están. FTP: cada usuario encerrado en su carpeta.
+- **En la impresora**: carpeta de red `\\10.98.40.24\escaneo-<carpeta>` con el usuario y la contraseña de la oficina (dominio vacío o WORKGROUP). Las que no soportan SMB2/3 (HP LaserJet Pro M521dn) van por FTP. Impresora compartida entre oficinas → un destino por oficina en su libreta.
+- **Backend** (`ScansService`): la base es la que manda; cada 10 s reescribe `accounts.conf` si cambió y revisa `scan_inbox/<carpeta>/` (también subcarpetas). Un archivo se toma cuando lleva 15 s sin cambiar: pasa al volumen `scans`, tabla `scans` (nombre `Escaneo DD-MM-AAAA HH.MM.SS.pdf`, hora de Argentina), y avisa a la oficina (notificación `scan` → `/archivos?escaneos=<oficina>&escaneo=<id>`). Solo lo hace el backend que tiene montada la bandeja (producción): staging monta `scans` de solo lectura y no toma ni borra.
+- **Accesos** (`scan_accounts`): contraseña cifrada con `secret-box.util.ts` (propósito `scan-inbox-password`), sin caracteres confusos para tipear en el panel. TICOM los crea / regenera desde la pestaña Escaneos → "Configurar impresoras" (`GET/POST /api/scans/admin/accounts`).
+- **La oficina**: ver (mismo visor), descargar, renombrar (conserva la extensión), borrar (definitivo) y **Guardar en Archivos** → copia en la unidad de la oficina (ocupa su espacio, avisa como una subida) o en Mis archivos (`SharedFoldersService.upload`, que borra el archivo que recibe: se le pasa una copia). El escaneo sigue en la bandeja.
+- **FortiGate**: permitir del grupo "Impresoras" a `10.98.40.24` TCP 445, 21 y 30000-30009 (relevamiento del 07/10/2026: 12 impresoras, VLAN 50 `172.21.27.0/24` y 53 `172.21.36.0/24`; la VM está en la DMZ, VLAN 51).
+
+---
+
 ## Módulo Reservas — reglas de negocio
 
 - Equipo compartido entre `piso_8` y `piso_6`.

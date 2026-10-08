@@ -1,8 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import * as ldap from 'ldapjs';
+import { openSecret, sealSecret } from '../common/secret-box.util';
 
 /** Clave en app_markers de la contraseña de DIREDTOS cambiada desde Admin (cifrada). */
 const PASSWORD_MARKER = 'mail.ldapBindPassword';
@@ -70,28 +70,12 @@ export class LdapRecipientsService implements OnModuleInit {
   }
 
   /** AES-256-GCM con una clave derivada del secreto del JWT (staging, con otro secreto, no la lee). */
-  private key(): Buffer {
-    const secret = this.configService.get<string>('jwt.secret') ?? '';
-    return createHash('sha256').update(`${secret}:mail-ldap-password`).digest();
-  }
-
   private encrypt(plain: string): string {
-    const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', this.key(), iv);
-    const data = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
-    return ['v1', iv.toString('base64'), cipher.getAuthTag().toString('base64'), data.toString('base64')].join(':');
+    return sealSecret(plain, this.configService.get<string>('jwt.secret') ?? '', 'mail-ldap-password');
   }
 
   private decrypt(stored: string): string | null {
-    try {
-      const [version, iv, tag, data] = stored.split(':');
-      if (version !== 'v1') return null;
-      const decipher = createDecipheriv('aes-256-gcm', this.key(), Buffer.from(iv, 'base64'));
-      decipher.setAuthTag(Buffer.from(tag, 'base64'));
-      return Buffer.concat([decipher.update(Buffer.from(data, 'base64')), decipher.final()]).toString('utf8');
-    } catch {
-      return null;
-    }
+    return openSecret(stored, this.configService.get<string>('jwt.secret') ?? '', 'mail-ldap-password');
   }
 
   search(query: string): Promise<MailRecipient[]> {

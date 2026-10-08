@@ -111,6 +111,11 @@ services:
       # no estaban en un volumen: se perdían cada vez que se recreaba el backend.
       - decrypted_attachments:/app/storage/decrypted-attachments
       - siena_files:/app/storage/siena-files
+      # Escaneos: la bandeja donde dejan las impresoras (compartida con scan-inbox),
+      # las cuentas que lee scan-inbox, y los escaneos ya tomados.
+      - scan_inbox:/app/storage/scan-inbox
+      - scan_config:/app/storage/scan-config
+      - scans:/app/storage/scans
       # Cuenta de servicio de Google (alta de usuarios en Workspace y
       # Archivos compartidos). Es la ruta de GOOGLE_SERVICE_ACCOUNT_PATH.
       - ./secrets/google-workspace-key.json:/run/secrets/google-workspace-key.json:ro
@@ -129,6 +134,23 @@ services:
       timeout: 3s
       retries: 3
       start_period: 90s
+
+  # Bandeja de escaneo: las impresoras dejan acá lo que escanean, por carpeta de
+  # red (\\10.98.40.24\escaneo-<oficina>, SMB2/3) o por FTP. Los usuarios y las
+  # carpetas salen de scan_config/accounts.conf, que escribe el backend.
+  scan-inbox:
+    build: ./scan-inbox
+    container_name: intranet_scan_inbox
+    restart: unless-stopped
+    environment:
+      SCAN_PUBLIC_IP: ${SCAN_PUBLIC_IP:-10.98.40.24}
+    ports:
+      - '445:445'
+      - '21:21'
+      - '30000-30009:30000-30009'
+    volumes:
+      - scan_inbox:/inbox
+      - scan_config:/config:ro
 
   frontend:
     build:
@@ -151,6 +173,9 @@ volumes:
   draft_attachments:
   decrypted_attachments:
   siena_files:
+  scan_inbox:
+  scan_config:
+  scans:
 
 networks:
   intranet_shared:

@@ -312,9 +312,9 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                             </p>
                             <div class="flex items-center gap-1 flex-shrink-0">
                               @if (email.flag) {
-                                <svg class="h-3.5 w-3.5 text-red-600" viewBox="0 0 24 24" fill="currentColor" aria-label="Con bandera">
-                                  <title>Bandera de {{ email.flag.byName }}</title>
-                                  <path d="M5 21V4h11l-1.5 4L16 12H7v9z"/>
+                                <svg class="h-3.5 w-3.5 text-rose-600" viewBox="0 0 16 16" fill="currentColor" aria-label="Marcado">
+                                  <title>Marcado por {{ email.flag.byName }}</title>
+                                  <path fill-rule="evenodd" [attr.d]="FLAG_PATH"/>
                                 </svg>
                               }
                               @if (email.attachmentCount) {
@@ -367,9 +367,9 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                   </p>
                   <div class="flex items-center gap-1 flex-shrink-0">
                     @if (email.flag) {
-                      <svg class="h-3.5 w-3.5 text-red-600" viewBox="0 0 24 24" fill="currentColor" aria-label="Con bandera">
-                        <title>Bandera de {{ email.flag.byName }}</title>
-                        <path d="M5 21V4h11l-1.5 4L16 12H7v9z"/>
+                      <svg class="h-3.5 w-3.5 text-rose-600" viewBox="0 0 16 16" fill="currentColor" aria-label="Marcado">
+                        <title>Marcado por {{ email.flag.byName }}</title>
+                        <path fill-rule="evenodd" [attr.d]="FLAG_PATH"/>
                       </svg>
                     }
                     @if (email.attachmentCount) {
@@ -464,14 +464,14 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                       <!-- Banderita (como en Outlook): solo TICOM, compartida entre ellos -->
                       <button (click)="toggleFlag()" [disabled]="flagBusy()"
                         class="flex items-center gap-1 text-xs transition-colors hover:opacity-75 disabled:opacity-50"
-                        [class.text-red-600]="!!activeEmail()!.flag"
+                        [class.text-rose-600]="!!activeEmail()!.flag"
                         [class.font-semibold]="!!activeEmail()!.flag"
                         [class.text-gray-400]="!activeEmail()!.flag"
-                        [title]="activeEmail()!.flag ? 'Quitar la bandera (la puso ' + activeEmail()!.flag!.byName + ')' : 'Marcar con bandera: hasta acá se leyó'">
-                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" [attr.fill]="activeEmail()!.flag ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-                          <path d="M5 21V4h11l-1.5 4L16 12H7v9z"/>
+                        [title]="activeEmail()!.flag ? 'Quitar la marca (la puso ' + activeEmail()!.flag!.byName + ')' : 'Marcar con la bandera: hasta acá se leyó'">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                          <path fill-rule="evenodd" [attr.d]="FLAG_PATH"/>
                         </svg>
-                        {{ activeEmail()!.flag ? 'Con bandera' : 'Bandera' }}
+                        {{ activeEmail()!.flag ? 'Marcado' : 'Marcar' }}
                         <app-new-badge feature="bandera-mto" [compact]="true" />
                       </button>
                     }
@@ -501,9 +501,10 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 <app-mto-viewers [emailId]="activeEmail()!.id" [subject]="activeEmail()!.mailCode || activeEmail()!.subject" [version]="viewsVersion()" />
                 <app-new-badge feature="vistos-mto" [compact]="true" class="mt-2" />
                 @if (activeEmail()!.flag; as f) {
-                  <span class="mt-2 inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs text-red-700">
-                    <svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 21V4h11l-1.5 4L16 12H7v9z"/></svg>
-                    Bandera de {{ f.byName }} · {{ formatUploadDate(f.at) }}
+                  <span class="mt-2 inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-xs text-rose-700"
+                        [title]="'Marcado por ' + f.byName + ' el ' + formatUploadDate(f.at)">
+                    <svg class="h-3 w-3" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" [attr.d]="FLAG_PATH"/></svg>
+                    Marcado por {{ f.byName }}
                   </span>
                 }
               </div>
@@ -1244,6 +1245,9 @@ export class MailComponent implements OnInit {
   // ─── Banderita (solo TICOM) ────────────────────────────────────────────────
 
   readonly flagBusy = signal(false);
+  /** La bandera (si-glyph:flag, SmartIcons, CC BY-SA 4.0), en un viewBox de 16×16. */
+  readonly FLAG_PATH =
+    'M1 0h1.994v15.913H1zm3.056.52v7.575S5.667 6.664 9.244 8c3.576 1.338 4.305.974 5.712.742c0 0-2.048-.871-3.222-4.029c0 0 2.987-2.755 3.222-4.274c0 0-3.7 1.212-5.751.241C7.152-.293 4.994-.089 4.056.52';
 
   toggleFlag(): void {
     const email = this.activeEmail();

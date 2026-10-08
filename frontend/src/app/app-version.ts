@@ -29,5 +29,6 @@
  * 1.7.1 — Ejecutivos en rojo (antes violeta), sin el aviso "es para cumplimentar".
  * 1.7.2 — Ejecutivos: la fila como las demás; la etiqueta roja late hasta que se abre.
  * 1.7.3 — El latido de los Ejecutivos se ve también con las animaciones de Windows apagadas, y es más notorio.
+ * 1.7.4 — Bandera nueva; el botón dice "Marcar"/"Marcado" y al lado de los vistos, "Marcado por <usuario>".
  */
-export const APP_VERSION = '1.7.3';
+export const APP_VERSION = '1.7.4';

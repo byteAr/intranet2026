@@ -231,7 +231,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
             servidor <code class="font-mono">{{ accounts()[0]?.ftpHost ?? '10.98.40.24' }}</code>, puerto 21, el mismo usuario y contraseña, carpeta <code class="font-mono">/</code>.
           </p>
         </div>
-        <button (click)="accountsOpen.set(false)" class="text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200" aria-label="Cerrar">✕</button>
+        <div class="flex items-center gap-3 flex-shrink-0">
+          <button (click)="printAccounts()" [disabled]="!configuredAccounts().length"
+            class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-gray-300 dark:border-zinc-600 text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+            [title]="configuredAccounts().length ? 'Imprimir la planilla con las oficinas que tienen acceso' : 'Todavía no hay oficinas con acceso'">
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/>
+            </svg>
+            Imprimir planilla
+          </button>
+          <button (click)="accountsOpen.set(false)" class="text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200" aria-label="Cerrar">✕</button>
+        </div>
       </div>
       <div class="flex-1 overflow-auto px-5 py-3">
         @if (accountsLoading()) {
@@ -528,6 +538,71 @@ export class ScansPanelComponent implements OnInit {
   resetPassword(a: ScanAccount): void {
     if (!confirm(`¿Generar una contraseña nueva para ${a.groupName}? Las impresoras que tengan la anterior dejan de poder escanear hasta que les cargues la nueva.`)) return;
     this.createAccount(a);
+  }
+
+  readonly configuredAccounts = computed(() => this.accounts().filter((a) => a.configured));
+
+  /**
+   * Planilla para configurar las impresoras: oficina, carpeta de red, usuario y
+   * contraseña de cada oficina con acceso. Lleva las contraseñas: se avisa al pie.
+   */
+  printAccounts(): void {
+    const rows = this.configuredAccounts();
+    if (!rows.length) return;
+    const esc = (s: string | null) =>
+      String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const host = rows[0].ftpHost;
+    const now = new Date().toLocaleString('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+    const body = rows
+      .map((a) => `<tr><td>${esc(a.groupName)}</td><td class="mono">${esc(a.networkPath)}</td><td class="mono">${esc(a.username)}</td><td class="mono pw">${esc(a.password)}</td></tr>`)
+      .join('');
+    const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Escaneos - accesos de las oficinas</title>
+<style>
+  @page { size: A4 landscape; margin: 14mm; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 11pt; }
+  h1 { font-size: 15pt; margin: 0 0 2mm; }
+  .sub { color: #555; font-size: 9.5pt; margin: 0 0 5mm; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #999; padding: 2.2mm 3mm; text-align: left; vertical-align: middle; }
+  th { background: #eee; font-size: 9pt; text-transform: uppercase; letter-spacing: .03em; }
+  tr { page-break-inside: avoid; }
+  .mono { font-family: Consolas, 'Courier New', monospace; font-size: 11pt; }
+  .pw { letter-spacing: .06em; font-weight: bold; }
+  .help { margin-top: 5mm; font-size: 9.5pt; line-height: 1.45; }
+  .warn { margin-top: 4mm; padding: 2.5mm 3mm; border: 1px solid #b91c1c; color: #b91c1c; font-size: 9.5pt; }
+</style></head><body>
+<h1>Escaneo a la intranet — accesos de las oficinas</h1>
+<p class="sub">Generado el ${esc(now)} · ${rows.length} ${rows.length === 1 ? 'oficina' : 'oficinas'} con acceso</p>
+<table>
+  <thead><tr><th>Oficina</th><th>Carpeta de red (SMB)</th><th>Usuario</th><th>Contraseña</th></tr></thead>
+  <tbody>${body}</tbody>
+</table>
+<div class="help">
+  <strong>En la impresora:</strong> un destino de <strong>carpeta de red (SMB)</strong> por cada oficina que la usa, con la ruta, el usuario y la contraseña de esa oficina. Dominio: vacío o WORKGROUP.<br>
+  <strong>Si la impresora no soporta SMB2/3</strong> (HP LaserJet Pro M521dn): <strong>FTP</strong>, servidor <span class="mono">${esc(host)}</span>, puerto 21, el mismo usuario y contraseña, carpeta <span class="mono">/</span>.<br>
+  Lo escaneado aparece en la intranet en Archivos compartidos → Escaneos, solo para los integrantes de esa oficina.
+</div>
+<div class="warn"><strong>Documento reservado:</strong> contiene contraseñas. Guardalo en un lugar seguro o destruilo después de configurar las impresoras.
+Si se pierde, generá contraseñas nuevas desde la intranet (Configurar impresoras → Nueva contraseña).</div>
+</body></html>`;
+
+    // Iframe oculto: imprime sin abrir otra pestaña (y sin que lo frene el bloqueador de ventanas).
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument!;
+    doc.open();
+    doc.write(html);
+    doc.close();
+    setTimeout(() => {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+      setTimeout(() => frame.remove(), 1000);
+    }, 200);
   }
 
   togglePassword(group: string): void {

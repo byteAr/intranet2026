@@ -40,5 +40,6 @@
  * 1.7.12 — Justificado también en los MTO cortados en renglones cortos (~50 caracteres), no solo los de Outlook.
  * 1.7.13 — Modo oscuro nuevo: fondos en tonos de negro y gris oscuro, texto blanco (antes los grises claros quedaban gris oscuro).
  * 1.7.14 — Conversaciones: adjuntos en miniatura uno al lado del otro, clip y sobre nuevos, tarjeta para el MTO compartido.
+ * 1.7.15 — Modo oscuro en Redactar MTO y Para enviar: la hoja del MTO con letras blancas y bordes grises.
  */
-export const APP_VERSION = '1.7.14';
+export const APP_VERSION = '1.7.15';

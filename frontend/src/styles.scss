@@ -126,10 +126,12 @@ body {
 .dark .text-teal-600  { color: #5eead4 !important; }
 .dark .text-teal-700,
 .dark .text-teal-800  { color: #99f6e4 !important; }
+.dark .text-teal-900  { color: #ccfbf1 !important; }
 .dark [class~="hover:bg-teal-50"]:hover   { background-color: #0a3a28 !important; }
 .dark [class~="hover:bg-teal-100"]:hover  { background-color: #14532d !important; }
 .dark [class~="hover:text-teal-700"]:hover,
-.dark [class~="hover:text-teal-800"]:hover { color: #ccfbf1 !important; }
+.dark [class~="hover:text-teal-800"]:hover,
+.dark [class~="hover:text-teal-900"]:hover { color: #ccfbf1 !important; }
 
 /* --- Forms & inputs (tailwindcss/forms plugin targets these too) --- */
 .dark input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=submit]):not([type=button]):not([type=file]),
@@ -180,6 +182,13 @@ body {
 .dark [style*="border-top: 1px solid #e5e7eb"]    { border-top-color: var(--d-line) !important; }
 .dark [style*="border: 1px solid #e5e7eb"]        { border-color: var(--d-line) !important; }
 
+/* --- Hoja del MTO (Redactar MTO, Para enviar): .mto-doc trae text-black y border-black fijos --- */
+.dark .mto-doc               { background-color: var(--d-surface) !important; color: var(--d-text-1) !important; border-color: #6b6b6b !important; }
+.dark .mto-doc .border-black { border-color: #4a4a4a !important; }
+/* Mismo selector que la regla de inputs de arriba + .mto-doc: si no, esa pesa más y queda un recuadro gris */
+.dark .mto-doc input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=submit]):not([type=button]):not([type=file]),
+.dark .mto-doc textarea      { background-color: transparent !important; color: var(--d-text-1) !important; }
+
 /* --- Documentos (vista previa de Word): la hoja es blanca, el texto va oscuro --- */
 .dark section.docx-preview-wrapper { color: #111827; }
 
@@ -201,7 +210,7 @@ body {
 .dark .bg-amber-100                       { background-color: #3a2a05 !important; }
 .dark .border-amber-200, .dark .border-amber-300 { border-color: #6b4e0a !important; }
 .dark .text-amber-600, .dark .text-amber-700, .dark .text-yellow-700 { color: #fcd34d !important; }
-.dark .text-amber-800                     { color: #fde68a !important; }
+.dark .text-amber-800, .dark .text-amber-900, .dark .text-yellow-800 { color: #fde68a !important; }
 .dark [class~="hover:bg-amber-50"]:hover  { background-color: #3a2a05 !important; }
 
 .dark .bg-green-50                        { background-color: #062b16 !important; }
@@ -214,7 +223,7 @@ body {
 .dark .bg-blue-100                        { background-color: #13294d !important; }
 .dark .border-blue-200                    { border-color: #1e3a6b !important; }
 .dark .text-blue-600                      { color: #93c5fd !important; }
-.dark .text-blue-700                      { color: #bfdbfe !important; }
+.dark .text-blue-700, .dark .text-blue-800 { color: #bfdbfe !important; }
 
 .dark .bg-orange-50                       { background-color: #2a1505 !important; }
 .dark .border-orange-100, .dark .border-orange-200 { border-color: #6b3510 !important; }
@@ -225,6 +234,7 @@ body {
 .dark .bg-purple-100                      { background-color: #2d1850 !important; }
 .dark .text-purple-600, .dark .text-purple-700 { color: #d8b4fe !important; }
 .dark .text-purple-800                    { color: #e9d5ff !important; }
+.dark [class~="hover:text-purple-800"]:hover { color: #f3e8ff !important; }
 
 /* --- Disabled state --- */
 .dark .disabled\:bg-gray-50:disabled,

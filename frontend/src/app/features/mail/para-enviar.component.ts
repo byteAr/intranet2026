@@ -141,7 +141,7 @@ import { fmtDateGroup } from '../../shared/date-group';
               }
 
               <!-- ═══ MTO DOCUMENT ═══ -->
-              <div class="bg-white border-2 border-black font-mono text-sm text-black shadow-md">
+              <div class="mto-doc bg-white border-2 border-black font-mono text-sm text-black shadow-md">
                 <!-- Header -->
                 <div class="grid grid-cols-10 border-b border-black">
                   <div class="col-span-4 p-2 border-r border-black font-bold flex items-center">GENDARMERÍA NACIONAL</div>

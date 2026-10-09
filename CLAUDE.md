@@ -226,7 +226,7 @@ Regex PON en body → `requiresEncryption = true` automático. Override manual c
 ## Módulo Admin
 
 ### Creación de usuario — orden crítico
-1. Crear en **Google Workspace** (si falla → stop, no continuar).
+1. Crear en **Google Workspace** (si falla → stop, no continuar). El teléfono de recuperación (opcional) se normaliza antes (`recovery-phone.util.ts`: `011 15 1234-5678`, `+54 11…` → `+549` + 10 dígitos) y si está incompleto se rechaza con un mensaje claro: Google lo rechazaba con "Invalid recovery phone" y no se creaba el usuario.
 2. Crear en **AD** vía bridge con `pwdLastSet=0` (fuerza cambio de contraseña).
 3. Si AD falla → rollback automático en Google Workspace.
 4. Crear stub en DB con `recoveryEmail` (evita pedirlo en el primer login).

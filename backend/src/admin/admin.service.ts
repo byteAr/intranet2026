@@ -17,6 +17,7 @@ import { UpdateAdUserDto } from './dto/update-ad-user.dto';
 import { GroupMemberActionDto } from './dto/group-member-action.dto';
 import { GoogleWorkspaceService } from './google-workspace.service';
 import { WelcomeEmailService } from './welcome-email.service';
+import { normalizeRecoveryPhone } from './recovery-phone.util';
 import { LdapRecipientsService } from '../mail/ldap-recipients.service';
 import * as https from 'https';
 import * as http from 'http';
@@ -232,6 +233,9 @@ export class AdminService implements OnApplicationBootstrap {
       throw new ConflictException('Ya existe un usuario con ese correo institucional');
     }
 
+    // Antes que nada: un teléfono mal escrito hacía fallar la cuenta de Google.
+    const recoveryPhone = normalizeRecoveryPhone(dto.recoveryPhone);
+
     // Determine username
     const { username, available } = await this.suggestUsername(dto.firstName, dto.secondName, dto.lastName);
     if (!available) {
@@ -252,12 +256,22 @@ export class AdminService implements OnApplicationBootstrap {
         lastName:      dto.lastName,
         password:      defaultPassword,
         recoveryEmail: dto.recoveryEmail,
-        recoveryPhone: dto.recoveryPhone,
+        recoveryPhone,
       });
     } catch (googleError: any) {
       if (googleError?.code === 409 || googleError?.status === 409) {
         throw new ConflictException(
           `El correo institucional "${username}@${this.configService.get('GOOGLE_WORKSPACE_DOMAIN') ?? 'iugna.edu.ar'}" ya existe en Google Workspace y podría pertenecer a otro usuario. Agregue un segundo nombre para generar un usuario distinto.`,
+        );
+      }
+      if (/recovery phone/i.test((googleError as Error).message ?? '')) {
+        throw new BadRequestException(
+          'Google no aceptó el teléfono de recuperación. Revisalo (celular con característica, ej. +54 9 11 1234 5678) o dejalo vacío: es opcional. No se creó nada.',
+        );
+      }
+      if (/recovery email/i.test((googleError as Error).message ?? '')) {
+        throw new BadRequestException(
+          'Google no aceptó el correo personal de recuperación. Revisalo. No se creó nada.',
         );
       }
       throw new BadRequestException(

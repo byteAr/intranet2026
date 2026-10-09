@@ -176,45 +176,7 @@ export class MailAlertsService implements OnApplicationBootstrap {
    */
   async onNewEmail(email: Email, attachmentNames: string[]): Promise<void> {
     try {
-      const reasons = new Map<string, string[]>();
-      const add = (username: string, reason: string) => {
-        const list = reasons.get(username) ?? [];
-        if (!list.includes(reason)) list.push(reason);
-        reasons.set(username, list);
-      };
-
-      // 1) MTO seguidos: los que cita este (referencias resueltas) y los de su mismo código (SVC).
-      const related: { emailId: string; mailCode: string | null; subject: string }[] = await this.dataSource.query(
-        `SELECT DISTINCT e.id AS "emailId", e."mailCode", e.subject FROM emails e
-          WHERE e.id::text <> $1 AND (
-                e.id::text IN (SELECT "referencedEmailId"::text FROM email_references
-                                WHERE "emailId"::text = $1 AND "referencedEmailId" IS NOT NULL)
-             OR ($2::text IS NOT NULL AND e."mailCode" = $2))`,
-        [email.id, email.mailCode ?? null],
-      );
-      const followersOf = new Set<string>();
-      if (related.length) {
-        const follows: { username: string; emailId: string }[] = await this.dataSource.query(
-          `SELECT "username", "emailId" FROM "mail_follows" WHERE "emailId" = ANY($1::uuid[])`,
-          [related.map((r) => r.emailId)],
-        );
-        const byId = new Map(related.map((r) => [r.emailId, r]));
-        for (const f of follows) {
-          const r = byId.get(f.emailId);
-          if (!r) continue;
-          add(f.username, `relacionado con ${r.mailCode ?? r.subject}, que seguís`);
-          followersOf.add(f.username);
-        }
-      }
-
-      // 2) Términos de "Mis alertas".
-      const terms: (AlertTerm & { username: string })[] = await this.dataSource.query(
-        `SELECT "username", "term", "allWords" FROM "mail_alert_terms"`,
-      );
-      if (terms.length) {
-        const prepared = prepareText([email.subject, email.bodyText, ...attachmentNames].filter(Boolean).join('\n'));
-        for (const t of terms) if (termMatches(prepared, t)) add(t.username, `coincide con tu alerta «${t.term}»`);
-      }
+      const { reasons, followersOf } = await this.reasonsFor(email, attachmentNames);
       if (!reasons.size) return;
 
       // La cadena: quien seguía al citado sigue también al nuevo (avisa de las respuestas a la respuesta).
@@ -238,5 +200,81 @@ export class MailAlertsService implements OnApplicationBootstrap {
     } catch (err) {
       this.logger.warn(`Alertas de MTO: no se pudo avisar ${email.id}: ${(err as Error).message}`);
     }
+  }
+
+  /**
+   * Por qué se le avisaría a cada usuario por este MTO (solo a onlyUser, si se
+   * pasa). followersOf: quienes lo siguen por citar a uno que seguían.
+   */
+  private async reasonsFor(email: Email, attachmentNames: string[], onlyUser?: string) {
+    const only = onlyUser?.toLowerCase();
+    const reasons = new Map<string, string[]>();
+    const add = (username: string, reason: string) => {
+      if (only && username !== only) return;
+      const list = reasons.get(username) ?? [];
+      if (!list.includes(reason)) list.push(reason);
+      reasons.set(username, list);
+    };
+
+    // 1) MTO seguidos: los que cita este (referencias resueltas) y los de su mismo código (SVC).
+    const related: { emailId: string; mailCode: string | null; subject: string }[] = await this.dataSource.query(
+      `SELECT DISTINCT e.id AS "emailId", e."mailCode", e.subject FROM emails e
+        WHERE e.id::text <> $1 AND (
+              e.id::text IN (SELECT "referencedEmailId"::text FROM email_references
+                              WHERE "emailId"::text = $1 AND "referencedEmailId" IS NOT NULL)
+           OR ($2::text IS NOT NULL AND e."mailCode" = $2))`,
+      [email.id, email.mailCode ?? null],
+    );
+    const followersOf = new Set<string>();
+    if (related.length) {
+      const follows: { username: string; emailId: string }[] = await this.dataSource.query(
+        `SELECT "username", "emailId" FROM "mail_follows" WHERE "emailId" = ANY($1::uuid[])`,
+        [related.map((r) => r.emailId)],
+      );
+      const byId = new Map(related.map((r) => [r.emailId, r]));
+      for (const f of follows) {
+        const r = byId.get(f.emailId);
+        if (!r || (only && f.username !== only)) continue;
+        add(f.username, `relacionado con ${r.mailCode ?? r.subject}, que seguís`);
+        followersOf.add(f.username);
+      }
+    }
+
+    // 2) Términos de "Mis alertas".
+    const terms: (AlertTerm & { username: string })[] = only
+      ? await this.dataSource.query(`SELECT "username", "term", "allWords" FROM "mail_alert_terms" WHERE "username" = $1`, [only])
+      : await this.dataSource.query(`SELECT "username", "term", "allWords" FROM "mail_alert_terms"`);
+    if (terms.length) {
+      const prepared = prepareText([email.subject, email.bodyText, ...attachmentNames].filter(Boolean).join('\n'));
+      for (const t of terms) if (termMatches(prepared, t)) add(t.username, `coincide con tu alerta «${t.term}»`);
+    }
+    return { reasons, followersOf };
+  }
+
+  /**
+   * "Probar con el MTO abierto" (Mis alertas): corre las alertas del usuario
+   * contra un MTO ya guardado como si acabara de llegar y, si coincide, le
+   * manda el aviso a la campanita marcado como prueba. Sirve en staging, que
+   * no recibe MTO (los recibe producción), y para ver si un término está bien escrito.
+   * No suma el MTO a los seguidos.
+   */
+  async testOnEmail(username: string, emailId: string): Promise<{ reasons: string[]; notified: boolean }> {
+    const email = await this.emailRepo.findOne({
+      where: { id: emailId },
+      select: ['id', 'mailCode', 'subject', 'bodyText'],
+      relations: ['attachments'],
+    });
+    if (!email) throw new NotFoundException('MTO no encontrado');
+    const { reasons } = await this.reasonsFor(email, (email.attachments ?? []).map((a) => a.filename), username);
+    const list = reasons.get(username.toLowerCase()) ?? [];
+    if (list.length) {
+      await this.notifications.notify([username], {
+        type: 'mto',
+        title: `Prueba: llegó el MTO ${email.mailCode ?? email.subject}`,
+        body: `${list.join(' · ')}. ${email.subject}`.slice(0, 500),
+        data: { emailId: email.id, mailCode: email.mailCode ?? null },
+      });
+    }
+    return { reasons: list, notified: list.length > 0 };
   }
 }

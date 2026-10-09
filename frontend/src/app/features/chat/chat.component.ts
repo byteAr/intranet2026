@@ -18,15 +18,43 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ChatService, ChatMessage, ChatAttachment, UserSearchResult } from '../../core/services/chat.service';
 import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
+import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-import { AttachmentPreviewComponent } from './attachment-preview.component';
 import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
 import { LinkedTextComponent } from '../../shared/linked-text/linked-text.component';
+
+/** Clip (adjuntar y "archivos" en la lista de conversaciones). */
+const CLIP_ICON =
+  'M17.346 15.539q0 2.272-1.565 3.867Q14.216 21 11.96 21q-2.272 0-3.847-1.594t-1.575-3.867V6.808q0-1.587 1.09-2.697Q8.722 3 10.309 3t2.678 1.11t1.091 2.698v8.269q0 .88-.617 1.517q-.618.637-1.499.637t-1.517-.627t-.636-1.527V6.769h1v8.308q0 .479.327.816q.328.338.807.338t.807-.338t.328-.816V6.789q-.006-1.166-.805-1.977T10.308 4t-1.967.821t-.802 1.987v8.73q-.006 1.853 1.282 3.157T11.961 20q1.828 0 3.1-1.305t1.285-3.156v-8.77h1z';
+/** Sobres (MTO compartido desde MTO's → Compartir). */
+const MTO_ICON =
+  'M13.021 11.17q.218.16.479.16t.479-.16L21 5.943q0-.254-.067-.559q-.067-.304-.125-.5L13.5 10.311L6.154 4.923q-.058.196-.106.492Q6 5.71 6 5.945zm-9.405 8.6q-.691 0-1.153-.463T2 18.154v-9q0-.214.143-.357t.357-.143t.357.143t.143.357v9q0 .269.173.442t.443.173h14.269q.213 0 .356.143t.144.357t-.144.357t-.356.143zm3-3q-.691 0-1.153-.463T5 15.154v-9.77q0-.69.463-1.152t1.153-.463h13.769q.69 0 1.153.463T22 5.385v9.769q0 .69-.462 1.153t-1.153.462z';
+
+/**
+ * Lo que manda MTO's → Compartir: "[nota\n\n]Te compartí el MTO <título>\n<enlace>".
+ * Hasta la 1.7.13 empezaba con el emoji 📨: se reconocen los dos.
+ */
+const MTO_SHARE_RE = /^(?:([\s\S]*?)\n\n)?(?:📨\s*)?Te compartí el MTO (.+)\n(\S+)\s*$/u;
+
+interface MtoShare {
+  note: string;
+  title: string;
+  link: string;
+  /** Ruta de la intranet (/correo?mto=…) para abrirlo sin recargar. */
+  path: string | null;
+}
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewComponent, AttachmentPreviewModalComponent, LinkedTextComponent, FileIconComponent, NewBadgeComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, LinkedTextComponent, FileIconComponent, NewBadgeComponent],
+  styles: [`
+    /* Miniaturas chicas; en pantallas angostas las columnas se achican (minmax) */
+    .chat-thumb { width: 100%; aspect-ratio: 1; }
+    .chat-thumb-single { aspect-ratio: 4 / 3; }
+    /* En el celular, dos tarjetas de documento juntas no dejan leer el nombre: una por fila */
+    @media (max-width: 640px) { .chat-docs { grid-template-columns: minmax(0, 12.5rem) !important; } }
+  `],
   template: `
     <div class="flex h-[calc(100vh-8rem)] bg-white rounded-xl shadow overflow-hidden">
 
@@ -122,10 +150,17 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
                 <span class="flex-1 text-left min-w-0">
                   <span class="block truncate leading-tight">{{ contact.name }}</span>
                   @if (contact.lastMessage) {
-                    <span class="block text-xs leading-tight truncate"
+                    @let preview = lastMsgPreview(contact);
+                    <span class="flex items-center gap-1 text-xs leading-tight min-w-0"
                       [class.text-gray-400]="chatService.activeRecipientId() !== contact.id"
                       [class.text-teal-500]="chatService.activeRecipientId() === contact.id">
-                      {{ lastMsgPreview(contact) }}
+                      @if (preview.prefix) {<span class="flex-shrink-0">{{ preview.prefix }}</span>}
+                      @if (preview.icon) {
+                        <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path [attr.d]="preview.icon === 'mto' ? mtoIconPath : clipIconPath" />
+                        </svg>
+                      }
+                      <span class="truncate">{{ preview.text }}</span>
                     </span>
                   } @else if (contact.isOnline) {
                     <span class="block text-xs text-gray-400 leading-tight">En línea</span>
@@ -181,89 +216,61 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
                   [class.bg-gray-300]="!isOwn(msg)"
                   [class.text-gray-900]="!isOwn(msg)"
                   [class.rounded-bl-sm]="!isOwn(msg)">
-                  <!-- Adjuntos: uno se ve grande; varios, las imágenes en grilla y los documentos en lista -->
+                  <!-- Adjuntos: uno al lado del otro y, si no entran, en otra fila; nunca más
+                       anchos que la burbuja (70 %), así se sigue viendo de quién es el mensaje. -->
                   @let atts = attachmentsOf(msg);
-                  @if (atts.length === 1) {
-                    @let att = atts[0];
-                    @if (isImage(att.mimeType)) {
-                      <!-- Image preview: cropped, WhatsApp style -->
-                      <button type="button" (click)="openChatPreview(att)" class="block w-full text-left">
-                        <div style="height:180px; overflow:hidden;">
-                          <img [src]="att.url" [alt]="att.name"
-                            style="width:100%; height:100%; object-fit:cover; display:block;" />
-                        </div>
-                      </button>
-                    } @else if (!hasThumbnail(att)) {
-                      <!-- Sin miniatura (.txt, .rar): tarjeta con su ícono -->
-                      <button type="button" (click)="openChatPreview(att)"
-                        class="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:opacity-90 transition-opacity"
-                        [class.bg-teal-700]="isOwn(msg)" [class.bg-gray-200]="!isOwn(msg)"
-                        [class.border-b]="msg.content" [class.border-teal-500]="isOwn(msg)" [class.border-gray-300]="!isOwn(msg)">
-                        <app-file-icon [file]="{ name: att.name, mimeType: att.mimeType }" [size]="36" />
-                        <span class="flex flex-col min-w-0 flex-1">
-                          <span class="truncate text-xs font-semibold leading-tight">{{ att.name }}</span>
-                          <span class="text-xs opacity-60 leading-tight mt-0.5">{{ formatSize(att.size) }}</span>
-                        </span>
-                      </button>
-                    } @else {
-                      <!-- Document preview -->
-                      <button type="button" (click)="openChatPreview(att)"
-                        class="block w-full text-left hover:opacity-90 transition-opacity"
-                        [class.border-b]="msg.content"
-                        [class.border-teal-500]="isOwn(msg)"
-                        [class.border-gray-200]="!isOwn(msg)">
-                        <app-attachment-preview
-                          [url]="att.url"
-                          [mimeType]="att.mimeType" />
-                        <!-- Filename + size -->
-                        <div class="flex items-center gap-2 px-3 py-2.5"
-                          [class.bg-teal-700]="isOwn(msg)"
-                          [class.bg-gray-200]="!isOwn(msg)">
-                          <span class="flex flex-col min-w-0 flex-1">
-                            <span class="truncate text-xs font-semibold leading-tight">{{ att.name }}</span>
-                            <span class="text-xs opacity-60 leading-tight mt-0.5">{{ formatSize(att.size) }}</span>
-                          </span>
-                          <svg class="h-4 w-4 flex-shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M15 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M9 10a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1zm0 4a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1z" />
-                          </svg>
-                        </div>
-                      </button>
-                    }
-                  } @else if (atts.length > 1) {
-                    @let images = imagesOf(atts);
-                    @let docs = documentsOf(atts);
-                    @if (images.length) {
-                      <div class="grid gap-0.5" [class.grid-cols-2]="images.length > 1">
-                        @for (att of images; track att.url) {
-                          <button type="button" (click)="openChatPreview(att)" class="block w-full" [title]="att.name">
-                            <img [src]="att.url" [alt]="att.name" class="block w-full h-32 object-cover" />
-                          </button>
-                        }
-                      </div>
-                    }
-                    @if (docs.length) {
-                      <div class="p-1.5 space-y-1" [class.border-b]="msg.content"
-                        [class.border-teal-500]="isOwn(msg)" [class.border-gray-200]="!isOwn(msg)">
-                        @for (att of docs; track att.url) {
-                          <button type="button" (click)="openChatPreview(att)"
-                            class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:opacity-90 transition-opacity"
-                            [class.bg-teal-700]="isOwn(msg)" [class.bg-gray-200]="!isOwn(msg)" [title]="att.name">
-                            <app-file-icon [file]="{ name: att.name, mimeType: att.mimeType }" [size]="28" />
-                            <span class="flex flex-col min-w-0 flex-1">
-                              <span class="truncate text-xs font-semibold leading-tight">{{ att.name }}</span>
-                              <span class="text-xs opacity-60 leading-tight mt-0.5">{{ formatSize(att.size) }}</span>
-                            </span>
-                          </button>
-                        }
-                      </div>
-                    }
+                  @let images = imagesOf(atts);
+                  @let docs = documentsOf(atts);
+                  @if (images.length) {
+                    <!-- Hasta 3 por fila: la grilla mide lo que ocupan, así la burbuja no se estira de más -->
+                    <div class="grid gap-1.5 p-1.5" [class.justify-end]="isOwn(msg)"
+                      [style.grid-template-columns]="gridColumns(images.length, 3, images.length === 1 ? '13rem' : '7.5rem')">
+                      @for (att of images; track att.url) {
+                        <button type="button" (click)="openChatPreview(att)" [title]="att.name"
+                          class="chat-thumb block overflow-hidden rounded-xl hover:opacity-90 transition-opacity"
+                          [class.chat-thumb-single]="images.length === 1">
+                          <img [src]="att.url" [alt]="att.name" loading="lazy" class="h-full w-full object-cover" />
+                        </button>
+                      }
+                    </div>
                   }
-                  <!-- Text content -->
-                  @if (msg.content) {
-                    <p class="px-4 py-2.5 break-words whitespace-pre-wrap"><app-linked-text [text]="msg.content" /></p>
+                  @if (docs.length) {
+                    <!-- Documentos: tarjetas con el ícono de su tipo, hasta 2 por fila -->
+                    <div class="chat-docs grid gap-1.5 p-1.5" [class.pt-0]="images.length" [class.justify-end]="isOwn(msg)"
+                      [style.grid-template-columns]="gridColumns(docs.length, 2, '12.5rem')">
+                      @for (att of docs; track att.url) {
+                        <button type="button" (click)="openChatPreview(att)" [title]="att.name"
+                          class="flex min-w-0 items-center gap-2.5 rounded-xl px-2.5 py-2 text-left hover:opacity-90 transition-opacity"
+                          [class.bg-teal-700]="isOwn(msg)" [class.bg-gray-200]="!isOwn(msg)">
+                          <app-file-icon [file]="{ name: att.name, mimeType: att.mimeType }" [size]="34" />
+                          <span class="flex min-w-0 flex-1 flex-col">
+                            <span class="truncate text-xs font-semibold leading-tight">{{ att.name }}</span>
+                            <span class="mt-0.5 text-[11px] leading-tight opacity-70">{{ fileMeta(att) }}</span>
+                          </span>
+                        </button>
+                      }
+                    </div>
+                  }
+                  <!-- MTO compartido desde MTO's → Compartir: tarjeta con el sobre y el botón para abrirlo -->
+                  @let share = mtoShareOf(msg);
+                  @if (share) {
+                    @if (share.note) {
+                      <p class="px-4 pt-2.5 pb-1 break-words whitespace-pre-wrap"><app-linked-text [text]="share.note" /></p>
+                    }
+                    <button type="button" (click)="openMto(share)" [title]="'Abrir ' + share.title"
+                      class="m-1.5 flex w-64 max-w-[calc(100%-0.75rem)] items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:opacity-90 transition-opacity"
+                      [class.bg-teal-700]="isOwn(msg)" [class.bg-gray-200]="!isOwn(msg)">
+                      <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-teal-500 text-white">
+                        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path [attr.d]="mtoIconPath" /></svg>
+                      </span>
+                      <span class="min-w-0 flex-1">
+                        <span class="block text-[10px] font-semibold uppercase tracking-wider opacity-70">MTO compartido</span>
+                        <span class="block text-xs font-semibold leading-snug line-clamp-2">{{ share.title }}</span>
+                        <span class="mt-0.5 block text-[11px] font-medium underline underline-offset-2">Abrir el MTO</span>
+                      </span>
+                    </button>
+                  } @else if (msg.content) {
+                    <p class="px-4 pb-2.5 break-words whitespace-pre-wrap" [class.pt-2.5]="!atts.length" [class.pt-1]="atts.length"><app-linked-text [text]="msg.content" /></p>
                   }
                 </div>
                 <p class="text-xs text-gray-400 mt-1" [class.text-right]="isOwn(msg)" [class.ml-1]="!isOwn(msg)">
@@ -302,7 +309,7 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
             <div class="px-5 pt-2 pb-1 flex flex-wrap items-center gap-2">
               @for (file of selectedFiles(); track $index) {
                 <span class="flex items-center gap-2 px-3 py-1.5 bg-teal-50 border border-teal-200 rounded-full text-xs text-teal-700 max-w-xs">
-                  <span>{{ fileIcon(file.type, file.name) }}</span>
+                  <app-file-icon [file]="{ name: file.name, mimeType: file.type }" [size]="18" />
                   <span class="truncate max-w-[180px]">{{ file.name }}</span>
                   <span class="text-teal-400">{{ formatSize(file.size) }}</span>
                   <button (click)="removeFile($index)" [disabled]="uploading()" class="ml-1 text-teal-400 hover:text-teal-700"
@@ -325,10 +332,7 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
               title="Adjuntar archivos (hasta 10 por mensaje)"
               class="relative h-9 w-9 rounded-full flex items-center justify-center text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors flex-shrink-0 disabled:opacity-40">
               <app-new-badge feature="chat-varios-adjuntos" [compact]="true" class="absolute -top-2 left-1/2 -translate-x-1/2 pointer-events-none" />
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-              </svg>
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path [attr.d]="clipIconPath" /></svg>
             </button>
             <input
               [(ngModel)]="newMessage"
@@ -347,8 +351,8 @@ import { LinkedTextComponent } from '../../shared/linked-text/linked-text.compon
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                 </svg>
               } @else {
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                <svg class="h-5 w-5 translate-x-px" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a1 1 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z" />
                 </svg>
               }
             </button>
@@ -367,6 +371,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   readonly chatService = inject(ChatService);
   private readonly authService = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   newMessage = '';
@@ -438,14 +443,42 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
       });
   });
 
-  lastMsgPreview(contact: { lastMessage: ChatMessage | null }): string {
+  readonly clipIconPath = CLIP_ICON;
+  readonly mtoIconPath = MTO_ICON;
+
+  /** Lo que se ve debajo del nombre en la lista: "Tú:", el ícono (clip o sobre de MTO) y el texto. */
+  lastMsgPreview(contact: { lastMessage: ChatMessage | null }): { prefix: string; icon: 'clip' | 'mto' | null; text: string } {
     const msg = contact.lastMessage;
-    if (!msg) return '';
-    const isOwn = msg.senderId === this.authService.currentUser()?.id;
-    const prefix = isOwn ? 'Tú: ' : '';
-    if ((msg.attachments?.length ?? 0) > 1) return `${prefix}📎 ${msg.attachments!.length} archivos`;
-    if (msg.attachmentName) return `${prefix}📎 ${msg.attachmentName}`;
-    return `${prefix}${msg.content}`;
+    if (!msg) return { prefix: '', icon: null, text: '' };
+    const prefix = msg.senderId === this.authService.currentUser()?.id ? 'Tú:' : '';
+    if ((msg.attachments?.length ?? 0) > 1) return { prefix, icon: 'clip', text: `${msg.attachments!.length} archivos` };
+    if (msg.attachmentName) return { prefix, icon: 'clip', text: msg.attachmentName };
+    const share = this.mtoShareOf(msg);
+    if (share) return { prefix, icon: 'mto', text: share.title };
+    return { prefix, icon: null, text: msg.content };
+  }
+
+  /** Mensaje de MTO's → Compartir ("Te compartí el MTO …" + enlace), o null. */
+  mtoShareOf(msg: ChatMessage): MtoShare | null {
+    const m = MTO_SHARE_RE.exec(msg.content ?? '');
+    if (!m) return null;
+    let path: string | null = null;
+    try {
+      const url = new URL(m[3], location.origin);
+      path = url.pathname + url.search;
+    } catch { /* enlace raro: se abre tal cual */ }
+    return { note: (m[1] ?? '').trim(), title: m[2].trim(), link: m[3], path };
+  }
+
+  openMto(share: MtoShare): void {
+    if (share.path?.startsWith('/correo?')) void this.router.navigateByUrl(share.path);
+    else window.open(share.link, '_blank', 'noopener');
+  }
+
+  /** "137.6 KB · RAR" */
+  fileMeta(att: ChatAttachment): string {
+    const ext = /\.([a-z0-9]{1,5})$/i.exec(att.name ?? '')?.[1]?.toUpperCase() ?? '';
+    return [this.formatSize(att.size), ext].filter(Boolean).join(' · ');
   }
 
   ngOnInit(): void {
@@ -561,6 +594,11 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     return atts.filter((a) => !this.isImage(a.mimeType));
   }
 
+  /** Columnas de la grilla de adjuntos: tantas como haya, hasta `max` por fila, cada una de hasta `width`. */
+  gridColumns(count: number, max: number, width: string): string {
+    return `repeat(${Math.min(count, max)}, minmax(0, ${width}))`;
+  }
+
   openChatPreview(att: ChatAttachment): void {
     const name = att.name ? encodeURIComponent(att.name) : '';
     // Un .rar no se puede ver: se descarga directo, con su nombre.
@@ -581,23 +619,6 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   isImage(mimeType?: string): boolean {
     return !!mimeType?.startsWith('image/');
-  }
-
-  /** PDF, Word y Excel muestran una miniatura del contenido; el resto (.txt, .rar), una tarjeta con su ícono. */
-  hasThumbnail(att: ChatAttachment): boolean {
-    const m = att.mimeType ?? '';
-    return m === 'application/pdf' || m.includes('word') || m.includes('excel') || m.includes('spreadsheet');
-  }
-
-  fileIcon(mimeType?: string, name = ''): string {
-    if (/\.rar$/i.test(name) || mimeType?.includes('rar')) return '🗜️';
-    if (/\.txt$/i.test(name) || mimeType === 'text/plain') return '📃';
-    if (!mimeType) return '📄';
-    if (mimeType.startsWith('image/')) return '🖼️';
-    if (mimeType === 'application/pdf') return '📕';
-    if (mimeType.includes('word')) return '📝';
-    if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '📊';
-    return '📄';
   }
 
   formatSize(bytes?: number): string {

@@ -290,7 +290,8 @@ export class MtoShareComponent {
     this.sending.set(true);
     this.error.set(null);
     const note = this.note().trim();
-    const content = `${note ? `${note}\n\n` : ''}📨 Te compartí el MTO ${this.title()}\n${mtoLink(this.email().id)}`;
+    // Conversaciones lo muestra como una tarjeta con el sobre (MTO_SHARE_RE en chat.component.ts): no cambiar el formato.
+    const content = `${note ? `${note}\n\n` : ''}Te compartí el MTO ${this.title()}\n${mtoLink(this.email().id)}`;
     const failed: string[] = [];
     for (const u of people) {
       try {

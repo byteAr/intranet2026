@@ -81,7 +81,7 @@ Afecta: `ldap-search.service.ts`, `password-reset.service.ts`.
 
 ### Límites de archivo
 - Avatar: 6MB (base64 en DB, servido en `/api/users/:id/avatar` — público)
-- Chat adjuntos: 50MB (JPG, PNG, GIF, WebP, PDF, DOCX, XLS, y desde la 1.7.8 TXT y RAR — estos dos también por la extensión, porque Chrome en Windows manda los .rar sin tipo; el .rar se descarga directo, sin vista previa); hasta 10 en un mismo mensaje (1.5.4): se suben con `/api/chat/upload` y van juntos en `messages.attachments` (jsonb). El primero también en `attachmentUrl/Name/…`, que leen la lista de conversaciones y los mensajes viejos. El gateway solo acepta URLs `/api/chat/files/<uuid>` (`sanitizeChatAttachments`).
+- Chat adjuntos: 50MB (JPG, PNG, GIF, WebP, PDF, DOCX, XLS, y desde la 1.7.8 TXT y RAR — estos dos también por la extensión, porque Chrome en Windows manda los .rar sin tipo; el .rar se descarga directo, sin vista previa); hasta 10 en un mismo mensaje (1.5.4): se suben con `/api/chat/upload` y van juntos en `messages.attachments` (jsonb). El primero también en `attachmentUrl/Name/…`, que leen la lista de conversaciones y los mensajes viejos. El gateway solo acepta URLs `/api/chat/files/<uuid>` (`sanitizeChatAttachments`). En la burbuja (1.7.14) van en grilla, imágenes hasta 3 por fila y documentos (tarjeta con `app-file-icon`) hasta 2, con columnas `minmax(0, ancho)`: la burbuja mide lo que ocupan y nunca pasa del 70 %.
 - Incidencias: 10MB (solo imágenes)
 - Draft MTO — frontend: 5MB/archivo; backend multer: 20MB
 - ⚠️ Adjuntos de draft-mail siempre vía blob+JWT (`responseType:'blob'`) — nunca `<a href>` directo (retorna 401)
@@ -144,7 +144,7 @@ Si el remitente manda desde Outlook en "Texto enriquecido", los adjuntos no viaj
 - El frontend llama a `POST …/read` **cada vez** que se abre un MTO (también los que ya contaban como leídos —anteriores a `MAIL_UNREAD_SINCE`, históricos— y los que se abren desde una referencia); el backend no duplica. Hasta la 1.6.1 solo se llamaba si figuraba como no leído, así que los vistos se cuentan desde esa versión.
 
 ### Compartir un MTO (1.5.0, `features/mail/mto-share.component.ts`)
-- Botón "Compartir" junto a "Imprimir": WhatsApp Web (`web.whatsapp.com/send?text=`, asunto/De/Fecha/nombres de adjuntos + cuerpo recortado a 3500 caracteres; los adjuntos no viajan), por la intranet (elegir varias personas → un mensaje por persona en Conversaciones vía `ChatService.sendMessage`; a quien nunca entró se lo da de alta con `ensureUser`) y copiar enlace.
+- Botón "Compartir" junto a "Imprimir": WhatsApp Web (`web.whatsapp.com/send?text=`, asunto/De/Fecha/nombres de adjuntos + cuerpo recortado a 3500 caracteres; los adjuntos no viajan), por la intranet (elegir varias personas → un mensaje por persona en Conversaciones vía `ChatService.sendMessage`; a quien nunca entró se lo da de alta con `ensureUser`) y copiar enlace. El mensaje es `[nota\n\n]Te compartí el MTO <título>\n<enlace>` (hasta la 1.7.13 con 📨 delante) y Conversaciones lo muestra como tarjeta con el sobre (`MTO_SHARE_RE` en `chat.component.ts`): no cambiar el formato sin tocar las dos puntas.
 - Enlace: `/correo?mto=<id>`; `MailComponent` lo lee de `queryParamMap`, abre el MTO y limpia el parámetro.
 - El chat muestra los enlaces clicables (`shared/linked-text`): los de la intranet navegan adentro y el de un MTO se ve como "Abrir el MTO". Nunca interpreta HTML.
 

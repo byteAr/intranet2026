@@ -878,8 +878,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
       (closed)="previewRequest.set(null)" />
 
     @if (alertsOpen()) {
-      <app-mail-alerts [testEmail]="activeEmail() ? { id: activeEmail()!.id, label: activeEmail()!.mailCode || activeEmail()!.subject } : null"
-        (closed)="alertsOpen.set(false)" (open)="openMtoById($event)" (unfollowed)="applyFollowing($event, false)" />
+      <app-mail-alerts (closed)="alertsOpen.set(false)" (open)="openMtoById($event)" (unfollowed)="applyFollowing($event, false)" />
     }
   `,
   styles: [`

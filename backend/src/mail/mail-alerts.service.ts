@@ -202,15 +202,10 @@ export class MailAlertsService implements OnApplicationBootstrap {
     }
   }
 
-  /**
-   * Por qué se le avisaría a cada usuario por este MTO (solo a onlyUser, si se
-   * pasa). followersOf: quienes lo siguen por citar a uno que seguían.
-   */
-  private async reasonsFor(email: Email, attachmentNames: string[], onlyUser?: string) {
-    const only = onlyUser?.toLowerCase();
+  /** Por qué se le avisa a cada usuario por este MTO. followersOf: quienes lo siguen por citar a uno que seguían. */
+  private async reasonsFor(email: Email, attachmentNames: string[]) {
     const reasons = new Map<string, string[]>();
     const add = (username: string, reason: string) => {
-      if (only && username !== only) return;
       const list = reasons.get(username) ?? [];
       if (!list.includes(reason)) list.push(reason);
       reasons.set(username, list);
@@ -234,53 +229,20 @@ export class MailAlertsService implements OnApplicationBootstrap {
       const byId = new Map(related.map((r) => [r.emailId, r]));
       for (const f of follows) {
         const r = byId.get(f.emailId);
-        if (!r || (only && f.username !== only)) continue;
+        if (!r) continue;
         add(f.username, `relacionado con ${r.mailCode ?? r.subject}, que seguís`);
         followersOf.add(f.username);
       }
     }
 
     // 2) Términos de "Mis alertas".
-    const terms: (AlertTerm & { username: string })[] = only
-      ? await this.dataSource.query(`SELECT "username", "term", "allWords" FROM "mail_alert_terms" WHERE "username" = $1`, [only])
-      : await this.dataSource.query(`SELECT "username", "term", "allWords" FROM "mail_alert_terms"`);
+    const terms: (AlertTerm & { username: string })[] = await this.dataSource.query(
+      `SELECT "username", "term", "allWords" FROM "mail_alert_terms"`,
+    );
     if (terms.length) {
       const prepared = prepareText([email.subject, email.bodyText, ...attachmentNames].filter(Boolean).join('\n'));
       for (const t of terms) if (termMatches(prepared, t)) add(t.username, `coincide con tu alerta «${t.term}»`);
     }
     return { reasons, followersOf };
-  }
-
-  /**
-   * "Probar con el MTO abierto" (Mis alertas): corre las alertas del usuario
-   * contra un MTO ya guardado como si acabara de llegar y, si coincide, le
-   * manda el aviso a la campanita marcado como prueba. Sirve en staging, que
-   * no recibe MTO (los recibe producción), y para ver si un término está bien escrito.
-   * No suma el MTO a los seguidos.
-   */
-  async testOnEmail(username: string, emailId: string): Promise<{ reasons: string[]; matched: boolean; notified: boolean }> {
-    const email = await this.emailRepo.findOne({
-      where: { id: emailId },
-      select: ['id', 'mailCode', 'subject', 'bodyText'],
-      relations: ['attachments'],
-    });
-    if (!email) throw new NotFoundException('MTO no encontrado');
-    const { reasons } = await this.reasonsFor(email, (email.attachments ?? []).map((a) => a.filename), username);
-    const list = reasons.get(username.toLowerCase()) ?? [];
-    let sent = 0;
-    if (list.length) {
-      // Va solo a quien prueba: en staging tiene que llegar aunque NOTIFICATIONS_ONLY_TO no lo incluya.
-      sent = await this.notifications.notify(
-        [username],
-        {
-          type: 'mto',
-          title: `Prueba: llegó el MTO ${email.mailCode ?? email.subject}`,
-          body: `${list.join(' · ')}. ${email.subject}`.slice(0, 500),
-          data: { emailId: email.id, mailCode: email.mailCode ?? null },
-        },
-        { ignoreOnlyTo: true },
-      );
-    }
-    return { reasons: list, matched: list.length > 0, notified: sent > 0 };
   }
 }

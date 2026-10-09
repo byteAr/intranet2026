@@ -102,12 +102,6 @@ export class MailController {
     return this.alerts.unfollow(req.user.username, id);
   }
 
-  /** "Probar con el MTO abierto": las alertas del usuario contra este MTO, como si acabara de llegar. */
-  @Post('emails/:id/test-alerts')
-  testAlerts(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
-    return this.alerts.testOnEmail(req.user.username, id);
-  }
-
   @Get('follows')
   follows(@Req() req: any) {
     return this.alerts.listFollows(req.user.username);

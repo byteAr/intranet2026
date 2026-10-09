@@ -74,13 +74,10 @@ export class NotificationsService implements OnApplicationBootstrap {
 
   // ─── Enviar ────────────────────────────────────────────────────────────────
 
-  /**
-   * Devuelve a cuántos se les mandó. ignoreOnlyTo: para lo que va solo a quien
-   * lo pidió (la prueba de "Mis alertas"), que en staging también tiene que llegar.
-   */
-  async notify(usernames: string[], input: NewNotification, options: { ignoreOnlyTo?: boolean } = {}): Promise<number> {
+  /** Devuelve a cuántos se les mandó. */
+  async notify(usernames: string[], input: NewNotification): Promise<number> {
     if (!NOTIFIED_TYPES.includes(input.type)) return 0;
-    const onlyTo = options.ignoreOnlyTo ? null : this.onlyTo();
+    const onlyTo = this.onlyTo();
     const unique = [...new Set(usernames.map((u) => u.toLowerCase()).filter(Boolean))].filter(
       (u) => !onlyTo || onlyTo.has(u),
     );

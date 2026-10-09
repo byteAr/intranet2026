@@ -1,4 +1,4 @@
-import { Component, HostListener, inject, input, output, signal } from '@angular/core';
+import { Component, HostListener, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AlertTerm, FollowedMto, MailService } from '../../core/services/mail.service';
@@ -74,31 +74,6 @@ export const MEGAPHONE_PATH = 'M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM
             </p>
           </form>
 
-          <!-- Probar contra el MTO abierto: como si acabara de llegar -->
-          @if (testEmail(); as te) {
-            <div class="px-5 py-2.5 border-b border-gray-100 dark:border-zinc-800 bg-gray-50">
-              <div class="flex items-center gap-2">
-                <p class="flex-1 min-w-0 text-xs text-gray-600">
-                  ¿Te avisaría el MTO abierto? <span class="font-semibold text-gray-800">{{ te.label }}</span>
-                </p>
-                <button (click)="runTest(te.id)" [disabled]="testing() || (!terms().length)"
-                  class="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold border border-teal-300 text-teal-700 bg-white hover:bg-teal-50 disabled:opacity-50">
-                  {{ testing() ? 'Probando…' : 'Probar con el MTO abierto' }}
-                </button>
-              </div>
-              @if (testResult(); as r) {
-                @if (r.matched) {
-                  <p class="mt-1.5 text-xs text-green-700">
-                    ✓ Sí: {{ r.reasons.join(' · ') }}.
-                    {{ r.notified ? 'Te mandamos el aviso de prueba a la campanita.' : 'No se pudo mandar el aviso a la campanita.' }}
-                  </p>
-                } @else {
-                  <p class="mt-1.5 text-xs text-amber-700">No: ninguna de tus alertas aparece en ese MTO ni lo relaciona con uno que sigas.</p>
-                }
-              }
-            </div>
-          }
-
           <!-- Lista -->
           <ul class="flex-1 overflow-y-auto py-1">
             @for (t of terms(); track t.id) {
@@ -170,8 +145,6 @@ export const MEGAPHONE_PATH = 'M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM
 export class MailAlertsComponent {
   private readonly mail = inject(MailService);
 
-  /** El MTO abierto, para "Probar con el MTO abierto" (null: no se ofrece). */
-  readonly testEmail = input<{ id: string; label: string } | null>(null);
   readonly closed = output<void>();
   /** Abrir un MTO de la lista de seguidos. */
   readonly open = output<string>();
@@ -186,8 +159,6 @@ export class MailAlertsComponent {
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly editingId = signal<string | null>(null);
-  readonly testing = signal(false);
-  readonly testResult = signal<{ reasons: string[]; matched: boolean; notified: boolean } | null>(null);
 
   newTerm = '';
   newAllWords = false;
@@ -258,16 +229,6 @@ export class MailAlertsComponent {
         this.busy.set(false);
       },
       error: (err: HttpErrorResponse) => this.fail(err),
-    });
-  }
-
-  runTest(emailId: string): void {
-    this.testing.set(true);
-    this.testResult.set(null);
-    this.error.set(null);
-    this.mail.testAlerts(emailId).subscribe({
-      next: (r) => { this.testResult.set(r); this.testing.set(false); },
-      error: (err: HttpErrorResponse) => { this.testing.set(false); this.fail(err); },
     });
   }
 

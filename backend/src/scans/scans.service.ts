@@ -394,23 +394,25 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
     return this.groups.find({ where: { category: In(SCAN_CATEGORIES) } });
   }
 
-  /** Las bandejas que ve el usuario: sus oficinas y grupos especiales; hasDrive = tiene unidad en Archivos. */
+  /**
+   * Las bandejas que ve el usuario: sus oficinas, y sus grupos especiales solo si
+   * TICOM les creó un acceso de escaneo (AYUDANTIA sí; ENCRIPTADO, CIVILES… son
+   * grupos de permisos y no escanean). hasDrive = tiene unidad en Archivos.
+   */
   async myOffices(user: ScanUser): Promise<{ groupName: string; hasDrive: boolean }[]> {
     const roles = new Set((user.roles ?? []).map((r) => r.toUpperCase()));
+    const withAccount = new Set((await this.accounts.find()).map((a) => a.groupName.toUpperCase()));
     return (await this.scanGroups())
       .filter((g) => roles.has(g.groupName.toUpperCase()))
+      .filter((g) => g.category === 'oficina' || withAccount.has(g.groupName.toUpperCase()))
       .map((g) => ({ groupName: g.groupName, hasDrive: g.category === 'oficina' }))
       .sort((a, b) => a.groupName.localeCompare(b.groupName, 'es'));
   }
 
-  /** La bandeja existe (oficina o grupo especial) y el usuario es de ella; devuelve el nombre tal como está. */
+  /** La bandeja existe (oficina, o grupo especial con acceso) y el usuario es de ella; devuelve el nombre tal como está. */
   private async assertMember(user: ScanUser, groupName: string): Promise<string> {
-    const offices = await this.scanGroups();
-    const office = offices.find((g) => g.groupName.toUpperCase() === groupName.toUpperCase());
-    const roles = new Set((user.roles ?? []).map((r) => r.toUpperCase()));
-    if (!office || !roles.has(office.groupName.toUpperCase())) {
-      throw new ForbiddenException('No pertenecés a esa oficina.');
-    }
+    const office = (await this.myOffices(user)).find((g) => g.groupName.toUpperCase() === groupName.toUpperCase());
+    if (!office) throw new ForbiddenException('No pertenecés a esa oficina.');
     return office.groupName;
   }
 

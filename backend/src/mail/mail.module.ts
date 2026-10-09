@@ -24,6 +24,8 @@ import { PstImportService } from './admin/pst-import.service';
 import { PstImportController } from './admin/pst-import.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MailAlertsService } from './mail-alerts.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -37,6 +39,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       DecryptedAttachment,
       SienaFile,
     ]),
+    NotificationsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -46,7 +49,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [MailController, PstImportController],
-  providers: [MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService, DecryptedAttachmentService, SienaFileService, MailHealthService],
+  providers: [MailAlertsService, MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService, DecryptedAttachmentService, SienaFileService, MailHealthService],
   exports: [MailParserService, MailIngestService, ImapPollerService, MailService, SmtpSenderService, LdapRecipientsService],
 })
 export class MailModule {}

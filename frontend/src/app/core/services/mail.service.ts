@@ -87,11 +87,33 @@ export interface Email {
   snippet?: string;
   /** Banderita (solo llega a TICOM): quién la puso y cuándo. */
   flag?: MailFlag | null;
+  /** El usuario sigue este MTO (megáfono): le avisan los que lo citan. Solo en el detalle. */
+  following?: boolean;
 }
 
 export interface MailFlag {
   byName: string;
   at: string;
+}
+
+/** Un término de "Mis alertas": avisa cuando llega un MTO que lo contiene. */
+export interface AlertTerm {
+  id: string;
+  term: string;
+  /** true: todas las palabras en cualquier orden; false: la frase tal cual. */
+  allWords: boolean;
+  createdAt: string;
+}
+
+/** Un MTO que el usuario sigue. */
+export interface FollowedMto {
+  emailId: string;
+  mailCode: string | null;
+  subject: string;
+  date: string | null;
+  /** false: se sumó solo porque citaba a uno que el usuario seguía. */
+  manual: boolean;
+  followedAt: string;
 }
 
 /** Búsqueda de una sola palabra que es un código (SNF) o una unidad (DIRTICOM): todos los de eso, por fecha. */
@@ -346,6 +368,36 @@ export class MailService {
 
   clearFlag(id: string): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`/api/mail/emails/${id}/flag`);
+  }
+
+  // ─── Seguir un MTO y "Mis alertas" ─────────────────────────────────────────
+
+  follow(id: string): Observable<{ following: boolean }> {
+    return this.http.post<{ following: boolean }>(`/api/mail/emails/${id}/follow`, {});
+  }
+
+  unfollow(id: string): Observable<{ following: boolean }> {
+    return this.http.delete<{ following: boolean }>(`/api/mail/emails/${id}/follow`);
+  }
+
+  followedMtos(): Observable<FollowedMto[]> {
+    return this.http.get<FollowedMto[]>('/api/mail/follows');
+  }
+
+  alertTerms(): Observable<AlertTerm[]> {
+    return this.http.get<AlertTerm[]>('/api/mail/alert-terms');
+  }
+
+  addAlertTerm(term: string, allWords: boolean): Observable<AlertTerm> {
+    return this.http.post<AlertTerm>('/api/mail/alert-terms', { term, allWords });
+  }
+
+  updateAlertTerm(id: string, term: string, allWords: boolean): Observable<AlertTerm> {
+    return this.http.patch<AlertTerm>(`/api/mail/alert-terms/${id}`, { term, allWords });
+  }
+
+  removeAlertTerm(id: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/mail/alert-terms/${id}`);
   }
 
   loadUnreadCounts(): void {

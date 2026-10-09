@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-export type NotificationType = 'announcement' | 'share' | 'upload' | 'scan';
+/** mto: un MTO seguido o que coincide con "Mis alertas" (MailAlertsService). */
+export type NotificationType = 'announcement' | 'share' | 'upload' | 'scan' | 'mto';
 
 /** Notificación de la campanita: una fila por destinatario. */
 @Entity('notifications')

@@ -12,11 +12,12 @@ import { NotificationsGateway } from './notifications.gateway';
 const RETENTION_DAYS = 90;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /**
- * Solo se notifica lo que sale de "Enviar anuncio" (09/10/2026). Compartir,
- * subir a la oficina y los escaneos no avisan: ni campanita, ni en vivo, ni push.
+ * Solo se notifica lo que sale de "Enviar anuncio" (09/10/2026) y los avisos de
+ * MTO que cada uno pidió (seguir un MTO, "Mis alertas"). Compartir, subir a la
+ * oficina y los escaneos no avisan: ni campanita, ni en vivo, ni push.
  * Para volver a prenderlos, agregar el tipo acá.
  */
-const NOTIFIED_TYPES: NotificationType[] = ['announcement'];
+const NOTIFIED_TYPES: NotificationType[] = ['announcement', 'mto'];
 
 export interface NewNotification {
   type: NotificationType;
@@ -145,6 +146,7 @@ export class NotificationsService implements OnApplicationBootstrap {
 
   /** A dónde lleva la notificación push al tocarla. */
   private linkFor(n: Notification): string {
+    if (n.type === 'mto') return `/correo?mto=${n.data['emailId']}`;
     if (n.type === 'share') return `/archivos?compartido=${n.data['shareId']}&notificacion=${n.id}`;
     if (n.type === 'upload') {
       const fileIds = (n.data['fileIds'] as string[] | undefined) ?? [];

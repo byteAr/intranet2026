@@ -33,6 +33,7 @@ import { MtoShareComponent } from './mto-share.component';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
 import { MtoViewersComponent } from './mto-viewers.component';
 import { findCodeMentions } from './mail-code';
+import { MailAlertsComponent, MEGAPHONE_PATH } from './mail-alerts.component';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
 import { AppVersionService } from '../../core/services/app-version.service';
 import { forkJoin } from 'rxjs';
@@ -130,7 +131,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 @Component({
   selector: 'app-mail',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, MtoShareComponent, NewBadgeComponent, CometSpinnerComponent, MtoViewersComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, MtoShareComponent, NewBadgeComponent, CometSpinnerComponent, MtoViewersComponent, MailAlertsComponent],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -164,6 +165,16 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
         <div class="flex-1"></div>
 
         <div class="p-2 border-t border-gray-200 space-y-1.5">
+          <!-- Mis alertas: términos que avisan en la campanita y MTO que sigo -->
+          <button (click)="alertsOpen.set(true)"
+            class="w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-colors border border-teal-200 text-teal-700 bg-white hover:bg-teal-50"
+            title="Avisame en la campanita cuando llegue un MTO con mi DNI, mi nombre, un expediente…">
+            <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path [attr.d]="MEGAPHONE_PATH" />
+            </svg>
+            Mis alertas
+            <app-new-badge feature="mis-alertas" [compact]="true" />
+          </button>
           <button (click)="markAllRead()"
             [disabled]="markingAllRead() || isHistorical() || mailService.unreadCounts().total === 0"
             class="w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-colors border border-teal-200 text-teal-700 bg-white hover:bg-teal-50 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -566,6 +577,20 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                         <app-new-badge feature="bandera-mto" [compact]="true" />
                       </button>
                     }
+                    <!-- Megáfono: avisa en la campanita cuando llega un MTO que cita a este (cada usuario los suyos) -->
+                    <button (click)="toggleFollow()" [disabled]="followBusy()"
+                      class="flex items-center gap-1 text-xs transition-colors hover:opacity-75 disabled:opacity-50"
+                      [class.text-teal-700]="activeEmail()!.following"
+                      [class.font-semibold]="activeEmail()!.following"
+                      [class.text-gray-400]="!activeEmail()!.following"
+                      [title]="activeEmail()!.following ? 'Dejar de seguir este MTO' : 'Seguir este MTO: te avisamos en la campanita cuando llegue uno que lo cite o lo corrija'">
+                      <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                           [attr.fill]="activeEmail()!.following ? 'currentColor' : 'none'">
+                        <path [attr.d]="MEGAPHONE_PATH" />
+                      </svg>
+                      {{ activeEmail()!.following ? 'Siguiendo' : 'Seguir' }}
+                      <app-new-badge feature="seguir-mto" [compact]="true" />
+                    </button>
                     <app-mto-share [email]="activeEmail()!" />
                     <button (click)="printEmail()"
                       class="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
@@ -833,6 +858,10 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
     <app-attachment-preview-modal
       [request]="previewRequest()"
       (closed)="previewRequest.set(null)" />
+
+    @if (alertsOpen()) {
+      <app-mail-alerts (closed)="alertsOpen.set(false)" (open)="openMtoById($event)" (unfollowed)="applyFollowing($event, false)" />
+    }
   `,
   styles: [`
     .folder-btn {
@@ -1250,6 +1279,35 @@ export class MailComponent implements OnInit {
   /** Abre un MTO por su id y saca el parámetro de la dirección. */
   private openSharedMto(id: string): void {
     void this.router.navigate([], { queryParams: { mto: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    this.openMtoById(id);
+  }
+
+  // ─── Seguir un MTO (megáfono) y "Mis alertas" ──────────────────────────────
+
+  readonly MEGAPHONE_PATH = MEGAPHONE_PATH;
+  readonly alertsOpen = signal(false);
+  readonly followBusy = signal(false);
+
+  toggleFollow(): void {
+    const email = this.activeEmail();
+    if (!email || this.followBusy()) return;
+    this.followBusy.set(true);
+    const request = email.following ? this.mailService.unfollow(email.id) : this.mailService.follow(email.id);
+    request.subscribe({
+      next: ({ following }) => {
+        this.followBusy.set(false);
+        this.applyFollowing(email.id, following);
+      },
+      error: () => this.followBusy.set(false),
+    });
+  }
+
+  /** Actualiza el megáfono del MTO abierto (también desde "Mis alertas" → Dejar de seguir). */
+  applyFollowing(emailId: string, following: boolean): void {
+    this.activeEmail.update((e) => (e && e.id === emailId ? { ...e, following } : e));
+  }
+
+  openMtoById(id: string): void {
     this.mailService.getEmail(id).subscribe({
       next: (email) => this.selectEmail(email),
       error: () => {

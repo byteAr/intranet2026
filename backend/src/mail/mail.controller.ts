@@ -2,6 +2,7 @@ import {
   Controller,
   Delete,
   Get,
+  Patch,
   Post,
   Param,
   Query,
@@ -28,6 +29,7 @@ import { LdapRecipientsService } from './ldap-recipients.service';
 import { DecryptedAttachmentService } from './decrypted-attachment.service';
 import { SienaFileService } from './siena-file.service';
 import { MailGateway } from './mail.gateway';
+import { MailAlertsService } from './mail-alerts.service';
 import { BridgeSecretGuard } from './guards/bridge-secret.guard';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 import { SendEmailDto } from './dto/send-email.dto';
@@ -45,6 +47,7 @@ export class MailController {
     private readonly decryptedService: DecryptedAttachmentService,
     private readonly sienaFileService: SienaFileService,
     private readonly mailGateway: MailGateway,
+    private readonly alerts: MailAlertsService,
   ) {}
 
   @Get('unread-counts')
@@ -87,6 +90,44 @@ export class MailController {
     return { ok: true };
   }
 
+  // ─── Seguir un MTO y "Mis alertas" (avisos en la campanita, cada usuario los suyos) ───
+
+  @Post('emails/:id/follow')
+  follow(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.alerts.follow(req.user.username, id);
+  }
+
+  @Delete('emails/:id/follow')
+  unfollow(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.alerts.unfollow(req.user.username, id);
+  }
+
+  @Get('follows')
+  follows(@Req() req: any) {
+    return this.alerts.listFollows(req.user.username);
+  }
+
+  @Get('alert-terms')
+  alertTerms(@Req() req: any) {
+    return this.alerts.listTerms(req.user.username);
+  }
+
+  @Post('alert-terms')
+  addAlertTerm(@Req() req: any, @Body() body: { term?: string; allWords?: boolean }) {
+    return this.alerts.addTerm(req.user.username, body?.term ?? '', !!body?.allWords);
+  }
+
+  @Patch('alert-terms/:id')
+  updateAlertTerm(@Req() req: any, @Param('id') id: string, @Body() body: { term?: string; allWords?: boolean }) {
+    return this.alerts.updateTerm(req.user.username, id, body?.term ?? '', !!body?.allWords);
+  }
+
+  @Delete('alert-terms/:id')
+  async removeAlertTerm(@Req() req: any, @Param('id') id: string) {
+    await this.alerts.removeTerm(req.user.username, id);
+    return { ok: true };
+  }
+
   @Get('emails/grouped-by-sender')
   async groupedBySender(
     @Query('folder') folder?: string,
@@ -97,7 +138,10 @@ export class MailController {
 
   @Get('emails/:id')
   async findOne(@Param('id') id: string, @Req() req: any) {
-    return this.mailService.findOne(id, req.user.id, req.user.roles);
+    const email = await this.mailService.findOne(id, req.user.id, req.user.roles);
+    // El megáfono: si este usuario sigue el MTO.
+    (email as any).following = await this.alerts.isFollowing(req.user.username, email.id);
+    return email;
   }
 
   @Get('emails/:id/tree')

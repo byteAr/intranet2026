@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,6 +12,7 @@ import { EmailReference } from './entities/email-reference.entity';
 import { IMailGateway } from './imap-poller.service';
 import { normalizeMailText } from './mail-text.util';
 import { expandTnef } from './tnef.util';
+import { MailAlertsService } from './mail-alerts.service';
 
 export interface IngestData {
   internetMessageId: string;
@@ -45,6 +46,7 @@ export class MailIngestService {
     private readonly attachmentRepo: Repository<Attachment>,
     @InjectRepository(EmailReference)
     private readonly referenceRepo: Repository<EmailReference>,
+    @Optional() private readonly alerts?: MailAlertsService,
   ) {}
 
   setGateway(gateway: IMailGateway): void {
@@ -128,6 +130,9 @@ export class MailIngestService {
     if (mailCode) {
       await this.mailParserService.resolvePendingReferences(saved.id, mailCode);
     }
+
+    // Avisos en la campanita: MTO seguidos y "Mis alertas" (no frena el ingreso).
+    void this.alerts?.onNewEmail(saved, expandTnef(data.attachments).map((a) => a.filename));
 
     this.logger.log(`Ingested email [${folder}] "${saved.subject}" <${data.internetMessageId}>`);
     this.mailGateway?.notifyNewEmail(saved);

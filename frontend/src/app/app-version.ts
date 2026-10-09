@@ -44,5 +44,6 @@
  * 1.7.16 — Referencias a MTO mal escritas (sin /AA con fecha, /2026, "MTO SDQ 446"): se reconocen y se pueden abrir.
  * 1.7.17 — Los escaneos y lo que suben otros a Archivos aparecen solos, sin F5.
  * 1.7.18 — Escaneos también para los grupos especiales (AYUDANTIA): acceso para la impresora y su bandeja.
+ * 1.8.0 — Seguir un MTO (megáfono) y "Mis alertas": avisos en la campanita cuando llega un MTO relacionado o con tus términos.
  */
-export const APP_VERSION = '1.7.18';
+export const APP_VERSION = '1.8.0';

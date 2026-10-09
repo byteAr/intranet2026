@@ -50,7 +50,7 @@ import { NewBadgeComponent } from '../new-badge/new-badge.component';
             <path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 003.4 0" />
           </svg>
           <p class="mt-3 text-sm font-medium text-gray-700 dark:text-zinc-300">No tenés notificaciones</p>
-          <p class="text-xs text-gray-500 dark:text-zinc-400">Acá van a aparecer los anuncios y lo que compartan con vos.</p>
+          <p class="text-xs text-gray-500 dark:text-zinc-400">Acá van a aparecer los anuncios y los avisos de MTO que pediste en «Mis alertas».</p>
         </div>
       } @else {
         <ul class="max-h-[26rem] overflow-y-auto divide-y divide-gray-100 dark:divide-zinc-800">
@@ -68,6 +68,13 @@ import { NewBadgeComponent } from '../new-badge/new-badge.component';
                   <span class="h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
                     <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3" />
+                    </svg>
+                  </span>
+                } @else if (n.type === 'mto') {
+                  <!-- MTO seguido o que coincide con "Mis alertas" -->
+                  <span class="h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
+                    <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path [attr.d]="MTO_ICON" />
                     </svg>
                   </span>
                 } @else if (n.type === 'scan') {
@@ -156,6 +163,9 @@ import { NewBadgeComponent } from '../new-badge/new-badge.component';
 export class NotificationBellComponent {
   readonly notifications = inject(NotificationsService);
   private readonly router = inject(Router);
+  /** Sobres (el mismo del MTO compartido en Conversaciones). */
+  readonly MTO_ICON =
+    'M13.021 11.17q.218.16.479.16t.479-.16L21 5.943q0-.254-.067-.559q-.067-.304-.125-.5L13.5 10.311L6.154 4.923q-.058.196-.106.492Q6 5.71 6 5.945zm-9.405 8.6q-.691 0-1.153-.463T2 18.154v-9q0-.214.143-.357t.357-.143t.357.143t.143.357v9q0 .269.173.442t.443.173h14.269q.213 0 .356.143t.144.357t-.144.357t-.356.143zm3-3q-.691 0-1.153-.463T5 15.154v-9.77q0-.69.463-1.152t1.153-.463h13.769q.69 0 1.153.463T22 5.385v9.769q0 .69-.462 1.153t-1.153.462z';
 
   readonly open = signal(false);
   readonly ringing = signal(false);
@@ -202,6 +212,8 @@ export class NotificationBellComponent {
       void this.router.navigate(['/archivos'], {
         queryParams: { oficina: n.data['groupName'], carpeta: n.data['folderId'], archivo: fileIds[0] },
       });
+    } else if (n.type === 'mto') {
+      void this.router.navigate(['/correo'], { queryParams: { mto: n.data['emailId'] } });
     } else if (n.type === 'scan') {
       void this.router.navigate(['/archivos'], {
         queryParams: { escaneos: n.data['groupName'], escaneo: n.data['scanId'] },

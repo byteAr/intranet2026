@@ -4,7 +4,8 @@ import { Subject } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
 
-export type NotificationType = 'announcement' | 'share' | 'upload' | 'scan';
+/** mto: un MTO seguido (megáfono) o que coincide con "Mis alertas". */
+export type NotificationType = 'announcement' | 'share' | 'upload' | 'scan' | 'mto';
 
 export interface AppNotification {
   id: string;

@@ -5,20 +5,14 @@ import { MailFolder } from './entities/email.entity';
 import { EmailReference } from './entities/email-reference.entity';
 import { argentinaYear } from '../common/argentina-time';
 
-// Matches institutional codes with structure PREFIX NUM/YY.
-// The ONLY meaningful special char is "/" (year separator).
-// Any other special char between components is treated as noise and ignored.
-// Examples: "DE 130/19", "AA 12../19", "ES 1266/1.-9", "DE(130)/19"
-// Normalised form: "PREFIX NUM/YY" — call .replace(/\D/g,'') on match[3] to get clean year.
-const CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[^\w\/]*\/[^\w]*(\d[^\w\/]*\d)\b/g;
+// CODE_REGEX: PREFIX NUM/YY ("DE 130/19", "AA 12../19", "DE(130)/19"); match[3] con
+// .replace(/\D/g,'') da el año. EXCLUDED_PREFIXES: PON (clave de cifrado), DDNG.
+// Las referencias mal escritas (sin /AA, año de 4 cifras) las reconoce findCodeMentions().
+import { CODE_REGEX, EXCLUDED_PREFIXES, findCodeMentions } from './mail-code.util';
 
 // Partial match for codes missing the /YY suffix (typo: "AB 22" instead of "AB 22/26").
 // Only used when trying to extract the mailCode from the head of the email.
 const PARTIAL_CODE_REGEX = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)\b/;
-
-// Prefixes that are NEVER email codes — just institutional indicators in the body.
-// PON = encryption indicator for attachments ("PON 33/96" is a crypto key, not an email ref).
-const EXCLUDED_PREFIXES = new Set(['PON', 'DDNG']);
 
 // Service/correction message prefixes — the actual mail code follows after them.
 // "SVC AB 123/22" → mailCode is "AB 123/22" (SVC = corrige un envío anterior)
@@ -35,10 +29,13 @@ const REDGEN_ADDRESS = 'REDGEN@MTO.GNA';
  */
 export const EXECUTIVE_GROUPS = ['REDINSTITUTOS@MTO.GNA'];
 
+/** Un código, o varios candidatos en orden de probabilidad (año adivinado). */
+export type CodeReference = string | string[];
+
 export interface ParsedMailData {
   mailCode: string | null;
   folder: MailFolder;
-  references: string[];
+  references: CodeReference[];
 }
 
 @Injectable()
@@ -99,7 +96,7 @@ export class MailParserService {
     bodyText: string,
     emailDate?: Date | string,
     subject?: string,
-  ): { mailCode: string | null; references: string[] } {
+  ): { mailCode: string | null; references: CodeReference[] } {
     if (!bodyText) return { mailCode: null, references: [] };
 
     // Strip SVC/MTP prefix from head to find the actual mailCode
@@ -156,19 +153,15 @@ export class MailParserService {
       }
     }
 
-    // Collect all full codes in the body, skipping mailCode and PON codes
+    // Todos los códigos del cuerpo, también los mal escritos (findCodeMentions), sin el
+    // propio ni los PON. Una referencia con varios candidatos (año adivinado) va como
+    // lista: saveReferences() se queda con el primero que existe.
     const seen = new Set<string>(mailCode ? [mailCode] : []);
-    const references: string[] = [];
-    const regex = new RegExp(CODE_REGEX.source, CODE_REGEX.flags);
-    let match: RegExpExecArray | null;
-
-    while ((match = regex.exec(bodyText)) !== null) {
-      if (EXCLUDED_PREFIXES.has(match[1])) continue;
-      const code = `${match[1]} ${match[2]}/${match[3].replace(/\D/g, '')}`;
-      if (!seen.has(code)) {
-        seen.add(code);
-        references.push(code);
-      }
+    const references: CodeReference[] = [];
+    for (const mention of findCodeMentions(bodyText, emailDate)) {
+      if (mention.candidates.some((c) => seen.has(c))) continue;
+      mention.candidates.forEach((c) => seen.add(c));
+      references.push(mention.candidates.length === 1 ? mention.candidates[0] : mention.candidates);
     }
 
     return { mailCode, references };
@@ -215,19 +208,20 @@ export class MailParserService {
    */
   async saveReferences(
     emailId: string,
-    referencedCodes: string[],
+    referencedCodes: CodeReference[],
     resolveExisting: (code: string) => Promise<string | null>,
   ): Promise<void> {
     if (referencedCodes.length === 0) return;
 
     const rows = await Promise.all(
-      referencedCodes.map(async (code) => {
-        const resolved = await resolveExisting(code);
-        return {
-          emailId,
-          referencedCode: code,
-          ...(resolved ? { referencedEmailId: resolved } : {}),
-        };
+      referencedCodes.map(async (ref) => {
+        // Varios candidatos: el primero que existe; si ninguno, el más probable (queda pendiente).
+        const candidates = Array.isArray(ref) ? ref : [ref];
+        for (const code of candidates) {
+          const resolved = await resolveExisting(code);
+          if (resolved) return { emailId, referencedCode: code, referencedEmailId: resolved };
+        }
+        return { emailId, referencedCode: candidates[0] };
       }),
     );
 

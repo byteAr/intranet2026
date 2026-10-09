@@ -109,7 +109,7 @@ CC=DIREDTOS@MTO.GNA   → INFORMATIVOS  (fallback también)
 ### mailCode — regex
 `/\b([A-ZÁÉÍÓÚÑ]{2,5})[ \t]*(\d{1,4})[ \t]*\/[ \t]*(\d{2})\b/g`
 - Primer código en los primeros ~150 chars del body → `mailCode` (null si empieza con "NOTA" u otro texto).
-- Resto de códigos → `EmailReference[]`.
+- Resto de códigos → `EmailReference[]`. Desde el 09/10/2026 también los **mal escritos** (`findCodeMentions`, `mail-code.util.ts`; ⚠️ copia idéntica en `frontend/src/app/features/mail/mail-code.ts`, que usa la pantalla para pintarlos verde/rojo): sin `/AA` con grupo fecha-hora (`SDQ 446 (07OCT26)` → año de la fecha), año de 4 cifras (`/2026`) y `MTO SDQ 446` sin año (candidatos año del MTO y anterior; se guarda el que existe). Palabras que nunca son prefijo: `NOT_A_PREFIX`. Lo ya guardado se completó con una pasada única que solo agrega (`addInferredReferences`, marca `emails.refs`).
 - Formato normalizado: `PREFIX NUM/YY` (ej: `DE 130/19`).
 
 ### Búsqueda full-text

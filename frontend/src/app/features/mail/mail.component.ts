@@ -32,6 +32,7 @@ import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { MtoShareComponent } from './mto-share.component';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
 import { MtoViewersComponent } from './mto-viewers.component';
+import { findCodeMentions } from './mail-code';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
 import { AppVersionService } from '../../core/services/app-version.service';
 import { forkJoin } from 'rxjs';
@@ -1701,29 +1702,35 @@ export class MailComponent implements OnInit {
       );
     }
     const raw = reflowMailText(email.bodyText);
-    // HTML-escape the plain text first to prevent XSS
-    const escaped = raw
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    const CODE_RE = /\b([A-ZÁÉÍÓÚÑ]{1,4})[ \t]*(\d+)[^\w\/]*\/[^\w]*(\d[^\w\/]*\d)\b/g;
-    const EXCLUDED = new Set(['PON']);
+    // El texto se escapa siempre (nunca se interpreta HTML del correo)
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const selfCode = (email.mailCode ?? '').toUpperCase();
 
-    let highlighted = escaped.replace(CODE_RE, (match, p1, p2, p3) => {
-      if (EXCLUDED.has(p1.toUpperCase())) return match;
-      const code = `${p1} ${p2}/${p3.replace(/\D/g, '')}`;
-      // Own code identifier: render bold but no link
-      if (code.toUpperCase() === selfCode) {
-        return `<span class="font-semibold text-gray-800">${match}</span>`;
+    // Códigos con la misma regla que el backend (findCodeMentions, también los mal
+    // escritos: "SDQ 446 (07OCT26)", "SDQ 446/2026", "MTO SDQ 446"). Con varios
+    // candidatos (año adivinado) vale el que el backend guardó como referencia.
+    let highlighted = '';
+    let pos = 0;
+    for (const mention of findCodeMentions(raw, email.date)) {
+      const match = esc(raw.slice(mention.index, mention.index + mention.length));
+      highlighted += esc(raw.slice(pos, mention.index));
+      pos = mention.index + mention.length;
+      const codes = mention.candidates.map((c) => c.toUpperCase());
+      if (codes.includes(selfCode)) {
+        // Own code identifier: render bold but no link
+        highlighted += `<span class="font-semibold text-gray-800">${match}</span>`;
+        continue;
       }
-      const emailId = refMap.get(code.toUpperCase());
-      if (emailId) {
-        return `<span class="text-green-600 font-medium cursor-pointer hover:underline" data-ref-id="${emailId}" title="Ver ${code}">${match}</span>`;
+      const linked = codes.find((c) => refMap.get(c));
+      const code = linked ?? codes.find((c) => refMap.has(c)) ?? codes[0];
+      const inferred = /\/\d{2}$/.test(raw.slice(mention.index, pos).trim()) ? '' : ` (interpretado como ${code})`;
+      if (linked) {
+        highlighted += `<span class="text-green-600 font-medium cursor-pointer hover:underline" data-ref-id="${refMap.get(linked)}" title="Ver ${code}${inferred}">${match}</span>`;
+      } else {
+        highlighted += `<span class="text-red-500 font-medium" title="${code} — no encontrado en la base de datos${inferred}">${match}</span>`;
       }
-      return `<span class="text-red-500 font-medium" title="${code} — no encontrado en la base de datos">${match}</span>`;
-    });
+    }
+    highlighted += esc(raw.slice(pos));
 
     highlighted = applySearchHighlight(highlighted);
 

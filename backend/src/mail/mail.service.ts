@@ -16,6 +16,7 @@ import { SienaFileService } from './siena-file.service';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 import { cp1252SqlRepair, normalizeMailText } from './mail-text.util';
 import { EXECUTIVE_GROUPS } from './mail-parser.service';
+import { findCodeMentions } from './mail-code.util';
 import { argentinaYear } from '../common/argentina-time';
 
 /**
@@ -103,6 +104,94 @@ export class MailService implements OnApplicationBootstrap {
     void this.repairEncodingResidue();
     void this.repairTnefAttachments();
     void this.reclassifyExecutiveGroups();
+    void this.addInferredReferences();
+  }
+
+  /**
+   * Una sola vez: agrega a los MTO guardados las referencias mal escritas que
+   * ahora se reconocen (findCodeMentions: "SDQ 446 (07OCT26)", "SDQ 446/2026",
+   * "MTO SDQ 446"). No borra ni cambia las que ya hay. Marca en app_markers
+   * 'emails.refs'. Con varios candidatos (año adivinado) se queda con el que existe.
+   */
+  private async addInferredReferences(): Promise<void> {
+    const MARK = 'infer:v1';
+    const runner = this.dataSource.createQueryRunner();
+    let locked = false;
+    try {
+      await runner.connect();
+      const [fila] = await runner.query(`SELECT "value" FROM "app_markers" WHERE "key" = 'emails.refs'`).catch(() => []);
+      if (fila?.value === MARK) return;
+      const [{ ok }] = await runner.query(`SELECT pg_try_advisory_lock(720261010) AS ok`);
+      if (!ok) return;
+      locked = true;
+
+      const inicio = Date.now();
+      // Filtro grueso en la base (fecha-hora, año de 4 cifras o "MTO" + letras); el fino es findCodeMentions.
+      const candidatos: { id: string }[] = await runner.query(
+        `SELECT id FROM emails
+          WHERE "bodyText" ~ $1 OR "bodyText" ~ $2 OR "bodyText" ~ $3`,
+        [
+          '[0-9]{2}([0-9]{4})?[ \\t]*(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|SET|OCT|NOV|DIC|JAN|APR|AUG|DEC)[ \\t]*[0-9]{2}',
+          '/[ \\t]*20[0-9]{2}',
+          'MTOS?[ \\t.:]+[A-Z]',
+        ],
+      );
+      let agregadas = 0;
+      for (let i = 0; i < candidatos.length; i += 300) {
+        const ids = candidatos.slice(i, i + 300).map((c) => c.id);
+        const correos: { id: string; bodyText: string | null; date: Date | null; mailCode: string | null }[] =
+          await runner.query(`SELECT id, "bodyText", date, "mailCode" FROM emails WHERE id = ANY($1::uuid[])`, [ids]);
+        const existentes: { emailId: string; referencedCode: string }[] = await runner.query(
+          `SELECT "emailId", "referencedCode" FROM email_references WHERE "emailId" = ANY($1::uuid[])`,
+          [ids],
+        );
+        const yaTiene = new Map<string, Set<string>>();
+        for (const r of existentes) {
+          if (!yaTiene.has(r.emailId)) yaTiene.set(r.emailId, new Set());
+          yaTiene.get(r.emailId)!.add(r.referencedCode);
+        }
+
+        // Lo nuevo de cada correo: menciones que no son el propio código ni una referencia que ya tiene.
+        const nuevas: { emailId: string; candidates: string[] }[] = [];
+        for (const c of correos) {
+          if (!c.bodyText) continue;
+          const tiene = yaTiene.get(c.id) ?? new Set<string>();
+          const vistos = new Set<string>(c.mailCode ? [c.mailCode] : []);
+          for (const m of findCodeMentions(c.bodyText, c.date)) {
+            if (m.candidates.some((code) => vistos.has(code) || tiene.has(code))) continue;
+            m.candidates.forEach((code) => vistos.add(code));
+            nuevas.push({ emailId: c.id, candidates: m.candidates });
+          }
+        }
+        if (!nuevas.length) continue;
+
+        const codigos = [...new Set(nuevas.flatMap((n) => n.candidates))];
+        const destinos: { id: string; mailCode: string }[] = await runner.query(
+          `SELECT DISTINCT ON ("mailCode") id, "mailCode" FROM emails WHERE "mailCode" = ANY($1::text[]) ORDER BY "mailCode", date`,
+          [codigos],
+        );
+        const idPorCodigo = new Map(destinos.map((d) => [d.mailCode, d.id]));
+        const filas = nuevas.map((n) => {
+          const code = n.candidates.find((c) => idPorCodigo.has(c)) ?? n.candidates[0];
+          return { emailId: n.emailId, referencedCode: code, referencedEmailId: idPorCodigo.get(code) };
+        });
+        await this.referenceRepo.insert(filas as EmailReference[]);
+        agregadas += filas.length;
+      }
+      await runner.query(
+        `INSERT INTO "app_markers" ("key", "value") VALUES ('emails.refs', $1)
+         ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
+        [MARK],
+      );
+      this.logger.log(
+        `Referencias mal escritas: ${agregadas} agregadas en ${candidatos.length} MTO revisados (${Math.round((Date.now() - inicio) / 1000)} s)`,
+      );
+    } catch (err) {
+      this.logger.error('Referencias mal escritas: la pasada falló; se reintenta en el próximo arranque', (err as Error).message);
+    } finally {
+      if (locked) await runner.query(`SELECT pg_advisory_unlock(720261010)`).catch(() => undefined);
+      await runner.release().catch(() => undefined);
+    }
   }
 
   /**

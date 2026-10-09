@@ -41,5 +41,6 @@
  * 1.7.13 — Modo oscuro nuevo: fondos en tonos de negro y gris oscuro, texto blanco (antes los grises claros quedaban gris oscuro).
  * 1.7.14 — Conversaciones: adjuntos en miniatura uno al lado del otro, clip y sobre nuevos, tarjeta para el MTO compartido.
  * 1.7.15 — Modo oscuro en Redactar MTO y Para enviar: la hoja del MTO con letras blancas y bordes grises.
+ * 1.7.16 — Referencias a MTO mal escritas (sin /AA con fecha, /2026, "MTO SDQ 446"): se reconocen y se pueden abrir.
  */
-export const APP_VERSION = '1.7.15';
+export const APP_VERSION = '1.7.16';

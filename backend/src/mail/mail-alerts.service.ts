@@ -258,7 +258,7 @@ export class MailAlertsService implements OnApplicationBootstrap {
    * no recibe MTO (los recibe producción), y para ver si un término está bien escrito.
    * No suma el MTO a los seguidos.
    */
-  async testOnEmail(username: string, emailId: string): Promise<{ reasons: string[]; notified: boolean }> {
+  async testOnEmail(username: string, emailId: string): Promise<{ reasons: string[]; matched: boolean; notified: boolean }> {
     const email = await this.emailRepo.findOne({
       where: { id: emailId },
       select: ['id', 'mailCode', 'subject', 'bodyText'],
@@ -267,14 +267,20 @@ export class MailAlertsService implements OnApplicationBootstrap {
     if (!email) throw new NotFoundException('MTO no encontrado');
     const { reasons } = await this.reasonsFor(email, (email.attachments ?? []).map((a) => a.filename), username);
     const list = reasons.get(username.toLowerCase()) ?? [];
+    let sent = 0;
     if (list.length) {
-      await this.notifications.notify([username], {
-        type: 'mto',
-        title: `Prueba: llegó el MTO ${email.mailCode ?? email.subject}`,
-        body: `${list.join(' · ')}. ${email.subject}`.slice(0, 500),
-        data: { emailId: email.id, mailCode: email.mailCode ?? null },
-      });
+      // Va solo a quien prueba: en staging tiene que llegar aunque NOTIFICATIONS_ONLY_TO no lo incluya.
+      sent = await this.notifications.notify(
+        [username],
+        {
+          type: 'mto',
+          title: `Prueba: llegó el MTO ${email.mailCode ?? email.subject}`,
+          body: `${list.join(' · ')}. ${email.subject}`.slice(0, 500),
+          data: { emailId: email.id, mailCode: email.mailCode ?? null },
+        },
+        { ignoreOnlyTo: true },
+      );
     }
-    return { reasons: list, notified: list.length > 0 };
+    return { reasons: list, matched: list.length > 0, notified: sent > 0 };
   }
 }

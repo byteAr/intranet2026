@@ -74,13 +74,17 @@ export class NotificationsService implements OnApplicationBootstrap {
 
   // ─── Enviar ────────────────────────────────────────────────────────────────
 
-  async notify(usernames: string[], input: NewNotification): Promise<void> {
-    if (!NOTIFIED_TYPES.includes(input.type)) return;
-    const onlyTo = this.onlyTo();
+  /**
+   * Devuelve a cuántos se les mandó. ignoreOnlyTo: para lo que va solo a quien
+   * lo pidió (la prueba de "Mis alertas"), que en staging también tiene que llegar.
+   */
+  async notify(usernames: string[], input: NewNotification, options: { ignoreOnlyTo?: boolean } = {}): Promise<number> {
+    if (!NOTIFIED_TYPES.includes(input.type)) return 0;
+    const onlyTo = options.ignoreOnlyTo ? null : this.onlyTo();
     const unique = [...new Set(usernames.map((u) => u.toLowerCase()).filter(Boolean))].filter(
       (u) => !onlyTo || onlyTo.has(u),
     );
-    if (!unique.length) return;
+    if (!unique.length) return 0;
     const rows = await this.repo.save(
       unique.map((username) =>
         this.repo.create({ username, type: input.type, title: input.title, body: input.body, data: input.data ?? {} }),
@@ -88,6 +92,7 @@ export class NotificationsService implements OnApplicationBootstrap {
     );
     for (const row of rows) this.gateway.toUser(row.username, this.toDto(row));
     void this.sendPush(rows);
+    return rows.length;
   }
 
   /**

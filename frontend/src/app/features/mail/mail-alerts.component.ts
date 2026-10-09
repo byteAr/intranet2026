@@ -87,8 +87,11 @@ export const MEGAPHONE_PATH = 'M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM
                 </button>
               </div>
               @if (testResult(); as r) {
-                @if (r.notified) {
-                  <p class="mt-1.5 text-xs text-green-700">✓ Sí: {{ r.reasons.join(' · ') }}. Te mandamos el aviso de prueba a la campanita.</p>
+                @if (r.matched) {
+                  <p class="mt-1.5 text-xs text-green-700">
+                    ✓ Sí: {{ r.reasons.join(' · ') }}.
+                    {{ r.notified ? 'Te mandamos el aviso de prueba a la campanita.' : 'No se pudo mandar el aviso a la campanita.' }}
+                  </p>
                 } @else {
                   <p class="mt-1.5 text-xs text-amber-700">No: ninguna de tus alertas aparece en ese MTO ni lo relaciona con uno que sigas.</p>
                 }
@@ -184,7 +187,7 @@ export class MailAlertsComponent {
   readonly error = signal<string | null>(null);
   readonly editingId = signal<string | null>(null);
   readonly testing = signal(false);
-  readonly testResult = signal<{ reasons: string[]; notified: boolean } | null>(null);
+  readonly testResult = signal<{ reasons: string[]; matched: boolean; notified: boolean } | null>(null);
 
   newTerm = '';
   newAllWords = false;

@@ -381,8 +381,8 @@ export class MailService {
   }
 
   /** Corre mis alertas contra un MTO ya guardado, como si acabara de llegar (manda el aviso de prueba). */
-  testAlerts(id: string): Observable<{ reasons: string[]; notified: boolean }> {
-    return this.http.post<{ reasons: string[]; notified: boolean }>(`/api/mail/emails/${id}/test-alerts`, {});
+  testAlerts(id: string): Observable<{ reasons: string[]; matched: boolean; notified: boolean }> {
+    return this.http.post<{ reasons: string[]; matched: boolean; notified: boolean }>(`/api/mail/emails/${id}/test-alerts`, {});
   }
 
   followedMtos(): Observable<FollowedMto[]> {

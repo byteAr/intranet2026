@@ -809,7 +809,7 @@ export class MailService implements OnApplicationBootstrap {
     }
 
     // Incluir archivos SIENA para TICOM y ENCRIPTADO si el email es de tipo SIENA
-    if (canSeeDecrypted && SienaFileService.isSienaBody(email.bodyText)) {
+    if (canSeeDecrypted && SienaFileService.isSiena(email.subject, email.bodyText)) {
       const siena = await this.sienaRepo.find({
         where: { emailId: id },
         order: { uploadedAt: 'ASC' },

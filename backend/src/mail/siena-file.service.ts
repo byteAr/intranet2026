@@ -5,12 +5,20 @@ import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import { SienaFile } from './entities/siena-file.entity';
 import { Email } from './entities/email.entity';
 
-const SIENA_PATTERN = /SOFTWARE\s+SIENA/i;
+/**
+ * MTO enviado por SIENA. Hasta el 09/10/2026 solo se reconocía "SOFTWARE SIENA"
+ * y se escapaban los que dicen "CIFRADO MEDIANTE SISTEMA SIENA" (IFM 839/26):
+ * ahí no se podía subir el archivo desencriptado. Ahora cuenta también
+ * "SISTEMA/PLATAFORMA SIENA", el enlace de descarga de siena.gna.gob.ar y
+ * "SIENA" en el asunto.
+ */
+const SIENA_BODY = /\b(SOFTWARE|SISTEMA|PLATAFORMA)\s+SIENA\b|siena\.gna\.gob\.ar/i;
+const SIENA_SUBJECT = /\bSIENA\b/i;
 
 @Injectable()
 export class SienaFileService {
-  static isSienaBody(bodyText: string | null | undefined): boolean {
-    return SIENA_PATTERN.test(bodyText ?? '');
+  static isSiena(subject: string | null | undefined, bodyText: string | null | undefined): boolean {
+    return SIENA_BODY.test(bodyText ?? '') || SIENA_SUBJECT.test(subject ?? '');
   }
   constructor(
     @InjectRepository(SienaFile)

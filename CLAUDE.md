@@ -4,6 +4,12 @@ Plataforma intranet institucional: chat, incidencias, reservas, correo, MTO, pus
 
 ---
 
+## ⚠️ REGLA OBLIGATORIA — Idioma
+
+**Responder SIEMPRE en castellano.** El usuario solo entiende castellano: todas las respuestas, los avisos cortos entre pasos y el resumen final, también después de una tarea larga o de un resumen de contexto. Nunca en inglés.
+
+---
+
 ## ⚠️ REGLA OBLIGATORIA — Workflow tras cada cambio
 
 **SIEMPRE** al terminar cualquier edición de código:

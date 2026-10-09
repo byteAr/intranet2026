@@ -101,8 +101,10 @@ Afecta: `ldap-search.service.ts`, `password-reset.service.ts`.
 FROM=DIREDTOS@MTO.GNA → TX
 TO/CC=REDGEN@MTO.GNA  → REDGEN
 TO=DIREDTOS@MTO.GNA   → EJECUTIVOS
+TO=REDINSTITUTOS@MTO.GNA → EJECUTIVOS  (grupos de EXECUTIVE_GROUPS, solo en el Para)
 CC=DIREDTOS@MTO.GNA   → INFORMATIVOS  (fallback también)
 ```
+`EXECUTIVE_GROUPS` (`mail-parser.service.ts`, 09/10/2026): grupos de la libreta que incluyen a DIREDTOS. Al cambiar la lista, `reclassifyExecutiveGroups()` pasa a Ejecutivos los Informativos guardados que los traen en el Para (una vez por lista, marca `app_markers` `emails.executiveGroups`).
 
 ### mailCode — regex
 `/\b([A-ZÁÉÍÓÚÑ]{2,5})[ \t]*(\d{1,4})[ \t]*\/[ \t]*(\d{2})\b/g`

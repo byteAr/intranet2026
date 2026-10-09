@@ -15,6 +15,7 @@ import { SienaFile } from './entities/siena-file.entity';
 import { SienaFileService } from './siena-file.service';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 import { cp1252SqlRepair, normalizeMailText } from './mail-text.util';
+import { EXECUTIVE_GROUPS } from './mail-parser.service';
 import { argentinaYear } from '../common/argentina-time';
 
 /**
@@ -101,6 +102,59 @@ export class MailService implements OnApplicationBootstrap {
     void this.migrateSearchData();
     void this.repairEncodingResidue();
     void this.repairTnefAttachments();
+    void this.reclassifyExecutiveGroups();
+  }
+
+  /**
+   * Una vez por cada lista de EXECUTIVE_GROUPS: los MTO guardados como
+   * Informativos que traen uno de esos grupos en el Para pasan a Ejecutivos
+   * (misma regla que MailParserService.classifyFolder; los de REDGEN y los
+   * enviados no se tocan). Marca en app_markers 'emails.executiveGroups'.
+   */
+  private async reclassifyExecutiveGroups(): Promise<void> {
+    const MARK = `groups:${[...EXECUTIVE_GROUPS].sort().join(',')}`;
+    const runner = this.dataSource.createQueryRunner();
+    let locked = false;
+    try {
+      await runner.connect();
+      const [fila] = await runner
+        .query(`SELECT "value" FROM "app_markers" WHERE "key" = 'emails.executiveGroups'`)
+        .catch(() => []);
+      if (fila?.value === MARK) return;
+      const [{ ok }] = await runner.query(`SELECT pg_try_advisory_lock(720261009) AS ok`);
+      if (!ok) return;
+      locked = true;
+
+      // Igual que matchAddr(): la dirección completa, o el nombre solo (PST) o seguido de un espacio.
+      const conditions: string[] = [];
+      const params: string[] = [];
+      for (const group of EXECUTIVE_GROUPS) {
+        const name = group.split('@')[0];
+        params.push(`%${group}%`, name, `${name} %`);
+        const n = params.length;
+        conditions.push(`a LIKE $${n - 2} OR a = $${n - 1} OR a LIKE $${n}`);
+      }
+      const result: [unknown[], number] = await runner.query(
+        `UPDATE emails e SET folder = 'ejecutivos'
+          WHERE e.folder = 'informativos'
+            AND EXISTS (
+              SELECT 1 FROM unnest(string_to_array(e."toAddresses", ',')) AS t(raw),
+                LATERAL (SELECT upper(trim(raw)) AS a) x
+               WHERE ${conditions.map((c) => `(${c})`).join(' OR ')})`,
+        params,
+      );
+      await runner.query(
+        `INSERT INTO "app_markers" ("key", "value") VALUES ('emails.executiveGroups', $1)
+         ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
+        [MARK],
+      );
+      this.logger.log(`Ejecutivos por grupo (${EXECUTIVE_GROUPS.join(', ')}): ${result?.[1] ?? 0} MTO pasaron de Informativos a Ejecutivos`);
+    } catch (err) {
+      this.logger.error('Ejecutivos por grupo: la reclasificación falló; se reintenta en el próximo arranque', (err as Error).message);
+    } finally {
+      if (locked) await runner.query(`SELECT pg_advisory_unlock(720261009)`).catch(() => undefined);
+      await runner.release().catch(() => undefined);
+    }
   }
 
   /**

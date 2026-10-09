@@ -27,6 +27,13 @@ const SERVICE_PREFIX_RE = /^[ \t]*(SVC|MTP)[ \t]+/i;
 
 const OUR_ADDRESS = 'DIREDTOS@MTO.GNA';
 const REDGEN_ADDRESS = 'REDGEN@MTO.GNA';
+/**
+ * Grupos de la libreta que incluyen a DIREDTOS: si vienen en el Para, el MTO es
+ * Ejecutivo, como si viniera dirigido a DIREDTOS (en CC sigue siendo Informativo).
+ * REDINSTITUTOS (ESCUSUPER, ESCUGEN, INSCAES, ESCUSUB…) desde el 09/10/2026.
+ * Al agregar uno, MailService.reclassifyExecutiveGroups() reclasifica lo guardado.
+ */
+export const EXECUTIVE_GROUPS = ['REDINSTITUTOS@MTO.GNA'];
 
 export interface ParsedMailData {
   mailCode: string | null;
@@ -66,6 +73,7 @@ export class MailParserService {
 
     if (matchAddr(toList, REDGEN_ADDRESS) || matchAddr(ccList, REDGEN_ADDRESS)) return MailFolder.REDGEN;
     if (matchAddr(toList, OUR_ADDRESS)) return MailFolder.EJECUTIVOS;
+    if (EXECUTIVE_GROUPS.some((group) => matchAddr(toList, group))) return MailFolder.EJECUTIVOS;
     if (matchAddr(ccList, OUR_ADDRESS)) return MailFolder.INFORMATIVOS;
 
     // Fallback: if none matched, treat as informativo

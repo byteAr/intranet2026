@@ -139,6 +139,9 @@ Si el remitente manda desde Outlook en "Texto enriquecido", los adjuntos no viaj
 ### No leídos
 `MAIL_UNREAD_SINCE` (ISO 8601): lo ingresado antes cuenta como leído para todos. Lo importado desde PST nunca cuenta como no leído.
 
+### No leídos (1.8.1)
+Botón "No leídos" arriba de la lista: solo los no leídos de la carpeta abierta (`GET /api/mail/emails?unread=true`), con el mismo criterio que los números de las carpetas (`getUnreadCounts`: año actual, sin PST, desde el corte del usuario). Filtra con `NOT EXISTS` sobre `email_read_status`, no con un JOIN (ver attachReadStatuses). Queda puesto al cambiar de carpeta; se apaga en Históricos.
+
 ### Marcar todo leído, banderita, Ctrl+P, Ejecutivos (1.7.0)
 - **Marcar todo leído** (botón en la columna de carpetas, `POST /api/mail/mark-all-read`): guarda en `mail_read_marks` la fecha del usuario; lo ingresado antes cuenta como leído **para él** (`cutoffFor()` = el más nuevo entre `MAIL_UNREAD_SINCE` y su marca), sin crear filas en `email_read_status` (no ensucia "Visto por").
 - **Banderita** (`mail_flags`, una por MTO: quién y cuándo): solo **TICOM** la ve y la pone (`POST/DELETE …/emails/:id/flag`, `@Roles('TICOM')`); es compartida entre ellos, como en el Outlook de DIREDTOS (el de turno marca hasta dónde leyó). Llega como `flag` en la lista y el detalle solo si el usuario es TICOM. **En vivo** (1.7.7): al ponerla o sacarla, el controller emite `mail_flag` `{emailId, flag}` por `/mail` a la sala `role:ticom` (se une al conectar si el JWT trae el rol TICOM); el frontend actualiza lista, MTO abierto y vista agrupada (`flagChanges`).

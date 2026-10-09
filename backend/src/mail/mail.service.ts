@@ -709,6 +709,20 @@ export class MailService implements OnApplicationBootstrap {
       qb.andWhere('e.fromAddress = :sender', { sender: dto.sender.trim() });
     }
 
+    // "No leídos": igual que getUnreadCounts() (año actual, sin PST, desde el corte
+    // del usuario). Con NOT EXISTS y no con un JOIN: ver attachReadStatuses().
+    if (dto.unread && !dto.historical) {
+      qb.andWhere('EXTRACT(YEAR FROM e.date) = :unreadYear', { unreadYear: currentYear })
+        .andWhere('e."isFromPstImport" = false')
+        .andWhere(
+          `NOT EXISTS (SELECT 1 FROM email_read_status rs
+                        WHERE rs."emailId" = e.id AND rs."userId" = :unreadUser AND rs."isRead" = true)`,
+          { unreadUser: userId },
+        );
+      const corte = await this.cutoffFor(userId);
+      if (corte) qb.andWhere(`e."createdAt" >= ${this.cutoffSql(':unreadCorte')}`, { unreadCorte: corte.toISOString() });
+    }
+
     // Una sola palabra sin números (SNF, DIRTICOM): los MTO con ese código y los
     // que mandó esa unidad, del más reciente al más antiguo.
     const listing = searchTerm ? await this.unitListing(searchTerm) : null;

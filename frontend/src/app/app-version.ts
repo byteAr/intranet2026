@@ -45,5 +45,6 @@
  * 1.7.17 — Los escaneos y lo que suben otros a Archivos aparecen solos, sin F5.
  * 1.7.18 — Escaneos también para los grupos especiales (AYUDANTIA): acceso para la impresora y su bandeja.
  * 1.8.0 — Seguir un MTO (megáfono) y "Mis alertas": avisos en la campanita cuando llega un MTO relacionado o con tus términos.
+ * 1.8.1 — Botón "No leídos" en la lista de MTO (los no leídos de la carpeta abierta).
  */
-export const APP_VERSION = '1.8.0';
+export const APP_VERSION = '1.8.1';

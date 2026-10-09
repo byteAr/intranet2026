@@ -19,6 +19,7 @@ export const NEW_FEATURES = {
   'bandera-mto': '2026-10-08',
   'seguir-mto': '2026-10-09',
   'mis-alertas': '2026-10-09',
+  'no-leidos': '2026-10-09',
 } as const;
 
 export type NewFeature = keyof typeof NEW_FEATURES;

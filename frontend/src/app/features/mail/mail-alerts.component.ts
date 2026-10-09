@@ -28,7 +28,7 @@ export const MEGAPHONE_PATH = 'M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM
             </span>
             <div>
               <h3 id="mail-alerts-title" class="text-sm font-semibold text-gray-900">Mis alertas</h3>
-              <p class="text-xs text-gray-500 leading-relaxed">Te avisamos en la campanita cuando llega un MTO con lo que cargues acá o relacionado con uno que seguís.</p>
+              <p class="text-xs text-gray-500 leading-relaxed">Te avisamos en las notificaciones de la campanita cuando llega un MTO con lo que cargues acá o relacionado con uno que seguís.</p>
             </div>
           </div>
           <button (click)="closed.emit()" class="text-gray-400 hover:text-gray-700" aria-label="Cerrar">✕</button>

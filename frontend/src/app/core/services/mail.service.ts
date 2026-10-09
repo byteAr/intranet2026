@@ -258,9 +258,10 @@ export class MailService {
     page = 1,
     limit = PAGE_SIZE,
     historical = false,
-    advanced?: { q?: string; dateFrom?: string; dateTo?: string; year?: number },
+    advanced?: { q?: string; dateFrom?: string; dateTo?: string; year?: number; unread?: boolean },
   ): void {
     let params = new HttpParams().set('limit', limit);
+    if (advanced?.unread) params = params.set('unread', 'true');
     if (folder) params = params.set('folder', folder);
     if (historical) params = params.set('historical', 'true');
     if (advanced?.q?.trim()) params = params.set('q', advanced.q.trim());

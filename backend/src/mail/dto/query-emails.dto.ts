@@ -48,6 +48,12 @@ export class QueryEmailsDto {
   @IsString()
   dateTo?: string;
 
+  /** Solo los no leídos por el usuario (mismo criterio que los números de las carpetas). */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  unread?: boolean;
+
   /** Filtrar por remitente exacto */
   @IsOptional()
   @IsString()

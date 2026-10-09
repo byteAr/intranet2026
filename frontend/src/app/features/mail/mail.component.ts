@@ -168,7 +168,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
           <!-- Mis alertas: términos que avisan en la campanita y MTO que sigo -->
           <button (click)="alertsOpen.set(true)"
             class="w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-colors border border-teal-200 text-teal-700 bg-white hover:bg-teal-50"
-            title="Avisame en la campanita cuando llegue un MTO con mi DNI, mi nombre, un expediente…">
+            title="Avisame en las notificaciones de la campanita cuando llegue un MTO con mi DNI, mi nombre, un expediente…">
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path [attr.d]="MEGAPHONE_PATH" />
             </svg>
@@ -284,6 +284,24 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               </span>
             }
             @else if (isSearchMode()) { Resultados }
+            @else if (!isHistorical() && groupBy() === 'none') {
+              <!-- Solo los no leídos de la carpeta en la que estás -->
+              <button (click)="toggleUnread()"
+                class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border transition-colors"
+                [class.bg-teal-600]="onlyUnread()" [class.text-white]="onlyUnread()" [class.border-teal-600]="onlyUnread()"
+                [class.text-gray-600]="!onlyUnread()" [class.border-gray-200]="!onlyUnread()" [class.hover:bg-gray-100]="!onlyUnread()"
+                [attr.aria-pressed]="onlyUnread()"
+                [title]="onlyUnread() ? 'Mostrar todos' : 'Mostrar solo los que no abriste de esta carpeta'">
+                <span class="h-1.5 w-1.5 rounded-full" [class.bg-white]="onlyUnread()" [class.bg-teal-500]="!onlyUnread()"></span>
+                No leídos
+                @if (unreadInFolder() > 0) {
+                  <span class="text-[10px] font-semibold rounded-full px-1.5 leading-4"
+                    [class.bg-white]="onlyUnread()" [class.text-teal-700]="true"
+                    [class.bg-teal-100]="!onlyUnread()">{{ unreadInFolder() }}</span>
+                }
+              </button>
+              <app-new-badge feature="no-leidos" [compact]="true" class="ml-1" />
+            }
             @else { &nbsp; }
           </span>
           <div class="flex items-center gap-2">
@@ -350,7 +368,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              <p class="text-sm">Sin correos</p>
+              <p class="text-sm">{{ onlyUnread() && !isSearchMode() && !isAdvancedMode() ? 'No tenés MTO sin leer en esta carpeta' : 'Sin correos' }}</p>
             </div>
           } @else if (groupBy() === 'from') {
             <!-- Vista agrupada por remitente -->
@@ -1356,11 +1374,37 @@ export class MailComponent implements OnInit {
     this.isAdvancedMode.set(false);
     this.showAdvanced.set(false);
     this.searchQuery = '';
-    this.mailService.loadEmails(folder ?? undefined, 1);
+    this.loadFolderList();
+  }
+
+  // ─── No leídos ─────────────────────────────────────────────────────────────
+
+  /** Solo los no leídos de la carpeta abierta (queda puesto al cambiar de carpeta). */
+  readonly onlyUnread = signal(false);
+
+  /** Los no leídos de la carpeta abierta (o de todas), como en la columna de carpetas. */
+  unreadInFolder(): number {
+    const folder = this.activeFolder();
+    return folder ? this.folderUnreadCount(folder) : this.mailService.unreadCounts().total;
+  }
+
+  toggleUnread(): void {
+    this.onlyUnread.update((v) => !v);
+    this.activeEmail.set(null);
+    this.loadFolderList();
+  }
+
+  /** La lista de la carpeta abierta, con el filtro de no leídos si está puesto. */
+  private loadFolderList(): void {
+    this.mailService.loadEmails(
+      this.activeFolder() ?? undefined, 1, 30, this.isHistorical(),
+      this.onlyUnread() && !this.isHistorical() ? { unread: true } : undefined,
+    );
   }
 
   toggleHistorical(): void {
     const next = !this.isHistorical();
+    this.onlyUnread.set(false);
     this.isHistorical.set(next);
     this.activeFolder.set(null);
     this.activeEmail.set(null);
@@ -1558,7 +1602,7 @@ export class MailComponent implements OnInit {
     this.isSearchMode.set(false);
     this.activeSearchTerm.set('');
     this.mailService.exitSearch();
-    this.mailService.loadEmails(this.activeFolder() ?? undefined, 1, 30, this.isHistorical());
+    this.loadFolderList();
   }
 
   toggleAdvanced(): void {
@@ -1601,7 +1645,7 @@ export class MailComponent implements OnInit {
     this.showAdvanced.set(false);
     this.activeSearchTerm.set('');
     this.mailService.exitSearch();
-    this.mailService.loadEmails(this.activeFolder() ?? undefined, 1, 30, this.isHistorical());
+    this.loadFolderList();
   }
 
   folderLabel(folder: MailFolder): string { return FOLDER_LABELS[folder]; }

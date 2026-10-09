@@ -12,7 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { DataSource, LessThan, Repository } from 'typeorm';
 import { existsSync } from 'fs';
-import { copyFile, mkdir, readdir, rename, rm, stat, unlink, writeFile } from 'fs/promises';
+import { copyFile, mkdir, open, readdir, rename, rm, stat, unlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { basename, extname, join } from 'path';
 import { randomInt, randomUUID } from 'crypto';
@@ -31,9 +31,16 @@ const INBOX = process.env.SCAN_INBOX_PATH ?? '/app/storage/scan-inbox';
 const CONFIG = process.env.SCAN_CONFIG_PATH ?? '/app/storage/scan-config';
 /** Donde quedan los escaneos ya tomados. */
 const STORE = process.env.SCANS_PATH ?? '/app/storage/scans';
-const POLL_MS = 10_000;
-/** Un archivo se toma cuando lleva este tiempo sin cambiar (la impresora lo escribe de a partes). */
-const STABLE_MS = 15_000;
+/** Cada cuánto se mira la bandeja (las cuentas de scan-inbox se revisan cada ACCOUNTS_EVERY vueltas). */
+const POLL_MS = 2_000;
+const ACCOUNTS_EVERY = 5;
+/**
+ * Un archivo se toma cuando terminó de llegar: un PDF o JPG completo (cierra con
+ * %%EOF / FFD9) que no cambió entre dos vueltas; cualquier otro, tras este tiempo
+ * sin cambiar (la impresora lo escribe de a partes). Hasta el 09/10/2026 eran
+ * 10 s de vuelta + 15 s fijos y un escaneo tardaba ~30 s en aparecer.
+ */
+const STABLE_MS = 8_000;
 const PASSWORD_PURPOSE = 'scan-inbox-password';
 /** Sin letras ni números que se confunden al tipearlos en el panel de la impresora. */
 const PASSWORD_CHARS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -108,6 +115,7 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
   private worker = false;
   private timer: NodeJS.Timeout | null = null;
   private polling = false;
+  private tick = 0;
   /** Tamaño y fecha de cada archivo de la bandeja, y desde cuándo no cambian. */
   private readonly seen = new Map<string, { size: number; mtimeMs: number; since: number }>();
   private lastAccountsFile = '';
@@ -192,13 +200,13 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
 
   // ─── Bandeja ───────────────────────────────────────────────────────────────
 
-  /** Cada 10 s: mantiene al día las cuentas de scan-inbox y toma lo que terminó de llegar. */
+  /** Cada 2 s toma lo que terminó de llegar; cada 10 s, además, pone al día las cuentas de scan-inbox. */
   private async poll(): Promise<void> {
     if (this.polling) return;
     this.polling = true;
     try {
       const accounts = await this.accounts.find();
-      await this.writeAccountsFile(accounts);
+      if (this.tick++ % ACCOUNTS_EVERY === 0) await this.writeAccountsFile(accounts);
       const present = new Set<string>();
       for (const account of accounts) {
         const dir = join(INBOX, account.folder);
@@ -246,7 +254,8 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
       this.seen.set(path, { size: info.size, mtimeMs: info.mtimeMs, since: now });
       return;
     }
-    if (now - prev.since < STABLE_MS) return;
+    // No cambió desde la vuelta anterior: si se ve completo, ya; si no, se espera STABLE_MS.
+    if (now - prev.since < STABLE_MS && !(await this.looksComplete(path, info.size))) return;
     this.seen.delete(path);
     if (IGNORED_EXT.has(extname(path).toLowerCase()) || IGNORED_NAME.test(basename(path))) {
       await rm(path, { force: true });
@@ -254,6 +263,28 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
     }
     if (info.size === 0) return;
     await this.ingest(account, path, info.size, info.mtime);
+  }
+
+  /** PDF que termina en %%EOF o JPG que termina en FFD9 (mira solo el final del archivo). */
+  private async looksComplete(path: string, size: number): Promise<boolean> {
+    const ext = extname(path).toLowerCase();
+    if (size === 0 || !['.pdf', '.jpg', '.jpeg'].includes(ext)) return false;
+    const length = Math.min(size, 1024);
+    const tail = Buffer.alloc(length);
+    let handle;
+    try {
+      handle = await open(path, 'r');
+      await handle.read(tail, 0, length, size - length);
+    } catch {
+      return false;
+    } finally {
+      await handle?.close().catch(() => undefined);
+    }
+    if (ext === '.pdf') return tail.toString('latin1').includes('%%EOF');
+    // JPG: FF D9 al final (algunos programas agregan relleno: se ignoran ceros y saltos de línea).
+    let end = tail.length;
+    while (end > 0 && (tail[end - 1] === 0x00 || tail[end - 1] === 0x0a || tail[end - 1] === 0x0d)) end--;
+    return end >= 2 && tail[end - 2] === 0xff && tail[end - 1] === 0xd9;
   }
 
   /** Pasa el archivo de la bandeja al almacén, lo registra y avisa a la oficina. */

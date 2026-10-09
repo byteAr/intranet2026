@@ -262,7 +262,8 @@ Toda funcionalidad nueva visible lleva la etiqueta **NUEVO** una semana desde su
 
 - Tabla `notifications`, una fila por destinatario (`username` en minúsculas), tipos `announcement` y `share`. Se borran a los 90 días.
 - `NotificationsService.notify()` guarda, entrega en vivo por el namespace `/notifications` (sala `user:<username>`) y manda push. El service worker (`sw-custom.js`) solo muestra la push si la intranet no está a la vista; al tocarla abre `/cuenta?notificacion=<id>` (anuncio → modal) o `/archivos?compartido=<shareId>&notificacion=<id>`.
-- Los anuncios llegan a todos los usuarios activos; compartir algo nuevo (no un cambio de permiso) notifica a quien lo recibe.
+- Los anuncios llegan a todos los usuarios activos.
+- ⚠️ **Solo se notifican los anuncios** (09/10/2026, `NOTIFIED_TYPES` en `notifications.service.ts`): compartir, subir a la oficina (`upload`) y los escaneos (`scan`) siguen llamando a `notify()` pero no generan nada (ni campanita, ni en vivo, ni push), y la lista y el contador muestran solo esos tipos (las viejas quedan en la tabla hasta la purga de 90 días). Para volver a prender un tipo, agregarlo a `NOTIFIED_TYPES`.
 - ⚠️ `NOTIFICATIONS_ONLY_TO` (staging): limita a quién se notifica. Staging comparte la base con producción, incluidas las suscripciones push.
 - Sonido: "ding" generado con Web Audio en `notifications.service.ts`.
 

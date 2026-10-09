@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, OnApplicationBootstrap } from '@
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
-import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
+import { DataSource, In, IsNull, LessThan, Repository } from 'typeorm';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { User } from '../users/entities/user.entity';
 import { PushService } from '../push/push.service';
@@ -11,6 +11,12 @@ import { NotificationsGateway } from './notifications.gateway';
 /** Las notificaciones más viejas que esto se borran. */
 const RETENTION_DAYS = 90;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/**
+ * Solo se notifica lo que sale de "Enviar anuncio" (09/10/2026). Compartir,
+ * subir a la oficina y los escaneos no avisan: ni campanita, ni en vivo, ni push.
+ * Para volver a prenderlos, agregar el tipo acá.
+ */
+const NOTIFIED_TYPES: NotificationType[] = ['announcement'];
 
 export interface NewNotification {
   type: NotificationType;
@@ -68,6 +74,7 @@ export class NotificationsService implements OnApplicationBootstrap {
   // ─── Enviar ────────────────────────────────────────────────────────────────
 
   async notify(usernames: string[], input: NewNotification): Promise<void> {
+    if (!NOTIFIED_TYPES.includes(input.type)) return;
     const onlyTo = this.onlyTo();
     const unique = [...new Set(usernames.map((u) => u.toLowerCase()).filter(Boolean))].filter(
       (u) => !onlyTo || onlyTo.has(u),
@@ -150,9 +157,11 @@ export class NotificationsService implements OnApplicationBootstrap {
 
   async list(username: string, limit = 30): Promise<{ items: NotificationDto[]; unread: number }> {
     const name = username.toLowerCase();
+    // Las de los tipos que ya no se notifican (compartir, escaneos) quedan en la tabla pero no se muestran.
+    const type = In(NOTIFIED_TYPES);
     const [rows, unread] = await Promise.all([
-      this.repo.find({ where: { username: name }, order: { createdAt: 'DESC' }, take: Math.min(limit, 100) }),
-      this.repo.count({ where: { username: name, readAt: IsNull() } }),
+      this.repo.find({ where: { username: name, type }, order: { createdAt: 'DESC' }, take: Math.min(limit, 100) }),
+      this.repo.count({ where: { username: name, type, readAt: IsNull() } }),
     ]);
     return { items: rows.map((r) => this.toDto(r)), unread };
   }

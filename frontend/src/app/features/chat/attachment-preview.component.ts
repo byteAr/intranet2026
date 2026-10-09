@@ -17,24 +17,30 @@ import { lastValueFrom } from 'rxjs';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div style="height:180px; overflow:hidden; position:relative; background:#e5e7eb; display:flex; align-items:center; justify-content:center;">
+    <div class="ap-box">
       @if (state === 'loading') {
-        <svg style="width:20px;height:20px;color:#9ca3af;animation:spin 1s linear infinite" fill="none" viewBox="0 0 24 24">
+        <svg class="ap-muted" style="width:20px;height:20px;animation:spin 1s linear infinite" fill="none" viewBox="0 0 24 24">
           <circle style="opacity:.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
           <path style="opacity:.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
         </svg>
       } @else if (state === 'error') {
-        <span style="font-size:11px;color:#9ca3af;">Vista previa no disponible</span>
+        <span class="ap-muted" style="font-size:11px;">Vista previa no disponible</span>
       } @else if (state === 'pdf') {
         <canvas #pdfCanvas style="width:100%;display:block;position:absolute;top:0;left:0;"></canvas>
       } @else if (state === 'html') {
-        <div style="width:100%;height:100%;overflow:hidden;padding:6px;box-sizing:border-box;pointer-events:none;position:absolute;top:0;left:0;background:#fff;">
+        <!-- La hoja queda blanca también en modo oscuro: el documento trae el texto en negro. -->
+        <div class="ap-paper" style="width:100%;height:100%;overflow:hidden;padding:6px;box-sizing:border-box;pointer-events:none;position:absolute;top:0;left:0;">
           <div [innerHTML]="safeHtml" style="font-size:8px;line-height:1.3;transform-origin:top left;overflow:hidden;max-height:180px;"></div>
         </div>
       }
     </div>
   `,
-  styles: [`:host { display:block; } @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`],
+  styles: [`:host { display:block; } @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    .ap-box { height:180px; overflow:hidden; position:relative; background:#e5e7eb; display:flex; align-items:center; justify-content:center; }
+    .ap-muted { color:#9ca3af; }
+    .ap-paper { background:#ffffff; }
+    :host-context(.dark) .ap-box { background: var(--d-raised); }
+    :host-context(.dark) .ap-muted { color: var(--d-text-4); }`],
 })
 export class AttachmentPreviewComponent implements OnInit, AfterViewChecked {
   @Input() url!: string;

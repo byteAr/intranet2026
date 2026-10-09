@@ -842,6 +842,9 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
     }
     .folder-btn:hover { background: #f3f4f6; }
     .folder-active { background: #f0fdfa !important; color: #0f766e !important; font-weight: 600; }
+    :host-context(.dark) .folder-btn { color: var(--d-text-2); }
+    :host-context(.dark) .folder-btn:hover { background: var(--d-raised); }
+    :host-context(.dark) .folder-active { background: #0a3a28 !important; color: #ffffff !important; }
     /* Pie del MTO (aviso de confidencialidad): la mitad del cuerpo (14 px → 7 px). Va por innerHTML: sin encapsular. */
     :host ::ng-deep .mto-footer { font-size: 7px; line-height: 1.45; }
 
@@ -1039,7 +1042,8 @@ export class MailComponent implements OnInit {
     if (!term.trim()) return escaped;
     const termRe = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
     const re = new RegExp(`(${termRe})`, 'gi');
-    return escaped.replace(re, '<mark style="background:#ffff00;padding:0 1px;border-radius:2px;color:inherit">$1</mark>');
+    // background-color (no "background:"): las reglas del modo oscuro buscan "background:#fff" y lo apagaban.
+    return escaped.replace(re, '<mark style="background-color:#ffff00;padding:0 1px;border-radius:2px;color:#111">$1</mark>');
   }
 
   onSienaFileSelected(event: Event): void {
@@ -1685,7 +1689,7 @@ export class MailComponent implements OnInit {
       const re = new RegExp(`(${termRe})`, 'gi');
       return html.replace(/(<[^>]+>)|([^<]+)/g, (_, tag, text) => {
         if (tag) return tag;
-        return text ? text.replace(re, '<mark style="background:#ffff00;padding:0 1px;border-radius:2px;color:inherit">$1</mark>') : '';
+        return text ? text.replace(re, '<mark style="background-color:#ffff00;padding:0 1px;border-radius:2px;color:#111">$1</mark>') : '';
       });
     };
 

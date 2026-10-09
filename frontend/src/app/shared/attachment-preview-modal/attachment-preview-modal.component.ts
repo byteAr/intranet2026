@@ -364,7 +364,9 @@ export class AttachmentPreviewModalComponent implements OnChanges {
       }
       container.innerHTML = '';
 
-      let html = '<div style="padding: 16px; font-family: Calibri, Arial, sans-serif; font-size: 13px;">';
+      // Hoja blanca con texto oscuro también en modo oscuro (las filas pares son casi blancas).
+      // background-color, no "background:": las reglas del modo oscuro buscan "background: #ffffff".
+      let html = '<div style="padding: 16px; font-family: Calibri, Arial, sans-serif; font-size: 13px; background-color:#ffffff; color:#111827; min-height:100%;">';
 
       if (workbook.SheetNames.length > 1) {
         html += '<div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">';

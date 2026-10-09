@@ -833,8 +833,8 @@ import { HttpClient } from '@angular/common/http';
     .nav-item:hover { background: #f3f4f6; color: #111827; }
     .active-nav { background: #0f766e !important; color: white !important; font-weight: 600; }
 
-    :host-context(.dark) .nav-item { color: #a1a1aa; }
-    :host-context(.dark) .nav-item:hover { background: #27272a; color: #f4f4f5; }
+    :host-context(.dark) .nav-item { color: var(--d-text-2); }
+    :host-context(.dark) .nav-item:hover { background: var(--d-raised-2); color: var(--d-text-1); }
     :host-context(.dark) .active-nav { background: #166534 !important; color: white !important; font-weight: 600; }
 
     /*

@@ -75,6 +75,7 @@ Afecta: `ldap-search.service.ts`, `password-reset.service.ts`.
 - Standalone components, sin NgModules.
 - Tailwind CSS **3.4** (`tailwind.config.js` + directivas `@tailwind` en `styles.scss`; `@tailwindcss/postcss` v4 está instalado pero no se usa). Sin consultas de contenedor (`@container`, `@lg:`): escribirlas en CSS del componente.
 - Indicador de carga estándar: `<app-comet-spinner>` (`shared/comet-spinner`), no `animate-spin`.
+- **Modo oscuro** (`darkMode: 'class'`, 1.7.13): todo sale de `styles.scss`, que traduce las clases claras (`bg-white`, `text-gray-500`…) y las `dark:…-zinc-*` a una paleta de variables (`--d-page`/`--d-sunken`/`--d-surface`/`--d-raised*` para fondos, `--d-text-1…5` blancos, `--d-line*`). En CSS propio de un componente: `:host-context(.dark) .x { color: var(--d-text-2) }`, nunca un gris fijo. ⚠️ Las reglas `[style*="background:#fff"]` oscurecen cualquier estilo en línea que contenga ese texto (también `#ffff00`): para algo que debe quedar blanco o amarillo (hoja de un documento, resaltado) usar `background-color:` o una clase.
 - Logos (`public/assets/images/diredtosintranetlogo*.png`): fondo transparente; el claro para tema claro, el oscuro (texto blanco) para tema oscuro.
 - Versión visible: `APP_VERSION` en `frontend/src/app/app-version.ts`. Subirla en cada pase a producción con cambios visibles.
 

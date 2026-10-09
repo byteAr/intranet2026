@@ -9,88 +9,159 @@ body {
 
 /* =====================================================
    DARK MODE — Global overrides for feature components
-   ===================================================== */
+   =====================================================
+   Una sola paleta (09/10/2026): fondos en tonos de negro y gris oscuro, del más
+   hundido al más elevado, y texto blanco con pocos niveles. Los grises "claros"
+   del modo claro (text-gray-400, text-zinc-500…) se ven acá como blancos un poco
+   apagados, nunca como gris oscuro: hasta la 1.7.12 se invertían y no se leían.
+   Cubre las clases sin variante (bg-white, text-gray-500) y las dark:… de zinc.
+*/
 
 .dark {
   color-scheme: dark;
+
+  /* Fondos: del más hundido al más elevado */
+  --d-page:     #0a0a0a;  /* detrás de todo */
+  --d-sunken:   #101010;  /* columnas laterales, zonas de fondo (bg-gray-50) */
+  --d-surface:  #161616;  /* tarjetas y paneles (bg-white) */
+  --d-raised:   #1f1f1f;  /* chips, filas resaltadas (bg-gray-100) */
+  --d-raised-2: #282828;  /* hover fuerte, botones grises (bg-gray-200) */
+  --d-raised-3: #333333;  /* (bg-gray-300) */
+
+  /* Bordes */
+  --d-line-soft: #222222;
+  --d-line:      #2c2c2c;
+  --d-line-hard: #3a3a3a;
+
+  /* Texto: blanco, con menos brillo cuanto menos importa */
+  --d-text-1: #ffffff;   /* títulos, texto principal */
+  --d-text-2: #f2f2f2;   /* cuerpo */
+  --d-text-3: #dedede;   /* secundario (fechas, ayudas) */
+  --d-text-4: #c4c4c4;   /* terciario (íconos, contadores) */
+  --d-text-5: #a8a8a8;   /* decorativo, deshabilitado */
+  --d-placeholder: #8a8a8a;
 }
 
 .dark body {
-  background-color: #0c0c0c;
-  color: #f9fafb;
+  background-color: var(--d-page);
+  color: var(--d-text-2);
 }
 
 /* --- Backgrounds --- */
-.dark .bg-white       { background-color: #111111 !important; }
-.dark .bg-gray-50     { background-color: #0d0d0d !important; }
-.dark .bg-gray-100    { background-color: #1a1a1a !important; }
-.dark .bg-gray-200    { background-color: #222222 !important; }
-.dark .bg-gray-300    { background-color: #2d2d2d !important; }
+.dark .bg-white,
+.dark .dark\:bg-zinc-900       { background-color: var(--d-surface) !important; }
+.dark .bg-gray-50,
+.dark .dark\:bg-zinc-950       { background-color: var(--d-sunken) !important; }
+.dark .bg-gray-100,
+.dark .dark\:bg-zinc-800       { background-color: var(--d-raised) !important; }
+.dark .bg-gray-200,
+.dark .dark\:bg-zinc-700       { background-color: var(--d-raised-2) !important; }
+.dark .bg-gray-300,
+.dark .dark\:bg-zinc-600       { background-color: var(--d-raised-3) !important; }
 
 /* --- Text --- */
-.dark .text-gray-900  { color: #f9fafb !important; }
-.dark .text-gray-800  { color: #f3f4f6 !important; }
-.dark .text-gray-700  { color: #e5e7eb !important; }
-.dark .text-gray-600  { color: #d1d5db !important; }
-.dark .text-gray-500  { color: #9ca3af !important; }
-.dark .text-gray-400  { color: #6b7280 !important; }
-.dark .text-gray-300  { color: #4b5563 !important; }
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .dark\:text-white,
+.dark .dark\:text-zinc-50,
+.dark .dark\:text-zinc-100     { color: var(--d-text-1) !important; }
+.dark .text-gray-700,
+.dark .dark\:text-zinc-200     { color: var(--d-text-2) !important; }
+.dark .text-gray-600,
+.dark .dark\:text-zinc-300,
+.dark .text-zinc-300           { color: var(--d-text-2) !important; }
+.dark .text-gray-500,
+.dark .dark\:text-zinc-400     { color: var(--d-text-3) !important; }
+.dark .text-gray-400,
+.dark .dark\:text-zinc-500     { color: var(--d-text-4) !important; }
+.dark .text-gray-300,
+.dark .text-gray-200,
+.dark .dark\:text-zinc-600,
+.dark .dark\:text-zinc-700     { color: var(--d-text-5) !important; }
+
+/* Hover de texto */
+.dark [class~="hover:text-gray-900"]:hover,
+.dark [class~="hover:text-gray-800"]:hover,
+.dark [class~="hover:text-gray-700"]:hover,
+.dark [class~="hover:text-gray-600"]:hover,
+.dark [class~="dark:hover:text-zinc-100"]:hover,
+.dark [class~="dark:hover:text-zinc-200"]:hover,
+.dark [class~="dark:hover:text-zinc-300"]:hover,
+.dark [class~="dark:hover:text-gray-200"]:hover { color: var(--d-text-1) !important; }
 
 /* --- Borders --- */
-.dark .border-gray-100 { border-color: #1f1f1f !important; }
-.dark .border-gray-200 { border-color: #2a2a2a !important; }
-.dark .border-gray-300 { border-color: #333333 !important; }
+.dark .border-gray-50,
+.dark .border-gray-100,
+.dark .dark\:border-zinc-800,
+.dark .dark\:border-zinc-900,
+.dark .dark\:border-zinc-950   { border-color: var(--d-line-soft) !important; }
+.dark .border-gray-200,
+.dark .dark\:border-zinc-700   { border-color: var(--d-line) !important; }
+.dark .border-gray-300,
+.dark .dark\:border-zinc-600   { border-color: var(--d-line-hard) !important; }
+.dark [class~="hover:border-gray-300"]:hover { border-color: var(--d-line-hard) !important; }
 
 /* --- Dividers --- */
-.dark .divide-gray-100 > * + * { border-color: #1f1f1f !important; }
-.dark .divide-gray-200 > * + * { border-color: #2a2a2a !important; }
-.dark .divide-y        > * + * { border-color: #2a2a2a !important; }
+.dark .divide-gray-100 > * + *,
+.dark .dark\:divide-zinc-800 > * + *  { border-color: var(--d-line-soft) !important; }
+.dark .divide-gray-200 > * + *,
+.dark .divide-y        > * + *,
+.dark .dark\:divide-zinc-700 > * + *  { border-color: var(--d-line) !important; }
 
 /* --- Hover states (attribute selector handles Tailwind's colon escaping) --- */
-.dark [class~="hover:bg-white"]:hover      { background-color: #1a1a1a !important; }
-.dark [class~="hover:bg-gray-50"]:hover    { background-color: #161616 !important; }
-.dark [class~="hover:bg-gray-100"]:hover   { background-color: #1e1e1e !important; }
-.dark [class~="hover:bg-gray-200"]:hover   { background-color: #252525 !important; }
+.dark [class~="hover:bg-white"]:hover,
+.dark [class~="hover:bg-gray-50"]:hover          { background-color: var(--d-raised) !important; }
+.dark [class~="hover:bg-gray-100"]:hover,
+.dark [class~="dark:hover:bg-zinc-800"]:hover    { background-color: var(--d-raised-2) !important; }
+.dark [class~="hover:bg-gray-200"]:hover,
+.dark [class~="dark:hover:bg-zinc-700"]:hover,
+.dark [class~="dark:hover:bg-zinc-600"]:hover    { background-color: var(--d-raised-3) !important; }
 
 /* --- Teal accent → dark green --- */
-.dark .bg-teal-50     { background-color: #052e16 !important; }
-.dark .bg-teal-100    { background-color: #14532d !important; }
-.dark .text-teal-600  { color: #4ade80 !important; }
-.dark .text-teal-700  { color: #86efac !important; }
-.dark [class~="hover:bg-teal-50"]:hover   { background-color: #052e16 !important; }
+.dark .bg-teal-50     { background-color: #062b1e !important; }
+.dark .bg-teal-100    { background-color: #0f4a32 !important; }
+.dark .border-teal-100,
+.dark .border-teal-200 { border-color: #14532d !important; }
+.dark .text-teal-500,
+.dark .text-teal-600  { color: #5eead4 !important; }
+.dark .text-teal-700,
+.dark .text-teal-800  { color: #99f6e4 !important; }
+.dark [class~="hover:bg-teal-50"]:hover   { background-color: #0a3a28 !important; }
 .dark [class~="hover:bg-teal-100"]:hover  { background-color: #14532d !important; }
+.dark [class~="hover:text-teal-700"]:hover,
+.dark [class~="hover:text-teal-800"]:hover { color: #ccfbf1 !important; }
 
 /* --- Forms & inputs (tailwindcss/forms plugin targets these too) --- */
 .dark input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=submit]):not([type=button]):not([type=file]),
 .dark select,
 .dark textarea {
-  background-color: #1a1a1a !important;
-  color: #f9fafb !important;
-  border-color: #333333 !important;
+  background-color: var(--d-raised) !important;
+  color: var(--d-text-1) !important;
+  border-color: var(--d-line-hard) !important;
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #4b5563 !important;
+  color: var(--d-placeholder) !important;
 }
 
 .dark input:focus:not([type=checkbox]):not([type=radio]),
 .dark select:focus,
 .dark textarea:focus {
-  border-color: #166534 !important;
-  --tw-ring-color: #166534 !important;
-  box-shadow: 0 0 0 1px #166534 !important;
+  border-color: #14b8a6 !important;
+  --tw-ring-color: #14b8a6 !important;
+  box-shadow: 0 0 0 1px #14b8a6 !important;
 }
 
 /* --- Tables --- */
 .dark thead,
-.dark thead th { background-color: #1a1a1a !important; color: #9ca3af !important; }
-.dark tbody td { border-color: #2a2a2a !important; }
-.dark [class~="hover:bg-gray-50"] tbody tr:hover { background-color: #161616 !important; }
+.dark thead th { background-color: var(--d-raised) !important; color: var(--d-text-3) !important; }
+.dark tbody td { border-color: var(--d-line) !important; }
+.dark [class~="hover:bg-gray-50"] tbody tr:hover { background-color: var(--d-raised) !important; }
 
 /* --- Cards & panels with ring borders --- */
-.dark .ring-1                { --tw-ring-color: #2a2a2a !important; }
-.dark .border                { border-color: #2a2a2a !important; }
+.dark .ring-1                { --tw-ring-color: var(--d-line) !important; }
+.dark .border                { border-color: var(--d-line) !important; }
 
 /* --- Shadows (heavier in dark mode) --- */
 .dark .shadow-sm  { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.6) !important; }
@@ -101,31 +172,62 @@ body {
 .dark .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8) !important; }
 
 /* --- Inline style overrides (common patterns in components) --- */
-.dark [style*="background: white"]            { background-color: #111111 !important; background: #111111 !important; }
-.dark [style*="background:#fff"]              { background-color: #111111 !important; background: #111111 !important; }
-.dark [style*="background: #fff"]             { background-color: #111111 !important; background: #111111 !important; }
-.dark [style*="background: #ffffff"]          { background-color: #111111 !important; background: #111111 !important; }
-.dark [style*="border-bottom: 1px solid #e5e7eb"] { border-bottom-color: #2a2a2a !important; }
-.dark [style*="border-top: 1px solid #e5e7eb"]    { border-top-color: #2a2a2a !important; }
-.dark [style*="border: 1px solid #e5e7eb"]        { border-color: #2a2a2a !important; }
+.dark [style*="background: white"],
+.dark [style*="background:#fff"],
+.dark [style*="background: #fff"],
+.dark [style*="background: #ffffff"]          { background-color: var(--d-surface) !important; background: var(--d-surface) !important; }
+.dark [style*="border-bottom: 1px solid #e5e7eb"] { border-bottom-color: var(--d-line) !important; }
+.dark [style*="border-top: 1px solid #e5e7eb"]    { border-top-color: var(--d-line) !important; }
+.dark [style*="border: 1px solid #e5e7eb"]        { border-color: var(--d-line) !important; }
+
+/* --- Documentos (vista previa de Word): la hoja es blanca, el texto va oscuro --- */
+.dark section.docx-preview-wrapper { color: #111827; }
 
 /* --- Scrollbar --- */
 .dark ::-webkit-scrollbar             { width: 6px; height: 6px; }
-.dark ::-webkit-scrollbar-track       { background: #111111; }
-.dark ::-webkit-scrollbar-thumb       { background: #333333; border-radius: 3px; }
-.dark ::-webkit-scrollbar-thumb:hover { background: #444444; }
+.dark ::-webkit-scrollbar-track       { background: var(--d-surface); }
+.dark ::-webkit-scrollbar-thumb       { background: #3a3a3a; border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #4d4d4d; }
 
-/* --- Status badge colors (keep red/amber readable) --- */
-.dark .bg-red-50    { background-color: #2d0a0a !important; }
-.dark .border-red-200 { border-color: #5a1a1a !important; }
-.dark .bg-green-50  { background-color: #052e16 !important; }
-.dark .border-green-200 { border-color: #14532d !important; }
-.dark .bg-amber-50  { background-color: #1c1500 !important; }
-.dark .bg-blue-100  { background-color: #1e3a5f !important; }
-.dark .text-blue-600 { color: #93c5fd !important; }
+/* --- Colores de estado: fondos claros → tintes oscuros, texto oscuro → claro --- */
+.dark .bg-red-50,    .dark .bg-rose-50    { background-color: #2a0d0d !important; }
+.dark .bg-red-100                         { background-color: #3d1212 !important; }
+.dark .border-red-200, .dark .border-red-300, .dark .border-rose-200 { border-color: #6b2121 !important; }
+.dark .text-red-500, .dark .text-red-600, .dark .text-rose-600 { color: #f87171 !important; }
+.dark .text-red-700, .dark .text-red-800, .dark .text-rose-700, .dark .text-rose-800 { color: #fca5a5 !important; }
+.dark [class~="hover:bg-red-50"]:hover, .dark [class~="hover:bg-rose-50"]:hover { background-color: #3d1212 !important; }
+
+.dark .bg-amber-50,  .dark .bg-yellow-50  { background-color: #241a03 !important; }
+.dark .bg-amber-100                       { background-color: #3a2a05 !important; }
+.dark .border-amber-200, .dark .border-amber-300 { border-color: #6b4e0a !important; }
+.dark .text-amber-600, .dark .text-amber-700, .dark .text-yellow-700 { color: #fcd34d !important; }
+.dark .text-amber-800                     { color: #fde68a !important; }
+.dark [class~="hover:bg-amber-50"]:hover  { background-color: #3a2a05 !important; }
+
+.dark .bg-green-50                        { background-color: #062b16 !important; }
+.dark .bg-green-100                       { background-color: #0d4023 !important; }
+.dark .border-green-200                   { border-color: #14532d !important; }
+.dark .text-green-600, .dark .text-green-700 { color: #86efac !important; }
+.dark .text-green-800                     { color: #bbf7d0 !important; }
+
+.dark .bg-blue-50                         { background-color: #0b1a33 !important; }
+.dark .bg-blue-100                        { background-color: #13294d !important; }
+.dark .border-blue-200                    { border-color: #1e3a6b !important; }
+.dark .text-blue-600                      { color: #93c5fd !important; }
+.dark .text-blue-700                      { color: #bfdbfe !important; }
+
+.dark .bg-orange-50                       { background-color: #2a1505 !important; }
+.dark .border-orange-100, .dark .border-orange-200 { border-color: #6b3510 !important; }
+.dark .text-orange-600, .dark .text-orange-700 { color: #fdba74 !important; }
+.dark .text-orange-800                    { color: #fed7aa !important; }
+
+.dark .bg-purple-50                       { background-color: #1e1033 !important; }
+.dark .bg-purple-100                      { background-color: #2d1850 !important; }
+.dark .text-purple-600, .dark .text-purple-700 { color: #d8b4fe !important; }
+.dark .text-purple-800                    { color: #e9d5ff !important; }
 
 /* --- Disabled state --- */
 .dark .disabled\:bg-gray-50:disabled,
-.dark [class~="disabled:bg-gray-50"]:disabled { background-color: #1a1a1a !important; }
+.dark [class~="disabled:bg-gray-50"]:disabled { background-color: var(--d-raised) !important; }
 .dark .disabled\:text-gray-500:disabled,
-.dark [class~="disabled:text-gray-500"]:disabled { color: #4b5563 !important; }
+.dark [class~="disabled:text-gray-500"]:disabled { color: var(--d-text-5) !important; }

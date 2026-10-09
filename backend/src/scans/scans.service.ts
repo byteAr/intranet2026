@@ -288,6 +288,9 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private async notifyOffice(scan: Scan): Promise<void> {
+    // La pestaña Escaneos abierta en esa oficina se actualiza sola (sin campanita:
+    // desde el 09/10/2026 los escaneos no notifican). Solo la oficina y el id.
+    this.notifications.signal('scan_arrived', { groupName: scan.groupName, scanId: scan.id });
     try {
       const members = await this.users
         .createQueryBuilder('u')

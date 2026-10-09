@@ -949,9 +949,10 @@ export class SharedFoldersComponent implements OnInit {
     });
 
     // Lo que suben otros integrantes aparece solo si se está mirando esa carpeta.
-    this.notifications.incoming.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((n) => {
-      if (n.type !== 'upload') return;
-      const d = n.data as { groupName?: string; folderId?: string; files?: SharedFile[] };
+    // Lo que suben otros de la oficina aparece solo (aviso en vivo, sin campanita).
+    this.notifications.signals.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(({ event, data }) => {
+      if (event !== 'drive_uploaded') return;
+      const d = data as { groupName?: string; folderId?: string; files?: SharedFile[] };
       const scope = this.scope();
       if (scope?.kind === 'office' && scope.office.toUpperCase() === d.groupName?.toUpperCase() && d.folderId && d.files?.length) {
         this.mergeFiles(d.files, d.folderId);

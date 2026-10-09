@@ -39,6 +39,12 @@ export class NotificationsService {
   readonly openAnnouncement = signal<AnnouncementData | null>(null);
   /** Cada notificación que llega en vivo (Archivos la usa para mostrar subidas sin recargar). */
   readonly incoming = new Subject<AppNotification>();
+  /**
+   * Avisos en vivo que no pasan por la campanita (no se guardan ni suenan): para
+   * que una pantalla abierta se actualice sola. 'scan_arrived' {groupName, scanId}
+   * y 'drive_uploaded' {groupName, folderId, files}.
+   */
+  readonly signals = new Subject<{ event: string; data: Record<string, unknown> }>();
 
   constructor() {
     this.authService.onBeforeLogout(() => this.disconnect());
@@ -55,6 +61,9 @@ export class NotificationsService {
       this.chime();
       this.incoming.next(n);
     });
+    for (const event of ['scan_arrived', 'drive_uploaded']) {
+      this.socket.on(event, (data: Record<string, unknown>) => this.signals.next({ event, data: data ?? {} }));
+    }
   }
 
   disconnect(): void {

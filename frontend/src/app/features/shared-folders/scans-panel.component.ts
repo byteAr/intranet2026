@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
+import { filter, fromEvent, interval, merge } from 'rxjs';
 import { ScanAccount, ScanItem, ScansService } from '../../core/services/scans.service';
 import { NotificationsService } from '../../core/services/notifications.service';
 import { AppVersionService } from '../../core/services/app-version.service';
@@ -15,6 +16,8 @@ import {
 import { formatBytes } from '../../shared/storage-usage/storage-usage.component';
 
 const LAST_OFFICE_KEY = 'pac_scans_office';
+/** Cada cuánto se revisa la bandeja con la pestaña a la vista (por si el aviso en vivo no llegó). */
+const REFRESH_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -374,11 +377,38 @@ export class ScansPanelComponent implements OnInit {
       });
     });
 
-    // Un escaneo nuevo de la oficina abierta aparece solo.
-    this.notifications.incoming.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((n) => {
-      if (n.type !== 'scan') return;
-      const group = String(n.data['groupName'] ?? '');
-      if (group.toUpperCase() === this.office()?.toUpperCase()) this.load(String(n.data['scanId'] ?? '') || undefined);
+    // Un escaneo nuevo de la oficina abierta aparece solo: aviso en vivo (sin campanita)...
+    this.notifications.signals.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(({ event, data }) => {
+      if (event !== 'scan_arrived') return;
+      const group = String(data['groupName'] ?? '');
+      if (group.toUpperCase() === this.office()?.toUpperCase()) this.refreshQuietly(String(data['scanId'] ?? '') || undefined);
+    });
+    // ...y por si la conexión en vivo se cortó (antes había que apretar F5): cada 30 s
+    // con la pestaña a la vista, y al volver a ella.
+    merge(interval(REFRESH_MS), fromEvent(document, 'visibilitychange'))
+      .pipe(
+        filter(() => document.visibilityState === 'visible'),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.refreshQuietly());
+  }
+
+  /** Vuelve a pedir la lista sin el indicador de carga; lo que no estaba se resalta un momento. */
+  private refreshQuietly(highlight?: string): void {
+    const office = this.office();
+    if (!office || this.loading()) return;
+    this.scansApi.list(office).subscribe({
+      next: (list) => {
+        if (this.office() !== office) return;
+        const known = new Set(this.scans().map((s) => s.id));
+        const fresh = highlight ?? list.find((s) => !known.has(s.id))?.id;
+        this.scans.set(list);
+        if (fresh && !known.has(fresh) && list.some((s) => s.id === fresh)) {
+          this.highlightId.set(fresh);
+          setTimeout(() => this.highlightId.set(null), 2600);
+        }
+      },
+      error: () => { /* silencioso: lo intenta de nuevo en el próximo ciclo */ },
     });
   }
 

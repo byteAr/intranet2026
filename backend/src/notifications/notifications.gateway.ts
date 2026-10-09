@@ -50,4 +50,14 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection 
   toUser(username: string, payload: unknown): void {
     this.server.to(room(username)).emit('notification', payload);
   }
+
+  /** Aviso en vivo a un usuario, sin campanita ni push. */
+  toUserEvent(username: string, event: string, payload: unknown): void {
+    this.server.to(room(username)).emit(event, payload);
+  }
+
+  /** Aviso en vivo a todas las sesiones, sin campanita ni push (p. ej. "llegó un escaneo"). */
+  broadcast(event: string, payload: unknown): void {
+    this.server.emit(event, payload);
+  }
 }

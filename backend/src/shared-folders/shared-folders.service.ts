@@ -1081,6 +1081,12 @@ export class SharedFoldersService implements OnApplicationBootstrap {
           : folders.length
             ? `${folders.length === n ? `${n} carpetas` : `${n} elementos`} con ${archivos}`
             : n === 1 ? 'un archivo' : `${n} archivos`;
+      // Archivos abierto en esa carpeta muestra lo nuevo solo (la campanita ya no avisa las subidas).
+      this.notifications.signalTo(members.map((m) => m.username), 'drive_uploaded', {
+        groupName: group,
+        folderId: parent.id,
+        files,
+      });
       await this.notifications.notify(
         members.map((m) => m.username),
         {

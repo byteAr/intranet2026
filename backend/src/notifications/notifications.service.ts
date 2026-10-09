@@ -99,6 +99,20 @@ export class NotificationsService implements OnApplicationBootstrap {
     return raw ? new Set(raw.split(',').map((u) => u.trim().toLowerCase()).filter(Boolean)) : null;
   }
 
+  /**
+   * Aviso en vivo para que una pantalla abierta se actualice sola: no se guarda,
+   * no suena ni manda push, y no depende de NOTIFIED_TYPES. Va a todas las
+   * sesiones: el payload no debe llevar nada que no pueda ver cualquiera.
+   */
+  signal(event: string, payload: Record<string, unknown>): void {
+    this.gateway.broadcast(event, payload);
+  }
+
+  /** Igual que signal(), pero solo a esos usuarios (cuando el payload trae nombres de archivos). */
+  signalTo(usernames: string[], event: string, payload: Record<string, unknown>): void {
+    for (const u of new Set(usernames.map((x) => x.toLowerCase()).filter(Boolean))) this.gateway.toUserEvent(u, event, payload);
+  }
+
   /** A todos los usuarios activos de la intranet (los anuncios). */
   async notifyAllActive(input: NewNotification): Promise<void> {
     const users = await this.userRepo.find({ where: { isActive: true }, select: ['username'] });

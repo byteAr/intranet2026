@@ -42,5 +42,6 @@
  * 1.7.14 — Conversaciones: adjuntos en miniatura uno al lado del otro, clip y sobre nuevos, tarjeta para el MTO compartido.
  * 1.7.15 — Modo oscuro en Redactar MTO y Para enviar: la hoja del MTO con letras blancas y bordes grises.
  * 1.7.16 — Referencias a MTO mal escritas (sin /AA con fecha, /2026, "MTO SDQ 446"): se reconocen y se pueden abrir.
+ * 1.7.17 — Los escaneos y lo que suben otros a Archivos aparecen solos, sin F5.
  */
-export const APP_VERSION = '1.7.16';
+export const APP_VERSION = '1.7.17';

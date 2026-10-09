@@ -8,6 +8,8 @@ import {
 } from 'typeorm';
 import { Email } from './email.entity';
 
+/** Índice de trigramas que crea MailService a mano: que la sincronización de TypeORM no lo borre. */
+@Index('idx_attachments_filename_trgm', { synchronize: false })
 @Entity('attachments')
 export class Attachment {
   @PrimaryGeneratedColumn('uuid')

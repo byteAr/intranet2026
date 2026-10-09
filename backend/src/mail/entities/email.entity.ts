@@ -18,6 +18,15 @@ export enum MailFolder {
 }
 
 @Index('idx_emails_folder_date', ['folder', 'date'])
+/*
+ * Índices que crea MailService a mano (GIN, expresión): declarados con
+ * synchronize: false para que la sincronización de TypeORM no los borre en cada
+ * arranque. Hasta el 09/10/2026 los borraba y el backend los volvía a crear antes
+ * de atender; con ~300k correos podía pasar los 180 s y el pase sin corte fallaba.
+ */
+@Index('idx_emails_search_vector', { synchronize: false })
+@Index('idx_emails_mailcode_trgm', { synchronize: false })
+@Index('idx_emails_from_local', { synchronize: false })
 @Entity('emails')
 export class Email {
   @PrimaryGeneratedColumn('uuid')

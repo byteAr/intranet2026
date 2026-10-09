@@ -73,9 +73,21 @@ export class MailService implements OnApplicationBootstrap {
   async onApplicationBootstrap(): Promise<void> {
     await this.ensureMarkTables();
     try {
+      // Rápido (consulta el catálogo): antes de atender, para que la búsqueda use la configuración correcta.
       this.searchConfig = await this.ensureSearchConfig();
-      await this.ensureTrigramIndexes();
+    } catch (err) {
+      this.logger.error('FTS: no se pudo preparar la configuración de búsqueda', (err as Error).message);
+    }
+    // Índices y trigger en segundo plano: si falta un índice, crearlo sobre ~300k
+    // correos tarda minutos, y el backend tiene que empezar a atender antes (el
+    // pase sin corte espera hasta 180 s). El 09/10/2026 eso hizo fallar un pase.
+    void this.prepareSearch();
+  }
+
+  private async prepareSearch(): Promise<void> {
+    try {
       await this.installSearchTrigger();
+      await this.ensureTrigramIndexes();
       await this.dataSource.query(
         `CREATE INDEX IF NOT EXISTS idx_emails_search_vector ON emails USING GIN (search_vector)`,
       );

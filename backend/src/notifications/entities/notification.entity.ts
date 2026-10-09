@@ -5,6 +5,8 @@ export type NotificationType = 'announcement' | 'share' | 'upload' | 'scan';
 /** Notificación de la campanita: una fila por destinatario. */
 @Entity('notifications')
 @Index(['username', 'createdAt'])
+// El que crea NotificationsService a mano (staging no sincroniza): que TypeORM no lo borre.
+@Index('idx_notifications_user_date', { synchronize: false })
 export class Notification {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -321,6 +321,7 @@ Reemplaza las carpetas de `\\serverad2`. Las impresoras escanean a una **bandeja
 ## Docker — gotchas
 
 - **Rebuild necesario** cuando se agregan archivos `.ts` nuevos (dist de Docker no se actualiza solo).
+- ⚠️ **Índices creados a mano** (GIN, expresiones, `CREATE INDEX` en un servicio): declararlos en la entidad con `@Index('nombre', { synchronize: false })`. Si no, la sincronización de TypeORM (producción la tiene prendida) **los borra en cada arranque** y el servicio los vuelve a crear: con ~300k correos el de `search_vector` tarda minutos y el 09/10/2026 hizo fallar el pase sin corte (180 s). Además, la búsqueda se prepara en segundo plano (`MailService.prepareSearch()`): el backend atiende sin esperar los índices.
 - **NUNCA `docker compose down -v`** en producción — elimina todos los volúmenes (adjuntos + BD).
 - `postgres:16-alpine` falla (arch mismatch) → usar `postgres:16`.
 - Frontend: nginx escucha en puerto 80 (mapeado a 4200 en dev, 8280 en prod).

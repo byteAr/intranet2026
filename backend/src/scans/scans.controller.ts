@@ -45,6 +45,12 @@ export class ScansController {
 
   // ─── La oficina ────────────────────────────────────────────────────────────
 
+  /** Las bandejas del usuario (oficinas y grupos especiales); va antes de ':group'. */
+  @Get('mine')
+  mine(@Req() req: AuthRequest) {
+    return this.scans.myOffices(req.user);
+  }
+
   @Get(':group')
   list(@Req() req: AuthRequest, @Param('group') group: string) {
     return this.scans.list(req.user, group);

@@ -16,6 +16,13 @@ export interface ScanItem {
   expiresAt: string;
 }
 
+/** Una bandeja que el usuario puede ver. */
+export interface ScanOffice {
+  groupName: string;
+  /** Solo las oficinas tienen unidad en Archivos; los grupos especiales guardan en Mis archivos. */
+  hasDrive: boolean;
+}
+
 /** Acceso de una oficina a la bandeja, para cargarlo en las impresoras (solo TICOM). */
 export interface ScanAccount {
   groupName: string;
@@ -40,6 +47,11 @@ export class ScansService {
 
   private office(group: string): string {
     return `${this.base}/${encodeURIComponent(group)}`;
+  }
+
+  /** Las bandejas del usuario: sus oficinas y grupos especiales (AYUDANTIA); hasDrive = tiene unidad en Archivos. */
+  mine(): Observable<ScanOffice[]> {
+    return this.http.get<ScanOffice[]>(`${this.base}/mine`);
   }
 
   list(group: string): Observable<ScanItem[]> {

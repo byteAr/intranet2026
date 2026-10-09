@@ -10,7 +10,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
-import { DataSource, LessThan, Repository } from 'typeorm';
+import { DataSource, In, LessThan, Repository } from 'typeorm';
 import { existsSync } from 'fs';
 import { copyFile, mkdir, open, readdir, rename, rm, stat, unlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -42,6 +42,8 @@ const ACCOUNTS_EVERY = 5;
  */
 const STABLE_MS = 8_000;
 const PASSWORD_PURPOSE = 'scan-inbox-password';
+/** Categorías de grupo con bandeja de escaneo (ver scanGroups()). */
+const SCAN_CATEGORIES = ['oficina', 'especial'];
 /** Sin letras ni números que se confunden al tipearlos en el panel de la impresora. */
 const PASSWORD_CHARS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -383,9 +385,27 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
 
   // ─── Lo que ve la oficina ──────────────────────────────────────────────────
 
-  /** La oficina existe (category='oficina') y el usuario es de ella; devuelve el nombre tal como está. */
+  /**
+   * Grupos que pueden tener bandeja: las oficinas y los especiales (AYUDANTIA,
+   * desde el 09/10/2026). Los especiales no tienen unidad en Archivos: sus
+   * escaneos se guardan solo en Mis archivos.
+   */
+  private scanGroups() {
+    return this.groups.find({ where: { category: In(SCAN_CATEGORIES) } });
+  }
+
+  /** Las bandejas que ve el usuario: sus oficinas y grupos especiales; hasDrive = tiene unidad en Archivos. */
+  async myOffices(user: ScanUser): Promise<{ groupName: string; hasDrive: boolean }[]> {
+    const roles = new Set((user.roles ?? []).map((r) => r.toUpperCase()));
+    return (await this.scanGroups())
+      .filter((g) => roles.has(g.groupName.toUpperCase()))
+      .map((g) => ({ groupName: g.groupName, hasDrive: g.category === 'oficina' }))
+      .sort((a, b) => a.groupName.localeCompare(b.groupName, 'es'));
+  }
+
+  /** La bandeja existe (oficina o grupo especial) y el usuario es de ella; devuelve el nombre tal como está. */
   private async assertMember(user: ScanUser, groupName: string): Promise<string> {
-    const offices = await this.groups.find({ where: { category: 'oficina' } });
+    const offices = await this.scanGroups();
     const office = offices.find((g) => g.groupName.toUpperCase() === groupName.toUpperCase());
     const roles = new Set((user.roles ?? []).map((r) => r.toUpperCase()));
     if (!office || !roles.has(office.groupName.toUpperCase())) {
@@ -456,6 +476,12 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
    */
   async saveToDrive(user: ScanUser, groupName: string, id: string, target: 'office' | 'personal') {
     const scan = await this.get(user, groupName, id);
+    if (target === 'office') {
+      const group = (await this.scanGroups()).find((g) => g.groupName === scan.groupName);
+      if (group?.category !== 'oficina') {
+        throw new BadRequestException(`${scan.groupName} no tiene unidad en Archivos: guardalo en Mis archivos.`);
+      }
+    }
     const scope = await this.sharedFolders.scopeByKey(user, target === 'personal' ? PERSONAL_KEY : scan.groupName);
     // upload() borra el archivo que recibe: se le pasa una copia.
     const tmp = join(tmpdir(), `scan-${randomUUID()}${extname(scan.filename)}`);
@@ -479,7 +505,7 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
 
   async listAccounts(): Promise<ScanAccountDto[]> {
     const [offices, accounts, counts] = await Promise.all([
-      this.groups.find({ where: { category: 'oficina' } }),
+      this.scanGroups(),
       this.accounts.find(),
       this.scans
         .createQueryBuilder('s')
@@ -509,7 +535,7 @@ export class ScansService implements OnApplicationBootstrap, OnModuleDestroy {
 
   /** Crea el acceso de la oficina o le genera una contraseña nueva. */
   async createOrResetAccount(groupName: string): Promise<ScanAccountDto> {
-    const office = (await this.groups.find({ where: { category: 'oficina' } })).find(
+    const office = (await this.scanGroups()).find(
       (g) => g.groupName.toUpperCase() === groupName.toUpperCase(),
     );
     if (!office) throw new NotFoundException('Esa oficina no existe.');

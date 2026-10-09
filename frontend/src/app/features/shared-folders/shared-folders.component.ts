@@ -5,7 +5,8 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, catchError, debounceTime, distinctUntilChanged, firstValueFrom, of, switchMap } from 'rxjs';
+import { Subject, catchError, debounceTime, distinctUntilChanged, firstValueFrom, forkJoin, of, switchMap } from 'rxjs';
+import { ScanOffice, ScansService } from '../../core/services/scans.service';
 import {
   FolderScope,
   OfficeUsage,
@@ -151,7 +152,7 @@ const MAX_FILES_PER_DROP = 1000;
           </span>
         }
       </button>
-      @if (info()!.offices.length) {
+      @if (scanOffices().length) {
         <button (click)="selectTab(SCANS_TAB)" role="tab" [attr.aria-selected]="isScansTab()"
           class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           [class]="isScansTab() ? tabOn : tabOff">
@@ -165,7 +166,7 @@ const MAX_FILES_PER_DROP = 1000;
     </div>
 
     @if (isScansTab()) {
-      <app-scans-panel [offices]="info()!.offices" [googleEmail]="info()!.googleEmail" [focus]="focusScan()"
+      <app-scans-panel [offices]="scanOfficeNames()" [driveOffices]="info()!.offices" [googleEmail]="info()!.googleEmail" [focus]="focusScan()"
         (saved)="loadUsage(true)" />
     } @else {
     <div class="files-card flex-1 flex flex-col min-h-[24rem] bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm relative"
@@ -867,6 +868,10 @@ export class SharedFoldersComponent implements OnInit {
 
   readonly isSharedTab = computed(() => this.tab() === SHARED_TAB);
   readonly isScansTab = computed(() => this.tab() === SCANS_TAB);
+  private readonly scansApi = inject(ScansService);
+  /** Bandejas de escaneo del usuario: sus oficinas y grupos especiales (AYUDANTIA). */
+  readonly scanOffices = signal<ScanOffice[]>([]);
+  readonly scanOfficeNames = computed(() => this.scanOffices().map((o) => o.groupName));
   readonly PERSONAL_KEY = PERSONAL_KEY;
   readonly isPersonalTab = computed(() => this.tab() === PERSONAL_KEY);
   /** "Mis archivos" sin cuenta de Google: no hay dónde guardarlo. */
@@ -962,8 +967,13 @@ export class SharedFoldersComponent implements OnInit {
 
   ngOnInit(): void {
     this.folders.refreshCounts();
-    this.folders.offices().subscribe({
-      next: (info) => {
+    // Las bandejas de escaneo son las oficinas y además los grupos especiales (AYUDANTIA).
+    forkJoin({
+      info: this.folders.offices(),
+      scans: this.scansApi.mine().pipe(catchError(() => of([] as ScanOffice[]))),
+    }).subscribe({
+      next: ({ info, scans }) => {
+        this.scanOffices.set(scans);
         this.info.set(info);
         this.loadingInfo.set(false);
         if (!info.configured) return;
@@ -976,7 +986,7 @@ export class SharedFoldersComponent implements OnInit {
           this.openFocusedUpload();
           return;
         }
-        if (this.focusScan() && info.offices.length) {
+        if (this.focusScan() && scans.length) {
           this.selectTab(SCANS_TAB);
           return;
         }
@@ -984,7 +994,7 @@ export class SharedFoldersComponent implements OnInit {
         try { last = localStorage.getItem(LAST_TAB_KEY); } catch { /* sin storage */ }
         const valid =
           last === SHARED_TAB || last === PERSONAL_KEY ||
-          (last === SCANS_TAB && info.offices.length > 0) ||
+          (last === SCANS_TAB && scans.length > 0) ||
           (!!last && info.offices.includes(last));
         this.selectTab(valid ? last! : info.offices[0] ?? SHARED_TAB);
       },

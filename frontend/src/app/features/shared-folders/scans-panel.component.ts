@@ -170,14 +170,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
   <div class="fixed z-[1000] w-64 py-1.5 bg-white dark:bg-zinc-800 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-700"
        [style.left.px]="m.x" [style.top.px]="m.y" role="menu" (click)="$event.stopPropagation()">
     <p class="px-3.5 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Guardar una copia en</p>
-    <button (click)="save(m.scan, 'office')" role="menuitem"
-      class="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-left text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-700">
-      <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 21V5a2 2 0 012-2h8a2 2 0 012 2v16M16 9h2a2 2 0 012 2v10M3 21h18M8 7h4M8 11h4M8 15h4"/>
-      </svg>
-      <span class="min-w-0"><span class="block truncate">Archivos de {{ m.scan.groupName }}</span>
-        <span class="block text-[11px] text-gray-400">La ve toda la oficina; ocupa su espacio</span></span>
-    </button>
+    <!-- Solo las oficinas tienen unidad en Archivos; los grupos especiales (AYUDANTIA) guardan en Mis archivos -->
+    @if (hasDrive(m.scan.groupName)) {
+      <button (click)="save(m.scan, 'office')" role="menuitem"
+        class="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-left text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-700">
+        <svg class="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 21V5a2 2 0 012-2h8a2 2 0 012 2v16M16 9h2a2 2 0 012 2v10M3 21h18M8 7h4M8 11h4M8 15h4"/>
+        </svg>
+        <span class="min-w-0"><span class="block truncate">Archivos de {{ m.scan.groupName }}</span>
+          <span class="block text-[11px] text-gray-400">La ve toda la oficina; ocupa su espacio</span></span>
+      </button>
+    }
     <button (click)="save(m.scan, 'personal')" role="menuitem" [disabled]="!googleEmail()"
       class="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-left text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
       [title]="googleEmail() ? '' : 'Necesitás una cuenta @iugna.edu.ar para tener Mis archivos'">
@@ -322,8 +325,10 @@ export class ScansPanelComponent implements OnInit {
   private readonly notifications = inject(NotificationsService);
   private readonly destroyRef = inject(DestroyRef);
 
-  /** Oficinas del usuario. */
+  /** Bandejas del usuario: sus oficinas y grupos especiales (AYUDANTIA). */
   readonly offices = input.required<string[]>();
+  /** Las que tienen unidad en Archivos (las oficinas): solo ahí se ofrece "Archivos de <oficina>". */
+  readonly driveOffices = input<string[]>([]);
   /** Cuenta @iugna.edu.ar (sin ella no hay Mis archivos). */
   readonly googleEmail = input<string | null>(null);
   /** Desde la campanita: oficina y escaneo a resaltar. */
@@ -459,6 +464,10 @@ export class ScansPanelComponent implements OnInit {
   }
 
   // ─── Guardar en Archivos ───────────────────────────────────────────────────
+
+  hasDrive(group: string): boolean {
+    return this.driveOffices().some((o) => o.toUpperCase() === group.toUpperCase());
+  }
 
   openSave(event: MouseEvent, s: ScanItem): void {
     event.stopPropagation();

@@ -37,5 +37,6 @@
  * 1.7.9 — MTO: texto justificado y el pie (aviso de confidencialidad) a la mitad del tamaño.
  * 1.7.10 — El justificado del MTO se ve: se unen los renglones que cortó Outlook.
  * 1.7.11 — La impresión del MTO también sale justificada.
+ * 1.7.12 — Justificado también en los MTO cortados en renglones cortos (~50 caracteres), no solo los de Outlook.
  */
-export const APP_VERSION = '1.7.11';
+export const APP_VERSION = '1.7.12';

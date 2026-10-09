@@ -46,8 +46,8 @@ interface DropTarget {
   base: string | null;
 }
 
-/** Un renglón de al menos este largo lo cortó Outlook (corta en ~75), no quien escribió. */
-const WRAPPED_LINE_MIN = 60;
+/** Por debajo de este ancho no se adivina dónde cortó el renglón quien escribió. */
+const WRAP_WIDTH_MIN = 30;
 /**
  * Renglones que empiezan algo nuevo: listas (1. / a) / - / •) y etiquetas con
  * algo después (FDO: 0812…, BT: …). "ADJUNTAN:" solo es el final de una frase.
@@ -55,23 +55,45 @@ const WRAPPED_LINE_MIN = 60;
 const STARTS_NEW = /^\s*(\d{1,3}[.)-]\s|\(?[a-z]\)\s|[-•*–]\s|[A-ZÁÉÍÓÚÑ]{2,8}\s*:\s*\S)/;
 
 /**
- * Outlook manda el texto plano cortado a ~75 caracteres: cada renglón es "la
- * última línea" de su párrafo y el justificado no estira nada. Para mostrarlo se
- * unen los renglones que cortó Outlook (largos, que no terminan en ":" y cuyo
- * siguiente no empieza una lista o una etiqueta). Solo para la vista: lo guardado no cambia.
+ * Ancho al que viene cortado el texto: el renglón más largo antes del aviso de
+ * confidencialidad (la última línea "----"), que trae renglones más largos.
+ */
+function wrapWidth(lines: string[]): number {
+  let end = lines.length;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (/^\s*-{2,}\s*$/.test(lines[i])) { end = i; break; }
+  }
+  return lines.slice(0, end).reduce((max, l) => Math.max(max, l.trimEnd().length), 0);
+}
+
+/**
+ * El texto plano llega cortado en renglones (Outlook a ~75 caracteres; algunas
+ * terminales a ~50): cada renglón es "la última línea" de su párrafo y el
+ * justificado no estira nada. Para mostrarlo se unen los renglones cortados por
+ * ancho: aquellos en los que la primera palabra del siguiente no entraba
+ * (si entraba, el corte lo hizo quien escribió), que no terminan en ":" y cuyo
+ * siguiente no empieza una lista o una etiqueta. Solo para la vista: lo guardado no cambia.
  */
 function reflowMailText(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const width = wrapWidth(lines);
   const out: string[] = [];
-  for (const line of text.split(/\r?\n/)) {
+  /** Largo del renglón original anterior (el de out puede ser ya varios unidos). */
+  let prevLength = 0;
+  for (const line of lines) {
     const prev = out.length ? out[out.length - 1] : null;
+    const nextWord = line.trim().split(/\s+/)[0] ?? '';
     const join =
       prev !== null &&
-      prev.trim().length >= WRAPPED_LINE_MIN &&
+      width >= WRAP_WIDTH_MIN &&
+      prev.trim() !== '' &&
+      prevLength + 1 + nextWord.length > width &&
       !/:\s*$/.test(prev) &&
       line.trim() !== '' &&
       !STARTS_NEW.test(line);
     if (join) out[out.length - 1] = `${prev!.trimEnd()} ${line.trimStart()}`;
     else out.push(line);
+    prevLength = line.trimEnd().length;
   }
   return out.join('\n');
 }

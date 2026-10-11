@@ -1690,6 +1690,8 @@ export class MailComponent implements OnInit {
   openPreview(emailId: string, attId: string, filename: string): void {
     this.previewRequest.set({
       url: `/api/mail/emails/${emailId}/attachments/${attId}/preview`,
+      // Word/Excel: con el visor de Google si tiene cuenta @iugna.edu.ar (los desencriptados y SIENA no pasan por acá)
+      googlePreviewUrl: `/api/mail/emails/${emailId}/attachments/${attId}/google-preview`,
       filename,
       downloadUrl: `/api/mail/emails/${emailId}/attachments/${attId}`,
     });

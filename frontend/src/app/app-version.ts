@@ -46,5 +46,6 @@
  * 1.7.18 — Escaneos también para los grupos especiales (AYUDANTIA): acceso para la impresora y su bandeja.
  * 1.8.0 — Seguir un MTO (megáfono) y "Mis alertas": avisos en la campanita cuando llega un MTO relacionado o con tus términos.
  * 1.8.1 — Botón "No leídos" en la lista de MTO (los no leídos de la carpeta abierta).
+ * 1.8.2 — Adjuntos más rápidos (sin la espera de 4 s), Word/Excel de MTO con el visor de Google y planillas con el aspecto de Excel.
  */
-export const APP_VERSION = '1.8.1';
+export const APP_VERSION = '1.8.2';

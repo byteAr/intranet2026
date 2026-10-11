@@ -16,6 +16,7 @@ import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browse
 import { HttpClient } from '@angular/common/http';
 import { ThemeService } from '../../core/services/theme.service';
 import { CometSpinnerComponent } from '../comet-spinner/comet-spinner.component';
+import { renderExcelWorkbook } from './excel-view';
 
 export interface AttachmentPreviewRequest {
   url: string;
@@ -29,7 +30,16 @@ export interface AttachmentPreviewRequest {
    * a PDF, texto, video, y Docs de Google sin extensión.
    */
   byContentType?: boolean;
+  /**
+   * Word/Excel de un MTO: endpoint que copia el adjunto al Drive del usuario y
+   * devuelve el visor de Google ({ available, url }). Si no hay cuenta
+   * @iugna.edu.ar o falla, se usa el visor propio.
+   */
+  googlePreviewUrl?: string;
 }
+
+/** Si el visor de Google no terminó de cargar en este tiempo, se pasa al propio. */
+const GOOGLE_TIMEOUT_MS = 20_000;
 
 type PreviewMode = 'pdf' | 'image' | 'docx' | 'xlsx' | 'text' | 'video' | 'audio' | 'unsupported';
 
@@ -69,6 +79,14 @@ function modeFromType(type: string): PreviewMode | null {
               <span class="text-sm font-medium text-gray-700 dark:text-zinc-300 truncate">{{ currentFilename() }}</span>
             </div>
             <div class="flex items-center gap-1">
+              @if (googleSrc()) {
+                <!-- Si el navegador no tiene abierta la sesión de Google, Google no se ve: se pasa al visor propio -->
+                <button (click)="$event.stopPropagation(); useOwnViewer()"
+                  class="mr-1 px-2.5 py-1 rounded-md text-xs font-medium text-gray-600 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-600"
+                  title="Si no se ve el documento (por ejemplo, sin sesión de Google en este navegador)">
+                  ¿No se ve? Usar el visor de la intranet
+                </button>
+              }
               @if (currentDownloadUrl()) {
                 <button (click)="$event.stopPropagation(); downloadFile()" title="Descargar archivo original"
                   class="flex items-center justify-center h-8 w-8 rounded-full hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200">
@@ -151,6 +169,13 @@ function modeFromType(type: string): PreviewMode | null {
                  class="absolute inset-0 overflow-auto bg-white"
                  [class.hidden]="loading() || error() || (previewMode() !== 'docx' && previewMode() !== 'xlsx')">
             </div>
+
+            <!-- Visor de Google (Word/Excel de un MTO, cuenta @iugna.edu.ar): carga detrás de la animación -->
+            @if (googleSrc(); as src) {
+              <iframe [src]="src" (load)="onGoogleLoaded()" title="Vista previa en Google"
+                class="absolute inset-0 w-full h-full border-0 bg-white" [class.invisible]="loading()"
+                allow="fullscreen"></iframe>
+            }
           </div>
         </div>
       </div>
@@ -176,7 +201,13 @@ export class AttachmentPreviewModalComponent implements OnChanges {
   private readonly http = inject(HttpClient);
   readonly themeService = inject(ThemeService);
 
-  private readonly MIN_LOADING_MS = 4000;
+  /**
+   * Lo mínimo que se ve la animación, para que no parpadee si el archivo llega
+   * al instante. Hasta el 11/10/2026 eran 4 s fijos y todo parecía lento.
+   */
+  private readonly MIN_LOADING_MS = 250;
+  private googleTimer: ReturnType<typeof setTimeout> | null = null;
+  readonly googleSrc = signal<SafeResourceUrl | null>(null);
   /** Blob abierto en el visor, para liberarlo al cerrar. */
   private blobUrl: string | null = null;
 
@@ -229,6 +260,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
     this.mediaSrc.set(null);
     this.textContent.set('');
 
+    this.clearGoogle();
     const byExtension = this.detectMode(req.filename);
     this.previewMode.set(byExtension);
 
@@ -239,6 +271,50 @@ export class AttachmentPreviewModalComponent implements OnChanges {
       return;
     }
 
+    // Word/Excel de un MTO con cuenta @iugna.edu.ar: el visor de Google. Si no se puede, el propio.
+    if (req.googlePreviewUrl && (byExtension === 'docx' || byExtension === 'xlsx')) {
+      this.http.get<{ available: boolean; url?: string }>(req.googlePreviewUrl).subscribe({
+        next: (g) => {
+          if (this.request !== req) return;
+          if (g.available && g.url && /^https:\/\/drive\.google\.com\//.test(g.url)) {
+            this.googleSrc.set(this.sanitizer.bypassSecurityTrustResourceUrl(g.url));
+            this.googleTimer = setTimeout(() => this.useOwnViewer(), GOOGLE_TIMEOUT_MS);
+          } else {
+            this.loadOwn(req, byExtension);
+          }
+        },
+        error: () => { if (this.request === req) this.loadOwn(req, byExtension); },
+      });
+      return;
+    }
+    this.loadOwn(req, byExtension);
+  }
+
+  /** El visor de Google terminó de cargar. */
+  onGoogleLoaded(): void {
+    if (this.googleTimer) clearTimeout(this.googleTimer);
+    this.googleTimer = null;
+    this.loading.set(false);
+  }
+
+  /** "¿No se ve?": el mismo archivo con el visor de la intranet. */
+  useOwnViewer(): void {
+    const req = this.request;
+    if (!req) return;
+    this.clearGoogle();
+    this.loading.set(true);
+    this.error.set(false);
+    this.loadOwn(req, this.detectMode(req.filename));
+  }
+
+  private clearGoogle(): void {
+    if (this.googleTimer) clearTimeout(this.googleTimer);
+    this.googleTimer = null;
+    this.googleSrc.set(null);
+  }
+
+  /** El archivo con el visor de la intranet (PDF, imagen, Word, Excel, texto…). */
+  private loadOwn(req: AttachmentPreviewRequest, byExtension: PreviewMode): void {
     const startTime = Date.now();
 
     this.http.get(req.url, { responseType: 'blob' }).subscribe({
@@ -351,9 +427,21 @@ export class AttachmentPreviewModalComponent implements OnChanges {
   }
 
   private async renderXlsx(blob: Blob): Promise<void> {
+    const arrayBuffer = await blob.arrayBuffer();
+    // .xlsx: con el aspecto de Excel (formatos, anchos, combinadas, pestañas). El .xls
+    // viejo (o si exceljs no lo puede leer) sigue con el visor simple de abajo.
+    const container = this.renderContainer?.nativeElement;
+    if (container && this.getExtension(this.currentFilename()) !== 'xls') {
+      try {
+        await renderExcelWorkbook(arrayBuffer, container);
+        this.loading.set(false);
+        return;
+      } catch (err) {
+        console.warn('Visor tipo Excel: se usa el simple', err);
+      }
+    }
     try {
       const XLSX = await import('xlsx');
-      const arrayBuffer = await blob.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
 
       const container = this.renderContainer?.nativeElement;
@@ -422,6 +510,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
 
   close(): void {
     this.visible.set(false);
+    this.clearGoogle();
     this.iframeSrc.set(null);
     this.imageSrc.set(null);
     this.mediaSrc.set(null);

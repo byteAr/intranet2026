@@ -30,7 +30,6 @@ import { DecryptedAttachmentService } from './decrypted-attachment.service';
 import { SienaFileService } from './siena-file.service';
 import { MailGateway } from './mail.gateway';
 import { MailAlertsService } from './mail-alerts.service';
-import { MailGooglePreviewService } from './mail-google-preview.service';
 import { BridgeSecretGuard } from './guards/bridge-secret.guard';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 import { SendEmailDto } from './dto/send-email.dto';
@@ -49,7 +48,6 @@ export class MailController {
     private readonly sienaFileService: SienaFileService,
     private readonly mailGateway: MailGateway,
     private readonly alerts: MailAlertsService,
-    private readonly googlePreviews: MailGooglePreviewService,
   ) {}
 
   @Get('unread-counts')
@@ -151,17 +149,6 @@ export class MailController {
     const email = await this.mailService.findOne(id, req.user.id);
     if (!email.mailCode) return [];
     return this.mailService.getTree(email.mailCode);
-  }
-
-  /**
-   * Word/Excel con el visor de Google, para quien tiene cuenta @iugna.edu.ar:
-   * copia el adjunto a su Drive y devuelve el enlace (solo lectura). Si no se
-   * puede, { available: false } y la ventana usa el visor propio.
-   */
-  @Get('emails/:id/attachments/:aid/google-preview')
-  async googlePreview(@Param('id') id: string, @Param('aid') aid: string, @Req() req: any) {
-    const att = await this.mailService.getAttachment(id, aid);
-    return this.googlePreviews.previewFor(req.user.id, req.user.username, att);
   }
 
   @Get('emails/:id/attachments/:aid/preview')

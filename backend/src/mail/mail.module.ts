@@ -26,11 +26,6 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MailAlertsService } from './mail-alerts.service';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { MailGooglePreviewService } from './mail-google-preview.service';
-// Instancia propia (solo necesita la configuración): importar SharedFoldersModule
-// armaría un círculo SharedFolders → Admin → Mail.
-import { GoogleDriveService } from '../shared-folders/google-drive.service';
-import { User } from '../users/entities/user.entity';
 
 @Module({
   imports: [
@@ -43,7 +38,6 @@ import { User } from '../users/entities/user.entity';
       MailPendingSend,
       DecryptedAttachment,
       SienaFile,
-      User,
     ]),
     NotificationsModule,
     JwtModule.registerAsync({
@@ -55,7 +49,7 @@ import { User } from '../users/entities/user.entity';
     }),
   ],
   controllers: [MailController, PstImportController],
-  providers: [GoogleDriveService, MailGooglePreviewService, MailAlertsService, MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService, DecryptedAttachmentService, SienaFileService, MailHealthService],
+  providers: [MailAlertsService, MailParserService, MailIngestService, ImapPollerService, MailService, MailGateway, SmtpSenderService, LdapRecipientsService, BridgeSecretGuard, PstImportService, DecryptedAttachmentService, SienaFileService, MailHealthService],
   exports: [MailParserService, MailIngestService, ImapPollerService, MailService, SmtpSenderService, LdapRecipientsService],
 })
 export class MailModule {}

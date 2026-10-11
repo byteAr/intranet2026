@@ -19,8 +19,6 @@ const KEEP_DAYS = 7;
 export interface GooglePreview {
   available: boolean;
   url?: string;
-  /** Cuenta @iugna.edu.ar del usuario: para "Iniciar sesión con tu cuenta" si el navegador no la tiene abierta. */
-  email?: string;
   /** Por qué no (para el log del navegador; la ventana usa el visor propio). */
   reason?: string;
 }
@@ -84,7 +82,7 @@ export class MailGooglePreviewService implements OnApplicationBootstrap {
       if (cached) {
         try {
           const f = await drive.files.get({ fileId: cached.fileId, fields: 'id,trashed' });
-          if (f.data.id && !f.data.trashed) return { available: true, url: this.viewerUrl(cached.fileId, email), email };
+          if (f.data.id && !f.data.trashed) return { available: true, url: this.viewerUrl(cached.fileId, email) };
         } catch {
           /* la borró: se vuelve a subir */
         }
@@ -102,7 +100,7 @@ export class MailGooglePreviewService implements OnApplicationBootstrap {
          ON CONFLICT ("googleEmail", "attachmentId") DO UPDATE SET "fileId" = EXCLUDED."fileId", "createdAt" = now()`,
         [email, att.id, fileId],
       );
-      return { available: true, url: this.viewerUrl(fileId, email), email };
+      return { available: true, url: this.viewerUrl(fileId, email) };
     } catch (err) {
       this.logger.warn(`Vista previa en Google de ${att.filename} para ${email}: ${(err as Error).message}`);
       return { available: false, reason: 'Google no respondió' };

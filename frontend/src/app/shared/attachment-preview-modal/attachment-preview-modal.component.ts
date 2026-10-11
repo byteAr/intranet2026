@@ -79,6 +79,14 @@ function modeFromType(type: string): PreviewMode | null {
               <span class="text-sm font-medium text-gray-700 dark:text-zinc-300 truncate">{{ currentFilename() }}</span>
             </div>
             <div class="flex items-center gap-1">
+              @if (googleSrc()) {
+                <!-- Si el navegador no tiene abierta la sesión de Google, Google no se ve: se pasa al visor propio -->
+                <button (click)="$event.stopPropagation(); useOwnViewer()"
+                  class="mr-1 px-2.5 py-1 rounded-md text-xs font-medium text-gray-600 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-600"
+                  title="Si no se ve el documento (por ejemplo, sin sesión de Google en este navegador)">
+                  ¿No se ve? Usar el visor de la intranet
+                </button>
+              }
               @if (currentDownloadUrl()) {
                 <button (click)="$event.stopPropagation(); downloadFile()" title="Descargar archivo original"
                   class="flex items-center justify-center h-8 w-8 rounded-full hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200">
@@ -96,27 +104,6 @@ function modeFromType(type: string): PreviewMode | null {
               </button>
             </div>
           </div>
-
-          @if (googleSrc()) {
-            <!-- Google no deja mostrar su inicio de sesión dentro de otra página: se abre en una ventanita aparte -->
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-2 text-xs text-gray-600 dark:text-zinc-300 bg-gray-50 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-700 flex-shrink-0">
-              <span>Si Google dice que no puede acceder a tu cuenta:</span>
-              <button (click)="$event.stopPropagation(); signInGoogle()"
-                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold text-white bg-teal-600 hover:bg-teal-700">
-                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/>
-                </svg>
-                Iniciar sesión con {{ googleEmail() || 'tu cuenta @iugna.edu.ar' }}
-              </button>
-              <button (click)="$event.stopPropagation(); useOwnViewer()"
-                class="px-2.5 py-1 rounded-md font-medium border border-gray-300 dark:border-zinc-600 hover:bg-gray-100 dark:hover:bg-zinc-700">
-                Usar el visor de la intranet
-              </button>
-              @if (waitingSignIn()) {
-                <span class="text-gray-500">Cuando termines, cerrá esa ventana y el documento se vuelve a cargar.</span>
-              }
-            </div>
-          }
 
           @if (note()) {
             <div class="flex items-center gap-2 px-5 py-2 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 flex-shrink-0">
@@ -221,11 +208,6 @@ export class AttachmentPreviewModalComponent implements OnChanges {
   private readonly MIN_LOADING_MS = 250;
   private googleTimer: ReturnType<typeof setTimeout> | null = null;
   readonly googleSrc = signal<SafeResourceUrl | null>(null);
-  /** Cuenta @iugna.edu.ar del usuario y el enlace del visor (para recargarlo tras iniciar sesión). */
-  readonly googleEmail = signal<string | null>(null);
-  private googleUrl: string | null = null;
-  readonly waitingSignIn = signal(false);
-  private signInPoll: ReturnType<typeof setInterval> | null = null;
   /** Blob abierto en el visor, para liberarlo al cerrar. */
   private blobUrl: string | null = null;
 
@@ -291,12 +273,10 @@ export class AttachmentPreviewModalComponent implements OnChanges {
 
     // Word/Excel de un MTO con cuenta @iugna.edu.ar: el visor de Google. Si no se puede, el propio.
     if (req.googlePreviewUrl && (byExtension === 'docx' || byExtension === 'xlsx')) {
-      this.http.get<{ available: boolean; url?: string; email?: string }>(req.googlePreviewUrl).subscribe({
+      this.http.get<{ available: boolean; url?: string }>(req.googlePreviewUrl).subscribe({
         next: (g) => {
           if (this.request !== req) return;
           if (g.available && g.url && /^https:\/\/drive\.google\.com\//.test(g.url)) {
-            this.googleUrl = g.url;
-            this.googleEmail.set(g.email ?? null);
             this.googleSrc.set(this.sanitizer.bypassSecurityTrustResourceUrl(g.url));
             this.googleTimer = setTimeout(() => this.useOwnViewer(), GOOGLE_TIMEOUT_MS);
           } else {
@@ -330,44 +310,7 @@ export class AttachmentPreviewModalComponent implements OnChanges {
   private clearGoogle(): void {
     if (this.googleTimer) clearTimeout(this.googleTimer);
     this.googleTimer = null;
-    if (this.signInPoll) clearInterval(this.signInPoll);
-    this.signInPoll = null;
-    this.waitingSignIn.set(false);
     this.googleSrc.set(null);
-    this.googleEmail.set(null);
-    this.googleUrl = null;
-  }
-
-  /**
-   * Google no deja mostrar su inicio de sesión dentro de otra página: se abre
-   * en una ventanita con la cuenta @iugna ya escrita. Al cerrarla, se recarga
-   * el visor (con la sesión abierta, Google ya muestra el documento).
-   */
-  signInGoogle(): void {
-    const url = this.googleUrl;
-    if (!url) return;
-    const email = this.googleEmail();
-    const signIn =
-      'https://accounts.google.com/ServiceLogin?' +
-      new URLSearchParams({ ...(email ? { Email: email } : {}), continue: url.replace('/preview', '/view') }).toString();
-    const popup = window.open(signIn, 'intranet-google-login', 'width=520,height=680');
-    if (!popup) {
-      // Bloqueador de ventanas emergentes: en una pestaña nueva
-      window.open(signIn, '_blank', 'noopener');
-      return;
-    }
-    this.waitingSignIn.set(true);
-    if (this.signInPoll) clearInterval(this.signInPoll);
-    this.signInPoll = setInterval(() => {
-      if (!popup.closed) return;
-      clearInterval(this.signInPoll!);
-      this.signInPoll = null;
-      this.waitingSignIn.set(false);
-      // Mismo visor con un parámetro distinto: el iframe se vuelve a cargar con la sesión nueva.
-      const reload = `${url}${url.includes('?') ? '&' : '?'}r=${Date.now()}`;
-      this.loading.set(true);
-      this.googleSrc.set(this.sanitizer.bypassSecurityTrustResourceUrl(reload));
-    }, 700);
   }
 
   /** El archivo con el visor de la intranet (PDF, imagen, Word, Excel, texto…). */

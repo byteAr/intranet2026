@@ -28,7 +28,13 @@ export const MEGAPHONE_PATH = 'M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM
             </span>
             <div>
               <h3 id="mail-alerts-title" class="text-sm font-semibold text-gray-900">Mis alertas</h3>
-              <p class="text-xs text-gray-500 leading-relaxed">Te avisamos en las notificaciones de la campanita cuando llega un MTO con lo que cargues acá o relacionado con uno que seguís.</p>
+              <p class="text-xs text-gray-500 leading-relaxed">
+                Te avisamos en el ícono de notificaciones
+                <svg class="inline-block h-3.5 w-3.5 -mt-0.5 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-label="campanita de notificaciones">
+                  <path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 003.4 0" />
+                </svg>
+                cuando llega un MTO con lo que cargues acá o relacionado con uno que seguís.
+              </p>
             </div>
           </div>
           <button (click)="closed.emit()" class="text-gray-400 hover:text-gray-700" aria-label="Cerrar">✕</button>

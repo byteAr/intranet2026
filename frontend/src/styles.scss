@@ -79,6 +79,19 @@ body {
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.18);
 }
 .ft-text { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ft-text); }
+/* La campanita de notificaciones dentro del texto ("{campana}") */
+.ft-bell {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin: 0 1px -2px;
+  fill: none;
+  stroke: #0d9488;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dark .ft-bell { stroke: #5eead4; }
 .ft-points { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
 .ft-points li {
   position: relative;

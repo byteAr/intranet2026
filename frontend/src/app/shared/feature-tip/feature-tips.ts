@@ -1,7 +1,8 @@
 /**
  * Qué hace cada funcionalidad, para la burbuja que aparece al pasar el mouse
  * (directiva [appFeatureTip]). La clave es la misma de NEW_FEATURES: mientras
- * es nueva, la burbuja lleva la etiqueta NUEVO.
+ * es nueva, la burbuja lleva la etiqueta NUEVO. En el texto, "{campana}" se
+ * dibuja como la campanita de las notificaciones (la del encabezado).
  */
 export interface FeatureTip {
   title: string;
@@ -13,7 +14,7 @@ export interface FeatureTip {
 export const FEATURE_TIPS: Record<string, FeatureTip> = {
   'seguir-mto': {
     title: 'Seguir este MTO',
-    text: 'Te avisamos en las notificaciones de la campanita cuando llegue un MTO que cite a este o una corrección (SVC).',
+    text: 'Te avisamos en el ícono de notificaciones {campana} cuando llegue un MTO que cite a este o una corrección (SVC).',
     points: [
       'También te avisa de las respuestas a esas respuestas.',
       'Tocalo de nuevo para dejar de seguirlo.',
@@ -22,7 +23,7 @@ export const FEATURE_TIPS: Record<string, FeatureTip> = {
   },
   'mis-alertas': {
     title: 'Mis alertas',
-    text: 'Cargá palabras o frases —tu DNI, tu nombre y apellido, un expediente— y te avisamos en la campanita cuando llegue un MTO que las tenga.',
+    text: 'Cargá palabras o frases —tu DNI, tu nombre y apellido, un expediente— y te avisamos en el ícono de notificaciones {campana} cuando llegue un MTO que las tenga.',
     points: [
       'Busca en el asunto, el texto y los nombres de los adjuntos.',
       'No importan las tildes ni las mayúsculas: 29465318 encuentra 29.465.318.',

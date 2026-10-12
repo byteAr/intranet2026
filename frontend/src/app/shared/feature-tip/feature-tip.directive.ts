@@ -13,6 +13,28 @@ const HIDE_DELAY_MS = 90;
 
 let nextId = 0;
 
+/** La campanita del encabezado (notification-bell), para "{campana}" en los textos. */
+const BELL_PATHS = ['M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9', 'M10.3 21a1.94 1.94 0 003.4 0'];
+
+/** Texto plano (textContent) con "{campana}" dibujada como el ícono de notificaciones. */
+function fillText(target: HTMLElement, value: string): void {
+  value.split('{campana}').forEach((part, i) => {
+    if (i > 0) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('class', 'ft-bell');
+      svg.setAttribute('aria-label', 'campanita de notificaciones');
+      for (const d of BELL_PATHS) {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', d);
+        svg.appendChild(path);
+      }
+      target.appendChild(svg);
+    }
+    if (part) target.appendChild(document.createTextNode(part));
+  });
+}
+
 /**
  * Burbuja que explica una funcionalidad apenas se pasa el mouse (o se llega
  * con el teclado), con los colores de la intranet, sombra y una animación
@@ -104,7 +126,7 @@ export class FeatureTipDirective implements OnDestroy {
 
     const text = document.createElement('p');
     text.className = 'ft-text';
-    text.textContent = tip.text;
+    fillText(text, tip.text);
     bubble.append(head, text);
 
     if (tip.points?.length) {
@@ -112,7 +134,7 @@ export class FeatureTipDirective implements OnDestroy {
       list.className = 'ft-points';
       for (const p of tip.points) {
         const li = document.createElement('li');
-        li.textContent = p;
+        fillText(li, p);
         list.appendChild(li);
       }
       bubble.appendChild(list);

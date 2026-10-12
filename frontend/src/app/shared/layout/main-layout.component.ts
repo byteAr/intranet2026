@@ -522,7 +522,7 @@ import { HttpClient } from '@angular/common/http';
 
     <!-- ── Announcement banner (todos los usuarios) ─── -->
     @if (announcementsService.current(); as ann) {
-      <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[99998] w-full max-w-xl px-4 transition-opacity duration-500"
+      <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[99998] w-full max-w-2xl px-4 transition-opacity duration-500"
            [class.opacity-0]="announcementsService.fading()" [class.pointer-events-none]="announcementsService.fading()">
         <div class="bg-amber-500 text-white rounded-2xl shadow-2xl px-5 py-4 flex items-start gap-3">
           <div class="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -533,7 +533,8 @@ import { HttpClient } from '@angular/common/http';
           </div>
           <div class="flex-1 min-w-0">
             <p class="text-xs font-semibold uppercase tracking-wide opacity-80 mb-0.5">Anuncio de {{ ann.senderName }}</p>
-            <p class="text-sm font-medium leading-snug">{{ ann.message }}</p>
+            <!-- Con sus renglones y viñetas; si es largo, se desplaza adentro sin tapar toda la pantalla -->
+            <p class="announcement-text text-sm font-medium leading-relaxed whitespace-pre-line max-h-[65vh] overflow-y-auto pr-1">{{ ann.message }}</p>
           </div>
           <button (click)="announcementsService.dismiss()" class="text-white/70 hover:text-white flex-shrink-0 mt-0.5">
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -830,6 +831,11 @@ import { HttpClient } from '@angular/common/http';
 
   `,
   styles: [`
+    /* Barra de desplazamiento del anuncio largo: blanca translúcida sobre el naranja */
+    .announcement-text { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.6) transparent; }
+    .announcement-text::-webkit-scrollbar { width: 6px; }
+    .announcement-text::-webkit-scrollbar-thumb { background: rgba(255,255,255,.55); border-radius: 3px; }
+    .announcement-text::-webkit-scrollbar-track { background: transparent; }
     .nav-item { color: #374151; }
     .nav-item:hover { background: #f3f4f6; color: #111827; }
     .active-nav { background: #0f766e !important; color: white !important; font-weight: 600; }

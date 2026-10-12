@@ -132,7 +132,7 @@ import { FeatureTipDirective } from '../feature-tip/feature-tip.directive';
           <p class="text-xs opacity-90">{{ fullDate(a.sentAt) }}</p>
         </div>
       </div>
-      <p class="px-6 py-5 text-sm leading-relaxed text-gray-800 dark:text-zinc-200 whitespace-pre-line">{{ a.message }}</p>
+      <p class="px-6 py-5 text-sm leading-relaxed text-gray-800 dark:text-zinc-200 whitespace-pre-line max-h-[60vh] overflow-y-auto">{{ a.message }}</p>
       <div class="px-6 pb-5 flex justify-end">
         <button (click)="notifications.openAnnouncement.set(null)"
           class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600">Cerrar</button>

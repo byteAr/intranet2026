@@ -4,6 +4,9 @@ import { Subject } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
 
+/** Un anuncio sin leer de hasta estos días se muestra en el cartel al entrar. */
+const PENDING_ANNOUNCEMENT_DAYS = 7;
+
 /** mto: un MTO seguido (megáfono) o que coincide con "Mis alertas". */
 export type NotificationType = 'announcement' | 'share' | 'upload' | 'scan' | 'mto';
 
@@ -46,6 +49,13 @@ export class NotificationsService {
    * y 'drive_uploaded' {groupName, folderId, files}.
    */
   readonly signals = new Subject<{ event: string; data: Record<string, unknown> }>();
+  /**
+   * Anuncio sin leer de los últimos días al entrar: lo muestra el cartel naranja
+   * (AnnouncementsService) a quien no estaba conectado cuando se mandó.
+   */
+  readonly pendingAnnouncement = new Subject<AppNotification>();
+  /** El cartel pendiente se busca una sola vez por sesión (la primera carga). */
+  private checkedPending = false;
 
   constructor() {
     this.authService.onBeforeLogout(() => this.disconnect());
@@ -73,6 +83,7 @@ export class NotificationsService {
     this.items.set([]);
     this.unread.set(0);
     this.openAnnouncement.set(null);
+    this.checkedPending = false;
   }
 
   load(): void {
@@ -80,6 +91,15 @@ export class NotificationsService {
       next: (res) => {
         this.items.set(res.items);
         this.unread.set(res.unread);
+        if (!this.checkedPending) {
+          this.checkedPending = true;
+          // El más nuevo sin leer de los últimos 7 días (la lista viene de más nuevo a más viejo)
+          const since = Date.now() - PENDING_ANNOUNCEMENT_DAYS * 24 * 60 * 60 * 1000;
+          const pending = res.items.find(
+            (n) => n.type === 'announcement' && !n.read && new Date(n.createdAt).getTime() >= since,
+          );
+          if (pending) this.pendingAnnouncement.next(pending);
+        }
       },
       error: () => {
         /* sin red: la campanita queda como estaba */
@@ -92,6 +112,16 @@ export class NotificationsService {
     this.items.update((list) => list.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
     this.unread.update((u) => Math.max(0, u - 1));
     this.http.post<void>(`${this.base}/${n.id}/read`, {}).subscribe({ error: () => this.load() });
+  }
+
+  /** Marca como leída una notificación por su id (el cartel del anuncio, al cerrarlo). */
+  markReadById(id: string): void {
+    const n = this.items().find((x) => x.id === id);
+    if (n) {
+      this.markRead(n);
+      return;
+    }
+    this.http.post<void>(`${this.base}/${encodeURIComponent(id)}/read`, {}).subscribe({ error: () => undefined });
   }
 
   markAllRead(): void {

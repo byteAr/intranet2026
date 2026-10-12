@@ -34,6 +34,7 @@ import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
 import { MtoViewersComponent } from './mto-viewers.component';
 import { findCodeMentions } from './mail-code';
 import { MailAlertsComponent, MEGAPHONE_PATH } from './mail-alerts.component';
+import { FeatureTipDirective } from '../../shared/feature-tip/feature-tip.directive';
 import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.component';
 import { AppVersionService } from '../../core/services/app-version.service';
 import { forkJoin } from 'rxjs';
@@ -131,7 +132,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 @Component({
   selector: 'app-mail',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, MtoShareComponent, NewBadgeComponent, CometSpinnerComponent, MtoViewersComponent, MailAlertsComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, MtoShareComponent, NewBadgeComponent, CometSpinnerComponent, MtoViewersComponent, MailAlertsComponent, FeatureTipDirective],
   template: `
     <div class="flex h-[calc(100vh-8rem)] gap-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
 
@@ -166,19 +167,17 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
 
         <div class="p-2 border-t border-gray-200 space-y-1.5">
           <!-- Mis alertas: términos que avisan en la campanita y MTO que sigo -->
-          <button (click)="alertsOpen.set(true)"
-            class="w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-colors border border-teal-200 text-teal-700 bg-white hover:bg-teal-50"
-            title="Avisame en las notificaciones de la campanita cuando llegue un MTO con mi DNI, mi nombre, un expediente…">
+          <button (click)="alertsOpen.set(true)" appFeatureTip="mis-alertas" tipPlacement="top"
+            class="w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-colors border border-teal-200 text-teal-700 bg-white hover:bg-teal-50">
             <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path [attr.d]="MEGAPHONE_PATH" />
             </svg>
             Mis alertas
             <app-new-badge feature="mis-alertas" [compact]="true" />
           </button>
-          <button (click)="markAllRead()"
+          <button (click)="markAllRead()" appFeatureTip="marcar-todo-leido" tipPlacement="top"
             [disabled]="markingAllRead() || isHistorical() || mailService.unreadCounts().total === 0"
-            class="w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-colors border border-teal-200 text-teal-700 bg-white hover:bg-teal-50 disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Pone en cero Ejecutivos, Informativos, Redgen y Enviados (solo para vos)">
+            class="w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-colors border border-teal-200 text-teal-700 bg-white hover:bg-teal-50 disabled:opacity-40 disabled:cursor-not-allowed">
             <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M2 12l5 5L18 6M12 17l1.5 1.5L22 10"/>
             </svg>
@@ -286,12 +285,11 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
             @else if (isSearchMode()) { Resultados }
             @else if (!isHistorical() && groupBy() === 'none') {
               <!-- Solo los no leídos de la carpeta en la que estás -->
-              <button (click)="toggleUnread()"
+              <button (click)="toggleUnread()" appFeatureTip="no-leidos"
                 class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border transition-colors"
                 [class.bg-teal-600]="onlyUnread()" [class.text-white]="onlyUnread()" [class.border-teal-600]="onlyUnread()"
                 [class.text-gray-600]="!onlyUnread()" [class.border-gray-200]="!onlyUnread()" [class.hover:bg-gray-100]="!onlyUnread()"
-                [attr.aria-pressed]="onlyUnread()"
-                [title]="onlyUnread() ? 'Mostrar todos' : 'Mostrar solo los que no abriste de esta carpeta'">
+                [attr.aria-pressed]="onlyUnread()">
                 <span class="h-1.5 w-1.5 rounded-full" [class.bg-white]="onlyUnread()" [class.bg-teal-500]="!onlyUnread()"></span>
                 No leídos
                 @if (unreadInFolder() > 0) {
@@ -582,12 +580,11 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                   <div class="flex items-center gap-3">
                     @if (isTicom) {
                       <!-- Banderita (como en Outlook): solo TICOM, compartida entre ellos -->
-                      <button (click)="toggleFlag()" [disabled]="flagBusy()"
+                      <button (click)="toggleFlag()" [disabled]="flagBusy()" appFeatureTip="bandera-mto"
                         class="flex items-center gap-1 text-xs transition-colors hover:opacity-75 disabled:opacity-50"
                         [class.text-rose-600]="!!activeEmail()!.flag"
                         [class.font-semibold]="!!activeEmail()!.flag"
-                        [class.text-gray-400]="!activeEmail()!.flag"
-                        [title]="activeEmail()!.flag ? 'Quitar la marca (la puso ' + activeEmail()!.flag!.byName + ')' : 'Marcar con la bandera: hasta acá se leyó'">
+                        [class.text-gray-400]="!activeEmail()!.flag">
                         <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                           <path fill-rule="evenodd" [attr.d]="FLAG_PATH"/>
                         </svg>
@@ -596,12 +593,11 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                       </button>
                     }
                     <!-- Megáfono: avisa en la campanita cuando llega un MTO que cita a este (cada usuario los suyos) -->
-                    <button (click)="toggleFollow()" [disabled]="followBusy()"
+                    <button (click)="toggleFollow()" [disabled]="followBusy()" appFeatureTip="seguir-mto"
                       class="flex items-center gap-1 text-xs transition-colors hover:opacity-75 disabled:opacity-50"
                       [class.text-teal-700]="activeEmail()!.following"
                       [class.font-semibold]="activeEmail()!.following"
-                      [class.text-gray-400]="!activeEmail()!.following"
-                      [title]="activeEmail()!.following ? 'Dejar de seguir este MTO' : 'Seguir este MTO: te avisamos en la campanita cuando llegue uno que lo cite o lo corrija'">
+                      [class.text-gray-400]="!activeEmail()!.following">
                       <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
                            [attr.fill]="activeEmail()!.following ? 'currentColor' : 'none'">
                         <path [attr.d]="MEGAPHONE_PATH" />
@@ -632,7 +628,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               </div>
               <!-- Quiénes lo abrieron (fotos encimadas + cantidad; al tocar, la lista con fecha y hora) -->
               <div class="flex items-center gap-2 flex-wrap">
-                <app-mto-viewers [emailId]="activeEmail()!.id" [subject]="activeEmail()!.mailCode || activeEmail()!.subject" [version]="viewsVersion()" />
+                <app-mto-viewers appFeatureTip="vistos-mto" [emailId]="activeEmail()!.id" [subject]="activeEmail()!.mailCode || activeEmail()!.subject" [version]="viewsVersion()" />
                 <app-new-badge feature="vistos-mto" [compact]="true" class="mt-2" />
                 @if (activeEmail()!.flag; as f) {
                   <span class="mt-2 inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-xs text-rose-700"
@@ -705,7 +701,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               }
 
               @if (canDropFiles()) {
-                <p class="mt-2 flex items-center gap-1.5 text-[11px] text-gray-400">
+                <p class="mt-2 flex items-center gap-1.5 text-[11px] text-gray-400 w-fit" appFeatureTip="arrastrar-desencriptados" tipPlacement="top">
                   <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>

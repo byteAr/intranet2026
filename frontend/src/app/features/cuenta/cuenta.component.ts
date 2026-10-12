@@ -6,13 +6,14 @@ import { AuthService } from '../../core/services/auth.service';
 import { OfficeUsage, SharedFoldersService } from '../../core/services/shared-folders.service';
 import { StorageUsageComponent } from '../../shared/storage-usage/storage-usage.component';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
+import { FeatureTipDirective } from '../../shared/feature-tip/feature-tip.directive';
 
 type Panel = 'info' | 'password' | 'recovery' | 'rank';
 
 @Component({
   selector: 'app-cuenta',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, DatePipe, RouterLink, StorageUsageComponent, NewBadgeComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, DatePipe, RouterLink, StorageUsageComponent, NewBadgeComponent, FeatureTipDirective],
   template: `
     <div class="space-y-6 max-w-3xl mx-auto">
 
@@ -79,7 +80,7 @@ type Panel = 'info' | 'password' | 'recovery' | 'rank';
       @if (usages().length) {
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
           <div class="flex items-center justify-between gap-3 mb-4">
-            <div class="flex items-center gap-2 min-w-0">
+            <div class="flex items-center gap-2 min-w-0" appFeatureTip="espacio-oficinas">
               <svg class="h-5 w-5 flex-shrink-0 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/><path d="M4 11.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/>
               </svg>

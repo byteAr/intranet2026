@@ -18,6 +18,7 @@ import { AppVersionService } from '../../core/services/app-version.service';
 import { IdleTimeoutService, IDLE_WARNING_SECONDS } from '../../core/services/idle-timeout.service';
 import { SharedFoldersService } from '../../core/services/shared-folders.service';
 import { NewBadgeComponent } from '../new-badge/new-badge.component';
+import { FeatureTipDirective } from '../feature-tip/feature-tip.directive';
 import { APP_VERSION } from '../../app-version';
 import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
 import { NotificationsService } from '../../core/services/notifications.service';
@@ -26,7 +27,7 @@ import { HttpClient } from '@angular/common/http';
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, NewBadgeComponent, NotificationBellComponent],
+  imports: [CommonModule, RouterModule, FormsModule, NewBadgeComponent, NotificationBellComponent, FeatureTipDirective],
   template: `
     <div class="flex h-screen bg-gray-100 dark:bg-zinc-950">
 
@@ -192,7 +193,7 @@ import { HttpClient } from '@angular/common/http';
           }
 
           @if (permissionsService.isAllowed('carpetas') || sharedFoldersService.totalShares() > 0) {
-          <a routerLink="/archivos" routerLinkActive="active-nav"
+          <a routerLink="/archivos" routerLinkActive="active-nav" appFeatureTip="archivos-compartidos"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
             [title]="collapsed() ? 'Archivos compartidos' : ''">
             <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">

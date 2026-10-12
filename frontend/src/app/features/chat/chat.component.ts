@@ -18,6 +18,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ChatService, ChatMessage, ChatAttachment, UserSearchResult } from '../../core/services/chat.service';
 import { FileIconComponent } from '../../shared/file-icon/file-icon.component';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
+import { FeatureTipDirective } from '../../shared/feature-tip/feature-tip.directive';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { AttachmentPreviewModalComponent, AttachmentPreviewRequest } from '../../shared/attachment-preview-modal/attachment-preview-modal.component';
@@ -47,7 +48,7 @@ interface MtoShare {
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, LinkedTextComponent, FileIconComponent, NewBadgeComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, LinkedTextComponent, FileIconComponent, NewBadgeComponent, FeatureTipDirective],
   styles: [`
     /* Miniaturas chicas; en pantallas angostas las columnas se achican (minmax) */
     .chat-thumb { width: 100%; aspect-ratio: 1; }
@@ -329,7 +330,7 @@ interface MtoShare {
               (change)="onFileSelected($event)" />
             <!-- Paperclip button -->
             <button (click)="fileInput.click()" [disabled]="uploading() || selectedFiles().length >= maxFiles"
-              title="Adjuntar archivos (hasta 10 por mensaje)"
+              appFeatureTip="chat-varios-adjuntos" tipPlacement="top" aria-label="Adjuntar archivos"
               class="relative h-9 w-9 rounded-full flex items-center justify-center text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors flex-shrink-0 disabled:opacity-40">
               <app-new-badge feature="chat-varios-adjuntos" [compact]="true" class="absolute -top-2 left-1/2 -translate-x-1/2 pointer-events-none" />
               <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path [attr.d]="clipIconPath" /></svg>

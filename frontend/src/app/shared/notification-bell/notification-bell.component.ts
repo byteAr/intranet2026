@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { NgClass } from '@angular/common';
 import { AppNotification, NotificationsService } from '../../core/services/notifications.service';
 import { NewBadgeComponent } from '../new-badge/new-badge.component';
+import { FeatureTipDirective } from '../feature-tip/feature-tip.directive';
 
 /**
  * Campanita del encabezado: anuncios y archivos compartidos con el usuario.
@@ -12,11 +13,11 @@ import { NewBadgeComponent } from '../new-badge/new-badge.component';
 @Component({
   selector: 'app-notification-bell',
   standalone: true,
-  imports: [NgClass, NewBadgeComponent],
+  imports: [NgClass, NewBadgeComponent, FeatureTipDirective],
   template: `
 <div class="relative flex items-center gap-1.5">
   <app-new-badge feature="notificaciones" />
-  <button (click)="toggle(); $event.stopPropagation()"
+  <button (click)="toggle(); $event.stopPropagation()" appFeatureTip="notificaciones"
     class="relative h-9 w-9 flex items-center justify-center rounded-lg transition-colors text-gray-500 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-gray-800 dark:hover:text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
     [ngClass]="{ 'bg-gray-100 dark:bg-zinc-800 text-gray-800 dark:text-zinc-100': open() }"
     [attr.aria-label]="notifications.unread() ? 'Notificaciones, ' + notifications.unread() + ' sin leer' : 'Notificaciones'"

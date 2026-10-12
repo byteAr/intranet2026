@@ -8,6 +8,123 @@ body {
 }
 
 /* =====================================================
+   Burbuja que explica una funcionalidad ([appFeatureTip], shared/feature-tip)
+   Se dibuja en <body>: por eso sus estilos van acá y no en un componente.
+   ===================================================== */
+
+.ft-bubble {
+  --ft-bg: #ffffff;
+  --ft-border: #ccfbf1;
+  --ft-title: #0f172a;
+  --ft-text: #475569;
+  position: fixed;
+  z-index: 100000;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 24px));
+  padding: 14px 16px 13px;
+  border-radius: 16px;
+  background: var(--ft-bg);
+  border: 1px solid var(--ft-border);
+  box-shadow:
+    0 20px 45px -18px rgba(15, 118, 110, 0.45),
+    0 8px 20px -10px rgba(15, 23, 42, 0.18),
+    0 0 0 1px rgba(20, 184, 165, 0.04);
+  font-family: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(var(--ft-shift, 6px)) scale(0.96);
+  transition:
+    opacity 0.16s ease-out,
+    transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+  overflow: visible;
+}
+.ft-bubble.ft-above { --ft-shift: -6px; transform-origin: 50% 100%; }
+.ft-bubble.ft-below { --ft-shift: 6px; transform-origin: 50% 0; }
+.ft-bubble.ft-in { opacity: 1; transform: none; }
+.ft-bubble.ft-out { opacity: 0; transform: translateY(var(--ft-shift, 6px)) scale(0.98); transition-duration: 0.12s; }
+
+/* Franja de color arriba, con el degradé del logo */
+.ft-bubble::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(90deg, #14b8a5, #22c562);
+}
+
+.ft-head { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.ft-icon-wrap {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #14b8a5, #22c562);
+  box-shadow: 0 4px 10px -4px rgba(20, 184, 165, 0.7);
+}
+.ft-icon { width: 15px; height: 15px; fill: #ffffff; }
+.ft-title { font-size: 14px; font-weight: 700; color: var(--ft-title); line-height: 1.25; }
+.ft-new {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.18);
+}
+.ft-text { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ft-text); }
+.ft-points { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.ft-points li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ft-text);
+}
+.ft-points li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #14b8a5;
+}
+
+/* Flechita hacia el botón */
+.ft-arrow {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: var(--ft-bg);
+  border: 1px solid var(--ft-border);
+  transform: rotate(45deg);
+}
+/* Abajo del botón, la flecha sale de la franja de color: va del mismo verde */
+.ft-below .ft-arrow { top: -6px; border: none; background: #18bc94; }
+.ft-above .ft-arrow { bottom: -7px; border-left: none; border-top: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-bubble, .ft-bubble.ft-out { transition: opacity 0.12s linear; transform: none; }
+}
+
+.dark .ft-bubble {
+  --ft-bg: #1c1c1c;
+  --ft-border: #2f3d3a;
+  --ft-title: #ffffff;
+  --ft-text: #dedede;
+  box-shadow: 0 22px 48px -18px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(20, 184, 165, 0.12);
+}
+
+/* =====================================================
    DARK MODE — Global overrides for feature components
    =====================================================
    Una sola paleta (09/10/2026): fondos en tonos de negro y gris oscuro, del más

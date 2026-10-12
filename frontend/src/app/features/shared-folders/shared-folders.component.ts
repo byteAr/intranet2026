@@ -7,6 +7,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, debounceTime, distinctUntilChanged, firstValueFrom, forkJoin, of, switchMap } from 'rxjs';
 import { ScanOffice, ScansService } from '../../core/services/scans.service';
+import { FeatureTipDirective } from '../../shared/feature-tip/feature-tip.directive';
 import {
   FolderScope,
   OfficeUsage,
@@ -89,7 +90,7 @@ const MAX_FILES_PER_DROP = 1000;
 @Component({
   selector: 'app-shared-folders',
   standalone: true,
-  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent, StorageDriveComponent, NewBadgeComponent, ScansPanelComponent],
+  imports: [CommonModule, FormsModule, AttachmentPreviewModalComponent, FileIconComponent, CometSpinnerComponent, StorageDriveComponent, NewBadgeComponent, ScansPanelComponent, FeatureTipDirective],
   // La página ocupa todo el alto del <main> para que la tarjeta se estire hasta abajo.
   host: { class: 'flex flex-col min-h-full' },
   template: `
@@ -118,7 +119,7 @@ const MAX_FILES_PER_DROP = 1000;
 
     <!-- Pestañas: Mis archivos · Compartidos con mi oficina · Compartidos conmigo -->
     <div class="flex gap-1 bg-gray-100 dark:bg-zinc-800 rounded-xl p-1 w-fit max-w-full overflow-x-auto" role="tablist">
-      <button (click)="selectTab(PERSONAL_KEY)" role="tab" [attr.aria-selected]="isPersonalTab()"
+      <button (click)="selectTab(PERSONAL_KEY)" role="tab" [attr.aria-selected]="isPersonalTab()" appFeatureTip="mis-archivos"
         class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
         [class]="isPersonalTab() ? tabOn : tabOff">
         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -153,7 +154,7 @@ const MAX_FILES_PER_DROP = 1000;
         }
       </button>
       @if (scanOffices().length) {
-        <button (click)="selectTab(SCANS_TAB)" role="tab" [attr.aria-selected]="isScansTab()"
+        <button (click)="selectTab(SCANS_TAB)" role="tab" [attr.aria-selected]="isScansTab()" appFeatureTip="escaneos"
           class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           [class]="isScansTab() ? tabOn : tabOff">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

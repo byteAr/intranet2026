@@ -47,5 +47,6 @@
  * 1.8.0 — Seguir un MTO (megáfono) y "Mis alertas": avisos en la campanita cuando llega un MTO relacionado o con tus términos.
  * 1.8.1 — Botón "No leídos" en la lista de MTO (los no leídos de la carpeta abierta).
  * 1.8.2 — Adjuntos más rápidos (sin la espera de 4 s) y planillas con el aspecto de Excel.
+ * 1.8.3 — Burbuja que explica cada funcionalidad nueva al pasar el mouse, al instante.
  */
-export const APP_VERSION = '1.8.2';
+export const APP_VERSION = '1.8.3';

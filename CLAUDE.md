@@ -279,6 +279,8 @@ Regex PON en body → `requiresEncryption = true` automático. Override manual c
 
 Toda funcionalidad nueva visible lleva la etiqueta **NUEVO** una semana desde su pase a producción: registrarla en `frontend/src/app/shared/new-badge/new-features.ts` (clave + fecha) y poner `<app-new-badge feature="...">` donde aparece (`[dot]="true"` en el menú contraído). Se oculta sola.
 
+**Burbuja que la explica** (1.8.3, `shared/feature-tip/`): al pasar el mouse (o llegar con el teclado) aparece al instante una burbuja con los colores de la intranet, el título, la explicación, puntos cortos y NUEVO mientras dure. Agregar el texto en `feature-tips.ts` con la misma clave y poner `appFeatureTip="<clave>"` (opcional `tipPlacement="top"`) en el botón; sacarle el `title` (si no, sale también el globo gris del navegador). Se dibuja en `<body>` con `position: fixed` (ningún panel la corta) y sus estilos son globales (`.ft-*` en `styles.scss`). No aparece en pantallas táctiles ni sobre botones deshabilitados (el navegador no les manda el hover).
+
 ---
 
 ## Notificaciones — campanita (`notifications/`)

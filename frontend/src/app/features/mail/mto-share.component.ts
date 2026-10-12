@@ -6,6 +6,7 @@ import { Email } from '../../core/services/mail.service';
 import { ChatService, UserSearchResult } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
+import { FeatureTipDirective } from '../../shared/feature-tip/feature-tip.directive';
 
 /** WhatsApp corta los enlaces muy largos: el cuerpo va recortado. */
 const WHATSAPP_MAX_CHARS = 3500;
@@ -22,12 +23,12 @@ export function mtoLink(emailId: string): string {
 @Component({
   selector: 'app-mto-share',
   standalone: true,
-  imports: [FormsModule, NewBadgeComponent],
+  imports: [FormsModule, NewBadgeComponent, FeatureTipDirective],
   template: `
 <div class="relative">
-  <button (click)="menuOpen.set(!menuOpen()); $event.stopPropagation()"
+  <button (click)="menuOpen.set(!menuOpen()); $event.stopPropagation()" appFeatureTip="compartir-mto"
     class="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
-    title="Compartir el MTO" aria-haspopup="menu" [attr.aria-expanded]="menuOpen()">
+    aria-label="Compartir el MTO" aria-haspopup="menu" [attr.aria-expanded]="menuOpen()">
     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>
     </svg>

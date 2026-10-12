@@ -31,9 +31,11 @@ export class FeatureTipDirective implements OnDestroy {
   /** Preferencia: abajo (por defecto) o arriba; si no entra, va del otro lado. */
   readonly tipPlacement = input<'bottom' | 'top'>('bottom');
 
-  private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
   private bubble: HTMLElement | null = null;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Elementos a los que se les sacó el "title" mientras está la burbuja. */
+  private mutedTitles: HTMLElement[] = [];
   readonly id = `ft-${++nextId}`;
   shown = false;
 
@@ -120,12 +122,15 @@ export class FeatureTipDirective implements OnDestroy {
     arrow.className = 'ft-arrow';
     bubble.appendChild(arrow);
 
-    // El "title" del navegador se guarda y se saca mientras está la burbuja (si no, salen las dos).
+    // El "title" del navegador (del botón y de lo que tenga adentro) se guarda y se
+    // saca mientras está la burbuja: si no, a los segundos sale también el globo gris.
     const el = this.host.nativeElement;
-    const nativeTitle = el.getAttribute('title');
-    if (nativeTitle !== null) {
-      el.dataset['ftTitle'] = nativeTitle;
-      el.removeAttribute('title');
+    for (const node of [el, ...Array.from(el.querySelectorAll<HTMLElement>('[title]'))]) {
+      const title = node.getAttribute('title');
+      if (title === null) continue;
+      node.dataset['ftTitle'] = title;
+      node.removeAttribute('title');
+      this.mutedTitles.push(node);
     }
 
     document.body.appendChild(bubble);
@@ -171,11 +176,13 @@ export class FeatureTipDirective implements OnDestroy {
     this.hideTimer = null;
     window.removeEventListener('scroll', this.onScroll, true);
     window.removeEventListener('resize', this.onScroll);
-    const el = this.host.nativeElement;
-    if (el.dataset['ftTitle'] !== undefined) {
-      el.setAttribute('title', el.dataset['ftTitle']!);
-      delete el.dataset['ftTitle'];
+    for (const node of this.mutedTitles) {
+      if (node.dataset['ftTitle'] === undefined) continue;
+      // Si Angular lo volvió a poner mientras tanto, gana el valor nuevo
+      if (!node.hasAttribute('title')) node.setAttribute('title', node.dataset['ftTitle']!);
+      delete node.dataset['ftTitle'];
     }
+    this.mutedTitles = [];
     const bubble = this.bubble;
     this.bubble = null;
     this.shown = false;

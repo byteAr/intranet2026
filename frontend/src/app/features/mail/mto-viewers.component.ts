@@ -17,7 +17,7 @@ const SHOWN = 5;
     @if (viewers().length) {
       <button type="button" (click)="openList()"
         class="mt-2 inline-flex items-center gap-2 rounded-full pl-1 pr-2.5 py-0.5 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-        [title]="'Lo vieron ' + viewers().length + ' ' + (viewers().length === 1 ? 'persona' : 'personas') + ' — tocá para ver quiénes'">
+        [attr.aria-label]="'Lo vieron ' + viewers().length + ' ' + (viewers().length === 1 ? 'persona' : 'personas') + '. Tocá para ver quiénes'">
         <span class="flex -space-x-2">
           @for (v of shown(); track v.userId) {
             <span class="relative inline-flex h-6 w-6 items-center justify-center overflow-hidden rounded-full ring-2 ring-white dark:ring-zinc-900 text-[9px] font-bold text-white"

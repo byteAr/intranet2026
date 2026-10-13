@@ -112,19 +112,17 @@ export class MailService implements OnApplicationBootstrap {
   }
 
   /**
-   * Una sola vez (13/10/2026): quita de la lista de adjuntos los dibujos de
-   * Outlook (image001.emz, image002.wmz) que entraron como adjuntos en MTO que
-   * no traían ninguno. El archivo queda en el disco. Marca en app_markers
-   * 'emails.drawings'.
+   * En cada arranque (desde el 13/10/2026): quita de la lista de adjuntos los
+   * dibujos de Outlook (image001.emz, image002.wmz) que entraron como adjuntos
+   * en MTO que no traían ninguno; también los que haya guardado un backend con
+   * la versión anterior (p. ej. producción mientras se probaba en staging, que
+   * comparte la base). El archivo queda en el disco. Es una sola consulta.
    */
   private async removeOutlookDrawings(): Promise<void> {
-    const MARK = 'emz:v1';
     const runner = this.dataSource.createQueryRunner();
     let locked = false;
     try {
       await runner.connect();
-      const [fila] = await runner.query(`SELECT "value" FROM "app_markers" WHERE "key" = 'emails.drawings'`).catch(() => []);
-      if (fila?.value === MARK) return;
       const [{ ok }] = await runner.query(`SELECT pg_try_advisory_lock(720261014) AS ok`);
       if (!ok) return;
       locked = true;
@@ -133,11 +131,7 @@ export class MailService implements OnApplicationBootstrap {
         `DELETE FROM attachments WHERE filename ~* $1 RETURNING "emailId"`,
         [OUTLOOK_DRAWING_SQL],
       );
-      await runner.query(
-        `INSERT INTO "app_markers" ("key", "value") VALUES ('emails.drawings', $1)
-         ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
-        [MARK],
-      );
+      if (!borrados.length) return;
       const mto = new Set(borrados.map((b) => b.emailId)).size;
       this.logger.log(`Dibujos de Outlook (.emz/.wmz): ${borrados.length} quitados de la lista de adjuntos en ${mto} MTO`);
     } catch (err) {

@@ -290,6 +290,18 @@ export class GoogleDriveService {
     return res.data;
   }
 
+  /** Mueve un archivo o carpeta a otra carpeta (de la misma unidad o del mismo Drive). */
+  async move(actAs: string, fileId: string, targetFolderId: string, fromParents: string[]): Promise<drive_v3.Schema$File> {
+    const res = await this.drive(actAs).files.update({
+      fileId,
+      supportsAllDrives: true,
+      addParents: targetFolderId,
+      removeParents: fromParents.join(',') || undefined,
+      fields: FILE_FIELDS,
+    });
+    return res.data;
+  }
+
   /**
    * Borra para siempre, sin pasar por la papelera (que para Google sigue
    * ocupando espacio 30 días). En una unidad compartida solo puede hacerlo un

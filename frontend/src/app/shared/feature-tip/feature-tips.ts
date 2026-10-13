@@ -68,6 +68,14 @@ export const FEATURE_TIPS: Record<string, FeatureTip> = {
       'Se borra a los 90 días: guardá en Archivos lo que haya que conservar.',
     ],
   },
+  'mover-archivos': {
+    title: 'Mover archivos y carpetas',
+    text: 'Arrastrá un archivo o una carpeta y soltalo sobre otra carpeta para moverlo ahí.',
+    points: [
+      'Para sacarlo a una carpeta de más arriba, soltalo sobre su nombre en la ruta de arriba.',
+      'Se mueve dentro del mismo lugar: la unidad de tu oficina, Mis archivos o lo que te compartieron con permiso de edición.',
+    ],
+  },
   'mis-archivos': {
     title: 'Mis archivos',
     text: 'Tu espacio personal en Google Drive, que no ocupa el de tu oficina.',

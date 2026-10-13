@@ -182,6 +182,16 @@ export class SharedFoldersController {
     await this.service.notifyUploaded(await this.service.shareScope(req.user, shareId), body?.folderId, body?.itemIds, body?.fileCount, req.user);
   }
 
+  @Patch('shares/:shareId/files/:id/move')
+  async shareMove(
+    @Request() req: AuthRequest,
+    @Param('shareId') shareId: string,
+    @Param('id') id: string,
+    @Body() body: { targetId: string },
+  ) {
+    return this.service.move(await this.service.shareScope(req.user, shareId), id, body?.targetId);
+  }
+
   @Patch('shares/:shareId/files/:id')
   async shareRename(
     @Request() req: AuthRequest,
@@ -283,6 +293,17 @@ export class SharedFoldersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async uploaded(@Request() req: AuthRequest, @Param('office') office: string, @Body() body: UploadedBody) {
     await this.service.notifyUploaded(await this.service.scopeByKey(req.user, office), body?.folderId, body?.itemIds, body?.fileCount, req.user);
+  }
+
+  /** Mover a otra carpeta (arrastrar un archivo o carpeta sobre una carpeta). */
+  @Patch(':office/files/:id/move')
+  async move(
+    @Request() req: AuthRequest,
+    @Param('office') office: string,
+    @Param('id') id: string,
+    @Body() body: { targetId: string },
+  ) {
+    return this.service.move(await this.service.scopeByKey(req.user, office), id, body?.targetId);
   }
 
   @Patch(':office/files/:id')

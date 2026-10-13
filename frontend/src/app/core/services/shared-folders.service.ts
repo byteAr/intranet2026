@@ -175,6 +175,11 @@ export class SharedFoldersService {
     return this.http.post<void>(`${this.prefix(scope)}/uploaded`, { folderId, itemIds, fileCount });
   }
 
+  /** Mueve un archivo o carpeta a otra carpeta del mismo lugar (arrastrar sobre una carpeta). */
+  move(scope: FolderScope, fileId: string, targetId: string): Observable<SharedFile> {
+    return this.http.patch<SharedFile>(`${this.fileUrl(scope, fileId)}/move`, { targetId });
+  }
+
   rename(scope: FolderScope, fileId: string, name: string): Observable<SharedFile> {
     return this.http.patch<SharedFile>(this.fileUrl(scope, fileId), { name });
   }

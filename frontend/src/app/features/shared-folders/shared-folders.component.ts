@@ -30,11 +30,15 @@ import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.
 import { formatBytes, freeBytes } from '../../shared/storage-usage/storage-usage.component';
 import { StorageDriveComponent } from '../../shared/storage-usage/storage-drive.component';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
+import { isNewFeature } from '../../shared/new-badge/new-features';
 import { ScansPanelComponent } from './scans-panel.component';
 
 const LAST_TAB_KEY = 'pac_shared_folders_office';
 /** Pestaña "Compartidos conmigo" (no puede coincidir con un grupo del AD). */
 const SHARED_TAB = '__compartidos__';
+/** Tipo del arrastre interno (mover), distinto de los archivos que vienen de la computadora. */
+const MOVE_MIME = 'application/x-intranet-file';
+
 /** Pestaña "Escaneos": lo que mandan las impresoras a la bandeja de la oficina. */
 const SCANS_TAB = '__escaneos__';
 /** Máximo por archivo si el servidor no lo informa (lo manda en offices().maxFileBytes). */
@@ -176,6 +180,14 @@ const MAX_FILES_PER_DROP = 1000;
       <!-- Selector de archivos para el menú de la zona vacía y el doble clic -->
       <input #picker type="file" multiple class="hidden" (change)="onFilesPicked($event)" />
 
+      <!-- Resultado de mover (arrastrar sobre una carpeta) -->
+      @if (moveNotice(); as m) {
+        <div class="move-toast absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-full bg-gray-900 dark:bg-zinc-700 px-4 py-2 text-xs font-medium text-white shadow-lg" role="status">
+          <svg class="h-4 w-4 text-teal-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+          {{ m }}
+        </div>
+      }
+
       <!-- Barra: ruta + acciones -->
       <div class="flex items-center justify-between gap-3 flex-wrap px-4 py-3 border-b border-gray-100 dark:border-zinc-800">
         <nav class="flex items-center gap-1 text-sm min-w-0 flex-wrap" aria-label="Ruta">
@@ -188,11 +200,26 @@ const MAX_FILES_PER_DROP = 1000;
             @if (last) {
               <span class="font-semibold text-gray-900 dark:text-zinc-100 truncate max-w-[16rem]">{{ c.name }}</span>
             } @else {
-              <button (click)="goTo($index)" class="text-teal-700 dark:text-teal-400 hover:underline truncate max-w-[12rem]">{{ c.name }}</button>
+              <!-- También se puede soltar acá: sube el archivo o carpeta a esa carpeta de más arriba -->
+              <button (click)="goTo($index)" class="crumb text-teal-700 dark:text-teal-400 hover:underline truncate max-w-[12rem]"
+                [class.crumb-drop]="dropTargetId() === c.id"
+                (dragover)="canDropOnCrumb($index) && onFolderDragOver($event, c.id)"
+                (dragleave)="onFolderDragLeave($event, c.id)"
+                (drop)="canDropOnCrumb($index) && onFolderDrop($event, c.id, c.name)">{{ c.name }}</button>
             }
           }
           @if (!atSharedRoot() && !canWrite()) {
             <span class="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400">Solo lectura</span>
+          }
+          @if (canMoveRows() && moveIsNew) {
+            <!-- Pista de la función nueva (solo la semana en que es NUEVO) -->
+            <span class="ml-2 hidden sm:inline-flex items-center gap-1.5 text-xs text-gray-400 dark:text-zinc-500 cursor-help" appFeatureTip="mover-archivos">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+              </svg>
+              Arrastrá para mover
+              <app-new-badge feature="mover-archivos" [compact]="true" />
+            </span>
           }
         </nav>
 
@@ -392,13 +419,21 @@ const MAX_FILES_PER_DROP = 1000;
         </div>
         <ul class="divide-y divide-gray-100 dark:divide-zinc-800">
           @for (row of rows(); track row.item?.shareId ?? row.file.id) {
+            <!-- Arrastrar: cualquier fila se puede tomar; una carpeta recibe lo que se le suelta encima -->
             <li class="group files-row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800/60 cursor-default"
                 [attr.id]="row.item ? 'share-' + row.item.shareId : 'file-' + row.file.id"
                 [ngClass]="{
                   'bg-teal-50 dark:bg-zinc-800': menu()?.row === row,
                   'row-fresh': freshIds().has(row.file.id),
-                  'row-focus': !!row.item && row.item.shareId === focusShareId()
+                  'row-focus': !!row.item && row.item.shareId === focusShareId(),
+                  'row-dragging': dragItemId() === row.file.id,
+                  'row-drop': dropTargetId() === row.file.id
                 }"
+                [attr.draggable]="canMoveRows() && !row.item ? 'true' : null"
+                (dragstart)="onItemDragStart($event, row)" (dragend)="onItemDragEnd()"
+                (dragover)="row.file.isFolder && onFolderDragOver($event, row.file.id)"
+                (dragleave)="row.file.isFolder && onFolderDragLeave($event, row.file.id)"
+                (drop)="row.file.isFolder && onFolderDrop($event, row.file.id, row.file.name)"
                 (contextmenu)="openMenu($event, row)">
               <button (click)="open(row)" class="flex items-center gap-3 min-w-0 text-left"
                       [title]="row.file.isFolder ? 'Abrir carpeta' : (row.file.previewable ? 'Ver' : 'Descargar')">
@@ -769,6 +804,15 @@ const MAX_FILES_PER_DROP = 1000;
     }
 
     /* Archivos recién subidos: entran con un destello */
+    /* Arrastrar para mover: la fila tomada queda tenue; la carpeta destino se resalta */
+    .files-row[draggable="true"] { cursor: grab; }
+    .row-dragging { opacity: .45; }
+    .row-drop { background: #f0fdfa !important; box-shadow: inset 0 0 0 2px #14b8a6; border-radius: 10px; }
+    :host-context(.dark) .row-drop { background: rgba(20, 184, 166, .14) !important; }
+    .crumb-drop { background: #ccfbf1; border-radius: 6px; padding: 0 6px; outline: 2px solid #14b8a6; }
+    :host-context(.dark) .crumb-drop { background: rgba(20, 184, 166, .2); }
+    .move-toast { animation: toast-in .22s cubic-bezier(.2,.9,.3,1.2); }
+    @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
     .row-fresh { animation: fresh 2.6s ease-out; }
     @keyframes fresh {
       0% { background-color: rgba(20, 184, 165, .25); transform: translateX(-8px); opacity: .3; }
@@ -1344,6 +1388,89 @@ export class SharedFoldersComponent implements OnInit {
       case 'slides': return 'border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-900 dark:text-orange-400 dark:hover:bg-orange-950/40';
       default: return 'border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-950/40';
     }
+  }
+
+  // ─── Mover (arrastrar un archivo o carpeta sobre otra carpeta) ──────────────
+
+  readonly dragItemId = signal<string | null>(null);
+  readonly dropTargetId = signal<string | null>(null);
+  readonly moveNotice = signal<string | null>(null);
+  readonly moveIsNew = isNewFeature('mover-archivos');
+  private moveNoticeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Se puede mover dentro de la carpeta abierta (no en la lista de "Compartidos conmigo" ni en solo lectura). */
+  readonly canMoveRows = computed(() => !this.atSharedRoot() && this.canWrite() && !this.busy());
+
+  /** En la ruta: las carpetas de más arriba (en Compartidos conmigo, la primera es la lista, no una carpeta). */
+  canDropOnCrumb(index: number): boolean {
+    return !(this.isSharedTab() && index === 0) && index < this.path().length - 1;
+  }
+
+  onItemDragStart(event: DragEvent, row: Row): void {
+    if (!this.canMoveRows() || row.item || !event.dataTransfer) {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer.setData(MOVE_MIME, row.file.id);
+    event.dataTransfer.effectAllowed = 'move';
+    this.dragItemId.set(row.file.id);
+  }
+
+  onItemDragEnd(): void {
+    this.dragItemId.set(null);
+    this.dropTargetId.set(null);
+  }
+
+  /** Es un arrastre de esta lista (no archivos de la computadora, que se suben). */
+  private isMoveDrag(event: DragEvent): boolean {
+    return !!this.dragItemId() && !!event.dataTransfer?.types.includes(MOVE_MIME);
+  }
+
+  onFolderDragOver(event: DragEvent, targetId: string): void {
+    if (!this.isMoveDrag(event) || targetId === this.dragItemId()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer!.dropEffect = 'move';
+    this.dropTargetId.set(targetId);
+  }
+
+  onFolderDragLeave(event: DragEvent, targetId: string): void {
+    const el = event.currentTarget as HTMLElement;
+    if (this.dropTargetId() === targetId && !el.contains(event.relatedTarget as Node | null)) this.dropTargetId.set(null);
+  }
+
+  onFolderDrop(event: DragEvent, targetId: string, targetName: string): void {
+    if (!this.isMoveDrag(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const id = this.dragItemId();
+    this.onItemDragEnd();
+    if (id && id !== targetId) this.moveItem(id, targetId, targetName);
+  }
+
+  private moveItem(fileId: string, targetId: string, targetName: string): void {
+    const scope = this.scope();
+    const file = this.files().find((f) => f.id === fileId);
+    if (!scope || !file) return;
+    this.busy.set(true);
+    this.error.set(null);
+    this.folders.move(scope, fileId, targetId).subscribe({
+      next: () => {
+        this.busy.set(false);
+        // Ya no está en la carpeta abierta: se saca de la lista.
+        this.files.update((list) => list.filter((f) => f.id !== fileId));
+        this.showMoveNotice(`Se movió «${file.name}» a «${targetName}»`);
+      },
+      error: (err) => {
+        this.busy.set(false);
+        void this.showError(err);
+      },
+    });
+  }
+
+  private showMoveNotice(text: string): void {
+    if (this.moveNoticeTimer) clearTimeout(this.moveNoticeTimer);
+    this.moveNotice.set(text);
+    this.moveNoticeTimer = setTimeout(() => this.moveNotice.set(null), 3500);
   }
 
   // ─── Subida ─────────────────────────────────────────────────────────────────

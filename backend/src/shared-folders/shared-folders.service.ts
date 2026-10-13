@@ -1122,6 +1122,41 @@ export class SharedFoldersService implements OnApplicationBootstrap {
   }
 
   /**
+   * Mueve un archivo o una carpeta a otra carpeta del mismo ámbito (arrastrar
+   * en Archivos). Los dos tienen que estar adentro (la unidad de la oficina,
+   * Mis archivos o lo compartido con permiso de edición); lo compartido en sí
+   * no se mueve. Una carpeta no puede ir dentro de sí misma ni de una de sus
+   * subcarpetas. Si ya estaba ahí, no hace nada.
+   */
+  async move(scope: AccessScope, fileId: string, targetFolderId: string) {
+    this.assertWritable(scope, fileId);
+    if (scope.share && fileId === scope.rootId) {
+      throw new BadRequestException('Lo que te compartieron no se puede mover; solo su contenido.');
+    }
+    return this.as(scope, async (actAs) => {
+      const file = await this.fileIn(actAs, scope, fileId);
+      const target = await this.folderIn(actAs, scope, targetFolderId);
+      if (target.id === fileId) throw new BadRequestException('Una carpeta no se puede mover dentro de sí misma.');
+      if (file.parents?.includes(target.id!)) return this.toShared(file);
+      if (file.mimeType === FOLDER_MIME) await this.assertNotInside(actAs, scope, target, fileId);
+      return this.toShared(await this.gdrive.move(actAs, fileId, target.id!, file.parents ?? []));
+    });
+  }
+
+  /** La carpeta destino no puede estar dentro de la que se mueve (se sube por los padres). */
+  private async assertNotInside(actAs: string, scope: AccessScope, target: drive_v3.Schema$File, folderId: string): Promise<void> {
+    let current = target;
+    for (let depth = 0; depth < MAX_FOLDER_DEPTH; depth++) {
+      const parent = current.parents?.[0];
+      if (!parent || parent === scope.rootId || parent === scope.office.driveId) return;
+      if (parent === folderId) {
+        throw new BadRequestException('Una carpeta no se puede mover dentro de una de sus subcarpetas.');
+      }
+      current = await this.gdrive.getFile(actAs, parent);
+    }
+  }
+
+  /**
    * Borra para siempre (libera el espacio en el momento). Quien opera solo
    * necesita poder ver el archivo: el borrado lo hace la cuenta dueña.
    */

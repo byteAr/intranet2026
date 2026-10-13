@@ -12,6 +12,7 @@ import { PstImportLog, PstImportStatus } from '../entities/pst-import-log.entity
 import { MailParserService } from '../mail-parser.service';
 import { MailGateway } from '../mail.gateway';
 import { normalizeMailText } from '../mail-text.util';
+import { isOutlookDrawing } from '../outlook-drawing.util';
 
 /** Data shape sent from the worker thread for each PST message */
 interface WorkerMessageData {
@@ -323,6 +324,7 @@ export class PstImportService {
       fs.mkdirSync(this.attachmentsPath, { recursive: true });
     }
     for (const att of data.attachments) {
+      if (isOutlookDrawing(att.filename)) continue; // dibujo del cuerpo, no es un adjunto
       try {
         const safeFilename = att.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
         const storagePath = path.join(this.attachmentsPath, `${saved.id}_${safeFilename}`);

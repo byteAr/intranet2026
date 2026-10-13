@@ -12,6 +12,7 @@ import { EmailReference } from './entities/email-reference.entity';
 import { IMailGateway } from './imap-poller.service';
 import { normalizeMailText } from './mail-text.util';
 import { expandTnef } from './tnef.util';
+import { isOutlookDrawing } from './outlook-drawing.util';
 import { MailAlertsService } from './mail-alerts.service';
 
 export interface IngestData {
@@ -116,7 +117,11 @@ export class MailIngestService {
     const saved = await this.emailRepo.save(email);
 
     // winmail.dat (Outlook en "Texto enriquecido"): se guardan los archivos de adentro.
-    await this.saveAttachments(saved, expandTnef(data.attachments));
+    // Los dibujos de Outlook (image001.emz) no son adjuntos: no se guardan.
+    await this.saveAttachments(
+      saved,
+      expandTnef(data.attachments).filter((a) => !isOutlookDrawing(a.filename)),
+    );
 
     await this.mailParserService.saveReferences(
       saved.id,

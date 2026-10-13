@@ -53,6 +53,6 @@
  * 1.8.6 — Quien abre la intranet con una copia vieja guardada entra ya con la versión nueva (se actualiza en el inicio de sesión).
  * 1.8.7 — El código del MTO se reconoce aunque Outlook ponga un espacio especial (EFA 3329/26 salía como HD 696/26).
  * 1.8.8 — Archivos compartidos: arrastrar archivos y carpetas dentro de otras carpetas para moverlos.
- * 1.8.9 — MTO: un solo botón "Subir desencriptados/SIENA" (o arrastrar); cada archivo va solo a su encriptado.
+ * 1.8.9 — MTO: un solo botón "Subir desencriptados/SIENA" (o arrastrar); cada archivo va solo a su encriptado. Sin los "image001.emz" de Outlook como adjuntos.
  */
 export const APP_VERSION = '1.8.9';

@@ -5,6 +5,7 @@ import { DataSource, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { constants as fsConstants, existsSync, promises as fsp } from 'fs';
 import { join } from 'path';
 import { expandTnef, isTnefAttachment } from './tnef.util';
+import { OUTLOOK_DRAWING_SQL } from './outlook-drawing.util';
 import { Email } from './entities/email.entity';
 import { Attachment } from './entities/attachment.entity';
 import { EmailReadStatus } from './entities/email-read-status.entity';
@@ -107,6 +108,44 @@ export class MailService implements OnApplicationBootstrap {
     void this.reclassifyExecutiveGroups();
     void this.addInferredReferences();
     void this.repairMailCodeSpaces();
+    void this.removeOutlookDrawings();
+  }
+
+  /**
+   * Una sola vez (13/10/2026): quita de la lista de adjuntos los dibujos de
+   * Outlook (image001.emz, image002.wmz) que entraron como adjuntos en MTO que
+   * no traían ninguno. El archivo queda en el disco. Marca en app_markers
+   * 'emails.drawings'.
+   */
+  private async removeOutlookDrawings(): Promise<void> {
+    const MARK = 'emz:v1';
+    const runner = this.dataSource.createQueryRunner();
+    let locked = false;
+    try {
+      await runner.connect();
+      const [fila] = await runner.query(`SELECT "value" FROM "app_markers" WHERE "key" = 'emails.drawings'`).catch(() => []);
+      if (fila?.value === MARK) return;
+      const [{ ok }] = await runner.query(`SELECT pg_try_advisory_lock(720261014) AS ok`);
+      if (!ok) return;
+      locked = true;
+
+      const borrados: { emailId: string }[] = await runner.query(
+        `DELETE FROM attachments WHERE filename ~* $1 RETURNING "emailId"`,
+        [OUTLOOK_DRAWING_SQL],
+      );
+      await runner.query(
+        `INSERT INTO "app_markers" ("key", "value") VALUES ('emails.drawings', $1)
+         ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
+        [MARK],
+      );
+      const mto = new Set(borrados.map((b) => b.emailId)).size;
+      this.logger.log(`Dibujos de Outlook (.emz/.wmz): ${borrados.length} quitados de la lista de adjuntos en ${mto} MTO`);
+    } catch (err) {
+      this.logger.error('Dibujos de Outlook: la limpieza falló; se reintenta en el próximo arranque', (err as Error).message);
+    } finally {
+      if (locked) await runner.query(`SELECT pg_advisory_unlock(720261014)`).catch(() => undefined);
+      await runner.release().catch(() => undefined);
+    }
   }
 
   /**

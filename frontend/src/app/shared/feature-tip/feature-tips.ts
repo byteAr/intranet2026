@@ -55,10 +55,14 @@ export const FEATURE_TIPS: Record<string, FeatureTip> = {
     text: 'Quiénes abrieron este MTO.',
     points: ['Tocá para ver la lista con la fecha y hora en que cada uno lo vio por primera vez.'],
   },
-  'arrastrar-desencriptados': {
-    title: 'Arrastrá los desencriptados',
-    text: 'Soltá sobre el MTO los archivos desencriptados o de SIENA y se cargan solos en su lugar.',
-    points: ['Si hay varios encriptados, se te pregunta a cuál va cada archivo.'],
+  'subir-desencriptados': {
+    title: 'Subir desencriptados/SIENA',
+    text: 'Elegí todos los desencriptados o archivos SIENA de una vez (o arrastralos sobre el MTO) y cada uno va solo a su encriptado.',
+    points: [
+      'Se ubican por el nombre: MAR-01.PDF va a MAR-01.~00.',
+      'Si alguno no coincide, se te pregunta a cuál va.',
+      'Si te equivocaste, borralo con la ✕ y volvé a subirlo.',
+    ],
   },
   escaneos: {
     title: 'Escaneos',

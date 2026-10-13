@@ -656,21 +656,9 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                             <span class="text-[10px] text-gray-400 dark:text-zinc-500">{{ formatSize(att.size) }}</span>
                           </button>
 
-                          <!-- Encriptado (.~NN): TICOM sube uno o varios desencriptados (un .rar trae varios) -->
-                          @if (isEncryptedFile(att.filename)) {
-                            @if (isTicom) {
-                              <label class="cursor-pointer" [title]="att.decryptedFiles?.length ? 'Agregar más desencriptados de este archivo' : 'Subir los desencriptados (se pueden elegir varios)'">
-                                <input type="file" class="hidden" multiple
-                                       (change)="onDecryptedFileSelected(att, $event)"
-                                       [disabled]="uploadingDecryptedId() === att.id" />
-                                <span class="text-xs px-1 py-0.5 rounded border leading-none"
-                                      [class]="att.decryptedFiles?.length ? 'border-green-400 text-green-700' : 'border-amber-400 text-amber-700'">
-                                  {{ uploadingDecryptedId() === att.id ? '...' : (att.decryptedFiles?.length ? '+ agregar' : '↑ subir') }}
-                                </span>
-                              </label>
-                            } @else if (isEncriptado) {
-                              <span class="w-24 text-center text-[10px] leading-tight text-amber-600 italic">Todavía no se cargó el desencriptado</span>
-                            }
+                          <!-- Encriptado (.~NN) sin desencriptados: se suben con el botón de abajo o arrastrando -->
+                          @if (isEncryptedFile(att.filename) && (isTicom || isEncriptado) && !att.decryptedFiles?.length) {
+                            <span class="w-24 text-center text-[10px] leading-tight text-amber-600 italic">Todavía no se cargó el desencriptado</span>
                           }
                         </div>
                       }
@@ -700,14 +688,24 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 </div>
               }
 
+              <!-- Un solo botón para todos los desencriptados / SIENA: cada archivo va a su encriptado por el nombre -->
               @if (canDropFiles()) {
-                <p class="mt-2 flex items-center gap-1.5 text-[11px] text-gray-400 w-fit" appFeatureTip="arrastrar-desencriptados" tipPlacement="top">
-                  <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                  Arrastrá sobre el MTO todos los {{ hasEncryptedAttachments() ? 'desencriptados' : 'archivos SIENA' }} juntos para subirlos de una vez.
-                  <app-new-badge feature="arrastrar-desencriptados" [compact]="true" />
-                </p>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  <label class="inline-flex items-center gap-1.5 rounded-lg border border-teal-500 px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50 dark:hover:bg-zinc-800"
+                         [class.cursor-pointer]="!dropUploading() && !dropAssign()"
+                         [class.opacity-60]="!!dropUploading() || !!dropAssign()"
+                         appFeatureTip="subir-desencriptados" tipPlacement="top">
+                    <input type="file" class="hidden" multiple
+                           (change)="onUploadButtonFiles($event)"
+                           [disabled]="!!dropUploading() || !!dropAssign()" />
+                    <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Subir desencriptados/SIENA
+                    <app-new-badge feature="subir-desencriptados" [compact]="true" />
+                  </label>
+                  <span class="text-[11px] text-gray-400">o arrastrá los archivos sobre el MTO</span>
+                </div>
               }
             </div>
 
@@ -738,22 +736,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                     }
                   </div>
                 } @else {
-                  @if (isEncriptado && !isTicom) {
-                    <p class="text-xs text-gray-400 italic mb-2">Sin archivos desencriptados aún</p>
-                  }
-                }
-
-                <!-- Botón subir (solo TICOM) -->
-                @if (isTicom) {
-                  <label class="cursor-pointer inline-block">
-                    <input type="file" class="hidden" multiple
-                           (change)="onSienaFileSelected($event)"
-                           [disabled]="uploadingSiena()" />
-                    <span class="text-xs px-2 py-1 rounded border border-blue-400 text-blue-700"
-                          title="Se pueden elegir varios archivos a la vez">
-                      {{ uploadingSiena() ? 'Subiendo...' : '+ Subir archivos SIENA' }}
-                    </span>
-                  </label>
+                  <p class="text-xs text-gray-400 italic mb-2">Sin archivos desencriptados aún</p>
                 }
               </div>
             }
@@ -1056,10 +1039,8 @@ export class MailComponent implements OnInit {
   readonly copyTooltip = signal<{ x: number; y: number; copied: boolean } | null>(null);
   private suppressTooltip = false;
 
-  readonly uploadingDecryptedId = signal<string | null>(null);
   loadingBody = signal(false);
   bodyLoadError = signal(false);
-  readonly uploadingSiena = signal(false);
 
   get isEncriptado(): boolean {
     return this.mailService.isEncriptado;
@@ -1088,22 +1069,6 @@ export class MailComponent implements OnInit {
     const re = new RegExp(`(${termRe})`, 'gi');
     // background-color (no "background:"): las reglas del modo oscuro buscan "background:#fff" y lo apagaban.
     return escaped.replace(re, '<mark style="background-color:#ffff00;padding:0 1px;border-radius:2px;color:#111">$1</mark>');
-  }
-
-  onSienaFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
-    if (!files.length) return;
-    const emailId = this.activeEmail()!.id;
-    this.uploadingSiena.set(true);
-    this.mailService.uploadSienaFiles(emailId, files).subscribe({
-      next: (newFiles) => {
-        this.uploadingSiena.set(false);
-        this.activeEmail.update((e) => e ? { ...e, sienaFiles: [...(e.sienaFiles ?? []), ...newFiles] } : e);
-      },
-      error: () => this.uploadingSiena.set(false),
-    });
-    input.value = '';
   }
 
   onSienaFileDelete(fileId: string): void {
@@ -1143,25 +1108,7 @@ export class MailComponent implements OnInit {
     });
   }
 
-  onDecryptedFileSelected(att: { id: string; filename: string }, event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
-    if (!files.length) return;
-    const emailId = this.activeEmail()!.id;
-    this.uploadingDecryptedId.set(att.id);
-    this.mailService.uploadDecrypted(emailId, att.id, files).subscribe({
-      next: () => {
-        this.uploadingDecryptedId.set(null);
-        this.mailService.getEmail(emailId).subscribe((full) => this.activeEmail.set(full));
-      },
-      error: () => {
-        this.uploadingDecryptedId.set(null);
-      },
-    });
-    input.value = '';
-  }
-
-  // ── Arrastrar desencriptados / SIENA sobre el MTO (solo TICOM) ──────────
+  // ── Subir desencriptados / SIENA: un botón o arrastrar sobre el MTO (solo TICOM) ──
 
   readonly dropActive = signal(false);
   /** Texto de la franja mientras sube lo arrastrado; null si no sube nada. */
@@ -1223,17 +1170,48 @@ export class MailComponent implements OnInit {
       alert('No se pueden subir carpetas: arrastrá los archivos.');
       return;
     }
+    this.distributeFiles(files);
+  }
 
-    // Cada archivo va al encriptado con el mismo nombre (CONTRO~1.DOC → CONTRO~1.~00);
-    // si hay un solo lugar posible, todo va ahí; si no, TICOM elige.
+  /** El botón "Subir desencriptados/SIENA": mismo reparto que al arrastrar. */
+  onUploadButtonFiles(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    if (!files.length || this.dropUploading() || this.dropAssign()) return;
+    this.distributeFiles(files);
+  }
+
+  /**
+   * Cada archivo va al encriptado con el mismo nombre (CONTRO~1.DOC → CONTRO~1.~00);
+   * si hay un solo lugar posible, todo va ahí; si no, TICOM elige. Para los que no
+   * coinciden se propone SIENA o, si no, un encriptado que todavía no tenga
+   * desencriptado (uno distinto para cada archivo), nunca todos al primero.
+   */
+  private distributeFiles(files: File[]): void {
+    const email = this.activeEmail();
     const targets = this.dropTargets();
+    if (!email || !targets.length) return;
     const assigned: { file: File; targetKey: string }[] = [];
     const pending: { file: File; targetKey: string }[] = [];
+    const unmatched: File[] = [];
     for (const file of files) {
       const match = targets.find((t) => t.base && t.base === baseName(file.name));
       if (match) assigned.push({ file, targetKey: match.key });
       else if (targets.length === 1) assigned.push({ file, targetKey: targets[0].key });
-      else pending.push({ file, targetKey: (targets.find((t) => t.key === 'siena') ?? targets[0]).key });
+      else unmatched.push(file);
+    }
+    const used = new Set(assigned.map((a) => a.targetKey));
+    const isEmpty = (t: DropTarget) =>
+      !email.attachments?.find((a) => a.id === t.key)?.decryptedFiles?.length;
+    for (const file of unmatched) {
+      const guess =
+        targets.find((t) => t.key === 'siena') ??
+        targets.find((t) => !used.has(t.key) && isEmpty(t)) ??
+        targets.find((t) => !used.has(t.key)) ??
+        targets[0];
+      used.add(guess.key);
+      pending.push({ file, targetKey: guess.key });
     }
     if (pending.length) {
       this.dropAssign.set({ targets, assigned, pending });

@@ -12,7 +12,6 @@ export const NEW_FEATURES = {
   'mis-archivos': '2026-10-06',
   'compartir-mto': '2026-10-06',
   'chat-varios-adjuntos': '2026-10-06',
-  'arrastrar-desencriptados': '2026-10-08',
   escaneos: '2026-10-08',
   'vistos-mto': '2026-10-08',
   'marcar-todo-leido': '2026-10-08',
@@ -21,6 +20,7 @@ export const NEW_FEATURES = {
   'mis-alertas': '2026-10-09',
   'no-leidos': '2026-10-09',
   'mover-archivos': '2026-10-13',
+  'subir-desencriptados': '2026-10-13',
 } as const;
 
 export type NewFeature = keyof typeof NEW_FEATURES;

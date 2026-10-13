@@ -8,7 +8,7 @@ import { argentinaYear } from '../common/argentina-time';
 // CODE_REGEX: PREFIX NUM/YY ("DE 130/19", "AA 12../19", "DE(130)/19"); match[3] con
 // .replace(/\D/g,'') da el año. EXCLUDED_PREFIXES: PON (clave de cifrado), DDNG.
 // Las referencias mal escritas (sin /AA, año de 4 cifras) las reconoce findCodeMentions().
-import { CODE_REGEX, EXCLUDED_PREFIXES, findCodeMentions } from './mail-code.util';
+import { CODE_REGEX, EXCLUDED_PREFIXES, findCodeMentions, normalizeSpaces } from './mail-code.util';
 
 // Partial match for codes missing the /YY suffix (typo: "AB 22" instead of "AB 22/26").
 // Only used when trying to extract the mailCode from the head of the email.
@@ -98,6 +98,10 @@ export class MailParserService {
     subject?: string,
   ): { mailCode: string | null; references: CodeReference[] } {
     if (!bodyText) return { mailCode: null, references: [] };
+    // Espacio duro de Outlook (U+00A0) y otros espacios raros = espacio común: si no,
+    // "EFA 3329/26" no se reconocía y el MTO tomaba como propio el siguiente código.
+    bodyText = normalizeSpaces(bodyText);
+    if (subject) subject = normalizeSpaces(subject);
 
     // Strip SVC/MTP prefix from head to find the actual mailCode
     const rawHead = bodyText.slice(0, 150);

@@ -15,7 +15,7 @@ import { SienaFile } from './entities/siena-file.entity';
 import { SienaFileService } from './siena-file.service';
 import { QueryEmailsDto } from './dto/query-emails.dto';
 import { cp1252SqlRepair, normalizeMailText } from './mail-text.util';
-import { EXECUTIVE_GROUPS } from './mail-parser.service';
+import { EXECUTIVE_GROUPS, MailParserService } from './mail-parser.service';
 import { findCodeMentions } from './mail-code.util';
 import { argentinaYear } from '../common/argentina-time';
 
@@ -63,6 +63,7 @@ export class MailService implements OnApplicationBootstrap {
     private readonly sienaRepo: Repository<SienaFile>,
     private readonly dataSource: DataSource,
     configService: ConfigService,
+    private readonly parser: MailParserService,
   ) {
     const raw = configService.get<string>('MAIL_UNREAD_SINCE');
     const fecha = raw ? new Date(raw) : null;
@@ -105,6 +106,86 @@ export class MailService implements OnApplicationBootstrap {
     void this.repairTnefAttachments();
     void this.reclassifyExecutiveGroups();
     void this.addInferredReferences();
+    void this.repairMailCodeSpaces();
+  }
+
+  /**
+   * Una sola vez (13/10/2026): los MTO cuyo código no se reconoció por un
+   * espacio duro de Outlook (U+00A0) u otro espacio raro al principio, y que
+   * quedaron con el código del siguiente MTO que citaban (EFA 3329/26 quedó
+   * como HD 696/26). Recalcula el código y, si cambia, lo corrige junto con sus
+   * referencias: las que salen de él (se rehacen) y las que llegan (las que
+   * apuntaban a él por el código equivocado vuelven a su MTO). Cada corrección
+   * queda en el log. Marca en app_markers 'emails.mailcode'.
+   */
+  private async repairMailCodeSpaces(): Promise<void> {
+    const MARK = 'spaces:v1';
+    const runner = this.dataSource.createQueryRunner();
+    let locked = false;
+    try {
+      await runner.connect();
+      const [fila] = await runner.query(`SELECT "value" FROM "app_markers" WHERE "key" = 'emails.mailcode'`).catch(() => []);
+      if (fila?.value === MARK) return;
+      const [{ ok }] = await runner.query(`SELECT pg_try_advisory_lock(720261013) AS ok`);
+      if (!ok) return;
+      locked = true;
+
+      const raros = '[   -​  　﻿]';
+      const candidatos: { id: string; bodyText: string; date: Date | null; subject: string; mailCode: string | null }[] =
+        await runner.query(
+          `SELECT id, "bodyText", date, subject, "mailCode" FROM emails WHERE left("bodyText", 200) ~ $1`,
+          [raros],
+        );
+      const cambios: string[] = [];
+      for (const c of candidatos) {
+        const { mailCode, references } = this.parser.extractCodes(c.bodyText, c.date ?? undefined, c.subject);
+        if ((mailCode ?? null) === (c.mailCode ?? null)) continue;
+        const viejo = c.mailCode;
+
+        await runner.query(`UPDATE emails SET "mailCode" = $2 WHERE id = $1`, [c.id, mailCode]);
+
+        // Las que salen de este MTO: se rehacen con el código bien leído.
+        await runner.query(`DELETE FROM email_references WHERE "emailId"::text = $1`, [c.id]);
+        await this.parser.saveReferences(c.id, references, async (code) => {
+          const [r] = await runner.query(`SELECT id FROM emails WHERE "mailCode" = $1 ORDER BY date LIMIT 1`, [code]);
+          return r?.id ?? null;
+        });
+
+        // Las que llegan: las que lo señalaban por el código equivocado se sueltan…
+        await runner.query(
+          `UPDATE email_references SET "referencedEmailId" = NULL
+            WHERE "referencedEmailId"::text = $1 AND "referencedCode" IS DISTINCT FROM $2`,
+          [c.id, mailCode],
+        );
+        // …y vuelven al MTO que de verdad tiene ese código, si existe…
+        if (viejo) {
+          await runner.query(
+            `UPDATE email_references SET "referencedEmailId" =
+               (SELECT e.id FROM emails e WHERE e."mailCode" = $1 ORDER BY e.date LIMIT 1)
+              WHERE "referencedCode" = $1 AND "referencedEmailId" IS NULL`,
+            [viejo],
+          );
+        }
+        // …y las que citan el código correcto (pendientes) ahora lo encuentran.
+        if (mailCode) await this.parser.resolvePendingReferences(c.id, mailCode);
+
+        cambios.push(`${mailCode ?? '(sin código)'} (antes ${viejo ?? 'sin código'})`);
+      }
+      await runner.query(
+        `INSERT INTO "app_markers" ("key", "value") VALUES ('emails.mailcode', $1)
+         ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
+        [MARK],
+      );
+      this.logger.log(
+        `Códigos con espacios raros: ${cambios.length} corregidos de ${candidatos.length} revisados` +
+          (cambios.length ? `: ${cambios.join('; ')}` : ''),
+      );
+    } catch (err) {
+      this.logger.error('Códigos con espacios raros: la reparación falló; se reintenta en el próximo arranque', (err as Error).message);
+    } finally {
+      if (locked) await runner.query(`SELECT pg_advisory_unlock(720261013)`).catch(() => undefined);
+      await runner.release().catch(() => undefined);
+    }
   }
 
   /**

@@ -40,6 +40,18 @@ const FULL_YEAR = new RegExp(`${START}${PREFIX}[ \\t]*(\\d{1,4})[ \\t]*\\/[ \\t]
 /** "MTO SDQ 446", "MTOS SDQ 446", "MTO NRO SDQ 446": el código es el grupo 1 y 2 */
 const AFTER_MTO = new RegExp(`${START}MTOS?[ \\t.:]+(?:N(?:RO|°|º)?\\.?[ \\t]*)?${PREFIX}[ \\t]*(\\d{1,4})(?![0-9])`, 'gd');
 
+/**
+ * Espacios "raros" (el espacio duro U+00A0 que mete Outlook, los finos, el de
+ * ancho cero…): cada uno pasa a un espacio común, uno por uno, así las
+ * posiciones en el texto no cambian (la pantalla resalta por posición). Sin
+ * esto, "EFA 3329/26" no era un código y el MTO tomaba el siguiente como
+ * propio (EFA 3329/26 quedó como HD 696/26 el 12/10/2026).
+ */
+const ODD_SPACES = /[   -​  　﻿]/g;
+export function normalizeSpaces(text: string): string {
+  return text.replace(ODD_SPACES, ' ');
+}
+
 export interface CodeMention {
   /** Dónde está en el texto (lo que se resalta). */
   index: number;
@@ -65,6 +77,7 @@ const pad = (n: number) => String((n + 100) % 100).padStart(2, '0');
  */
 export function findCodeMentions(text: string, emailDate?: Date | string | null): CodeMention[] {
   if (!text) return [];
+  text = normalizeSpaces(text);
   const found: CodeMention[] = [];
   const overlaps = (index: number, length: number) =>
     found.some((m) => index < m.index + m.length && m.index < index + length);

@@ -51,5 +51,6 @@
  * 1.8.4 — El cartel del anuncio aparece al entrar a quien no estaba conectado, con sus renglones y desplazamiento si es largo.
  * 1.8.5 — Mis alertas busca también dentro de los adjuntos (PDF, Word, Excel, texto) y el aviso dice dónde apareció.
  * 1.8.6 — Quien abre la intranet con una copia vieja guardada entra ya con la versión nueva (se actualiza en el inicio de sesión).
+ * 1.8.7 — El código del MTO se reconoce aunque Outlook ponga un espacio especial (EFA 3329/26 salía como HD 696/26).
  */
-export const APP_VERSION = '1.8.6';
+export const APP_VERSION = '1.8.7';

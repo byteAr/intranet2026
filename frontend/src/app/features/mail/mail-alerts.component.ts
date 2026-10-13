@@ -75,8 +75,8 @@ export const MEGAPHONE_PATH = 'M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM
               Todas las palabras, en cualquier orden <span class="text-gray-400">(si no, la frase tal cual)</span>
             </label>
             <p class="mt-1.5 text-[11px] text-gray-400 leading-relaxed">
-              Se busca en el asunto, el texto y los nombres de los adjuntos. No importan las tildes ni las mayúsculas, y en los números
-              tampoco los puntos: 29465318 encuentra 29.465.318.
+              Se busca en el asunto, el texto del MTO y dentro de los adjuntos PDF, Word, Excel y texto; el aviso dice dónde apareció.
+              No importan las tildes ni las mayúsculas, y en los números tampoco los puntos: 29465318 encuentra 29.465.318.
             </p>
           </form>
 

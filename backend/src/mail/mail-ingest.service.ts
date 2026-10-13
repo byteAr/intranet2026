@@ -132,7 +132,8 @@ export class MailIngestService {
     }
 
     // Avisos en la campanita: MTO seguidos y "Mis alertas" (no frena el ingreso).
-    void this.alerts?.onNewEmail(saved, expandTnef(data.attachments).map((a) => a.filename));
+    // Lee los adjuntos ya guardados (también su contenido: PDF, Word, Excel, texto).
+    void this.alerts?.onNewEmail(saved);
 
     this.logger.log(`Ingested email [${folder}] "${saved.subject}" <${data.internetMessageId}>`);
     this.mailGateway?.notifyNewEmail(saved);

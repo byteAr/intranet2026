@@ -25,7 +25,7 @@ export const FEATURE_TIPS: Record<string, FeatureTip> = {
     title: 'Mis alertas',
     text: 'Cargá palabras o frases —tu DNI, tu nombre y apellido, un expediente— y te avisamos en el ícono de notificaciones {campana} cuando llegue un MTO que las tenga.',
     points: [
-      'Busca en el asunto, el texto y los nombres de los adjuntos.',
+      'Busca en el asunto, el texto del MTO y dentro de los adjuntos PDF, Word, Excel y texto; el aviso dice dónde apareció.',
       'No importan las tildes ni las mayúsculas: 29465318 encuentra 29.465.318.',
       'Ahí también ves los MTO que seguís.',
     ],

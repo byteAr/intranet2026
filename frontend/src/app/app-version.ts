@@ -49,5 +49,6 @@
  * 1.8.2 — Adjuntos más rápidos (sin la espera de 4 s) y planillas con el aspecto de Excel.
  * 1.8.3 — Burbuja que explica cada funcionalidad nueva al pasar el mouse, al instante.
  * 1.8.4 — El cartel del anuncio aparece al entrar a quien no estaba conectado, con sus renglones y desplazamiento si es largo.
+ * 1.8.5 — Mis alertas busca también dentro de los adjuntos (PDF, Word, Excel, texto) y el aviso dice dónde apareció.
  */
-export const APP_VERSION = '1.8.4';
+export const APP_VERSION = '1.8.5';

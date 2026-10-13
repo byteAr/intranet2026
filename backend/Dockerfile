@@ -14,7 +14,8 @@ RUN npm run build
 
 FROM node:20-alpine AS production
 WORKDIR /app
-RUN apk add --no-cache libreoffice font-noto font-noto-cjk
+# poppler-utils: pdftotext, para buscar los términos de "Mis alertas" en los PDF adjuntos
+RUN apk add --no-cache libreoffice font-noto font-noto-cjk poppler-utils
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist

@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Email } from './entities/email.entity';
 import { NotificationsService } from '../notifications/notifications.service';
-import { AlertTerm, MIN_TERM_LENGTH, normalizeForAlert, prepareText, termMatches } from './mail-alert-match.util';
+import { AlertTerm, MIN_TERM_LENGTH, normalizeForAlert, PreparedText, prepareText, termMatches } from './mail-alert-match.util';
+import { extractAttachmentText } from './attachment-text.util';
 
 /** Tope de términos por usuario. */
 const MAX_TERMS = 50;
@@ -174,9 +175,9 @@ export class MailAlertsService implements OnApplicationBootstrap {
    * Lo llama MailIngestService con cada MTO que entra (ya con sus referencias
    * guardadas). Una sola notificación por usuario, con todos los motivos.
    */
-  async onNewEmail(email: Email, attachmentNames: string[]): Promise<void> {
+  async onNewEmail(email: Email): Promise<void> {
     try {
-      const { reasons, followersOf } = await this.reasonsFor(email, attachmentNames);
+      const { reasons, followersOf } = await this.reasonsFor(email);
       if (!reasons.size) return;
 
       // La cadena: quien seguía al citado sigue también al nuevo (avisa de las respuestas a la respuesta).
@@ -203,7 +204,7 @@ export class MailAlertsService implements OnApplicationBootstrap {
   }
 
   /** Por qué se le avisa a cada usuario por este MTO. followersOf: quienes lo siguen por citar a uno que seguían. */
-  private async reasonsFor(email: Email, attachmentNames: string[]) {
+  private async reasonsFor(email: Email) {
     const reasons = new Map<string, string[]>();
     const add = (username: string, reason: string) => {
       const list = reasons.get(username) ?? [];
@@ -240,9 +241,45 @@ export class MailAlertsService implements OnApplicationBootstrap {
       `SELECT "username", "term", "allWords" FROM "mail_alert_terms"`,
     );
     if (terms.length) {
-      const prepared = prepareText([email.subject, email.bodyText, ...attachmentNames].filter(Boolean).join('\n'));
-      for (const t of terms) if (termMatches(prepared, t)) add(t.username, `coincide con tu alerta «${t.term}»`);
+      const sources = await this.textSources(email);
+      for (const t of terms) {
+        const where = sources.filter((s) => termMatches(s.prepared, t)).map((s) => s.label);
+        if (where.length) add(t.username, `tu alerta «${t.term}» aparece en ${listEs(where)}`);
+      }
     }
     return { reasons, followersOf };
   }
+
+  /**
+   * Dónde se buscan los términos, cada lugar por separado para poder decir
+   * dónde apareció: el asunto, el texto del MTO y cada adjunto (su contenido
+   * si es PDF, Word, Excel o texto, y su nombre). Los cifrados .~NN solo por el
+   * nombre. Los desencriptados y los de SIENA no: los ven solo TICOM y
+   * ENCRIPTADO, y avisar que un término está ahí ya revelaría su contenido.
+   */
+  private async textSources(email: Email): Promise<{ label: string; prepared: PreparedText }[]> {
+    const sources: { label: string; prepared: PreparedText }[] = [];
+    if (email.subject) sources.push({ label: 'el asunto', prepared: prepareText(email.subject) });
+    if (email.bodyText) sources.push({ label: 'el texto del MTO', prepared: prepareText(email.bodyText) });
+    const atts: { filename: string; storagePath: string }[] = await this.dataSource.query(
+      `SELECT filename, "storagePath" FROM attachments WHERE "emailId"::text = $1 ORDER BY filename`,
+      [email.id],
+    );
+    for (const a of atts.slice(0, MAX_ATTACHMENTS_READ)) {
+      const content = await extractAttachmentText(a.storagePath, a.filename);
+      // El nombre y el contenido juntos: si aparece en cualquiera de los dos, "en el adjunto «X»"
+      sources.push({ label: `el adjunto «${a.filename}»`, prepared: prepareText(`${a.filename}\n${content ?? ''}`) });
+    }
+    return sources;
+  }
+}
+
+/** Cuántos adjuntos de un MTO se revisan como mucho (los que pasen de eso no se revisan). */
+const MAX_ATTACHMENTS_READ = 15;
+
+/** "a", "a y b", "a, b y c"; más de 4: los 3 primeros "y N lugares más". */
+function listEs(items: string[]): string {
+  if (items.length > 4) return `${items.slice(0, 3).join(', ')} y ${items.length - 3} lugares más`;
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`;
 }

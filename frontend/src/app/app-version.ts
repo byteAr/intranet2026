@@ -50,5 +50,6 @@
  * 1.8.3 — Burbuja que explica cada funcionalidad nueva al pasar el mouse, al instante.
  * 1.8.4 — El cartel del anuncio aparece al entrar a quien no estaba conectado, con sus renglones y desplazamiento si es largo.
  * 1.8.5 — Mis alertas busca también dentro de los adjuntos (PDF, Word, Excel, texto) y el aviso dice dónde apareció.
+ * 1.8.6 — Quien abre la intranet con una copia vieja guardada entra ya con la versión nueva (se actualiza en el inicio de sesión).
  */
-export const APP_VERSION = '1.8.5';
+export const APP_VERSION = '1.8.6';

@@ -32,6 +32,7 @@ export class AppVersionService {
   private readonly swUpdate = inject(SwUpdate);
 
   private versionInicial: string | null = null;
+  private iniciado = false;
   private timer: ReturnType<typeof setInterval> | null = null;
   private pendienteDesde = 0;
   private ultimaActividad = Date.now();
@@ -45,8 +46,11 @@ export class AppVersionService {
   readonly mostrarAviso = signal(false);
 
   async iniciar(): Promise<void> {
-    if (this.timer) return;
+    // Lo llaman la raíz (también en el inicio de sesión) y el layout: una sola vez.
+    if (this.iniciado) return;
+    this.iniciado = true;
 
+    this.vigilarServiceWorker();
     this.versionInicial = await this.leerVersion();
     // Sin una referencia inicial no hay con qué comparar; no tiene sentido sondear.
     if (!this.versionInicial) return;
@@ -102,9 +106,35 @@ export class AppVersionService {
     const actual = await this.leerVersion();
     if (!actual || actual === this.versionInicial) return;
 
+    this.marcarPendiente();
+    if (document.hidden) void this.aplicarSiEsSeguro();
+  }
+
+  private marcarPendiente(): void {
+    if (this.actualizacionPendiente()) return;
     this.actualizacionPendiente.set(true);
     this.pendienteDesde = Date.now();
-    if (document.hidden) void this.aplicarSiEsSeguro();
+  }
+
+  /**
+   * La intranet que se abre de cero con una copia vieja guardada (el service
+   * worker sirve la anterior y baja la nueva por detrás): el ETag del servidor
+   * ya es el nuevo, así que la comparación de arriba no ve nada. Hasta el
+   * 13/10/2026 esa primera sesión seguía con la versión vieja. Ahora, si el
+   * service worker tiene una versión nueva lista (al abrir o cuando termina de
+   * bajarla), queda pendiente y se aplica en el primer momento seguro: en el
+   * inicio de sesión vacío, al instante; si ya se está escribiendo, al entrar.
+   */
+  private vigilarServiceWorker(): void {
+    if (!this.swUpdate.isEnabled) return;
+    const lista = () => {
+      this.marcarPendiente();
+      void this.aplicarSiEsSeguro();
+    };
+    this.swUpdate.versionUpdates.pipe(filter((e) => e.type === 'VERSION_READY')).subscribe(lista);
+    // La copia guardada quedó inservible (le faltan archivos): recargar trae la del servidor.
+    this.swUpdate.unrecoverable.subscribe(() => location.reload());
+    this.swUpdate.checkForUpdate().then((hay) => { if (hay) lista(); }).catch(() => undefined);
   }
 
   /** Sin trabajo en curso ni texto a medio escribir. */

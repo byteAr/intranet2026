@@ -194,7 +194,7 @@ Puente entre servidor de correo (`10.201.2.37`) e intranet. VLANs separadas por 
 - Stack: Plain Node.js. Archivos: `mail-bridge/` en el repo.
 - Ruta en la PC: `C:\intranet2026\mail-bridge\`
 - Auto-start: Windows Scheduled Task como SYSTEM via `start.bat` (loop reinicio cada 20s). El bat ya está en el repo.
-- Git en esa PC: `& "C:\Program Files\Git\bin\git.exe" pull origin feature/mail-bridge`
+- Git en esa PC: rama `feature/mail-bridge`, repo en `C:\intranet2026`. Se actualiza **sin Escritorio Remoto** desde DEI-003 (13/10/2026): `git -c safe.directory=* -C \\172.21.36.104\c$\intranet2026 pull --ff-only origin feature/mail-bridge` y reiniciar con `schtasks /End /S 172.21.36.104 /TN "mail-bridge"; schtasks /Run /S 172.21.36.104 /TN "mail-bridge"`. Los cambios se commitean en `feature/mail-bridge` y el mismo archivo se copia a develop.
 
 ### IMAP poller — comportamiento
 - **NO marca `\Seen`** — no interferir con Outlook (misma cuenta `DIREDTOS@MTO.GNA`).

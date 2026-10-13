@@ -13,5 +13,20 @@ export function isOutlookDrawing(filename: string | null | undefined): boolean {
   return !!filename && OUTLOOK_DRAWING.test(filename.trim());
 }
 
+/**
+ * Si una parte del correo pertenece al cuerpo y no es un adjunto del MTO
+ * (copia de isBodyPart() de mail-bridge/imap-poller.js: tocar las dos):
+ * dentro de multipart/related (imágenes incrustadas, image001.emz, logos de la
+ * firma), incrustada con Content-ID e inline, o imagen inline o con Content-ID.
+ * Los adjuntos agregados al crear el MTO ("attachment" en multipart/mixed) pasan.
+ */
+export function isBodyPart(att: { related?: boolean; contentDisposition?: string; cid?: string; contentType?: string }): boolean {
+  if (att.related) return true;
+  const inline = att.contentDisposition === 'inline';
+  if (att.cid && inline) return true;
+  const isImage = (att.contentType || '').startsWith('image/');
+  return isImage && (inline || !!att.cid);
+}
+
 /** El mismo patrón para SQL (operador ~*). */
 export const OUTLOOK_DRAWING_SQL = '^image[0-9]{3,}\\.(emz|wmz)$';

@@ -126,6 +126,24 @@ function postToBackend(backendUrl, secret, payload) {
   });
 }
 
+/**
+ * Si una parte del correo pertenece al cuerpo y no es un adjunto del MTO:
+ * - `related`: está dentro de multipart/related, junto al HTML (imágenes
+ *   incrustadas, dibujos de Outlook image001.emz, logos de la firma). mailparser
+ *   la marca así y avisa que no se ofrezca para descargar.
+ * - incrustada con Content-ID (`cid:`) y disposición inline;
+ * - imagen inline o con Content-ID (la regla anterior, se mantiene).
+ * Los adjuntos que alguien agregó vienen en multipart/mixed con disposición
+ * "attachment": esos pasan siempre.
+ */
+function isBodyPart(att) {
+  if (att.related) return true;
+  const inline = att.contentDisposition === 'inline';
+  if (att.cid && inline) return true;
+  const isImage = (att.contentType || '').startsWith('image/');
+  return isImage && (inline || !!att.cid);
+}
+
 class ImapPoller {
   constructor(config, logger) {
     this.config = config;
@@ -181,7 +199,17 @@ class ImapPoller {
       await this._fetchFromSent(client);
       await client.logout();
     } catch (err) {
-      this.log(`IMAP poll error: ${err.message} | stack: ${err.stack}`);
+      // imapflow informa cualquier NO/BAD del servidor como "Command failed":
+      // el motivo real está en estos campos. executedCommand no se registra
+      // entero porque en un LOGIN incluye la contraseña; solo su nombre.
+      const detalle = [
+        err.authenticationFailed && 'LOGIN RECHAZADO: revisar usuario/contraseña de la cuenta en el .env',
+        err.responseStatus && `estado: ${err.responseStatus}`,
+        err.responseText && `servidor: ${err.responseText}`,
+        err.serverResponseCode && `código: ${err.serverResponseCode}`,
+        err.executedCommand && `comando: ${String(err.executedCommand).split(' ')[1] || '?'}`,
+      ].filter(Boolean).join(' | ');
+      this.log(`IMAP poll error: ${err.message}${detalle ? ` | ${detalle}` : ''} | stack: ${err.stack}`);
       try { await client.logout(); } catch { /* ignore */ }
     }
 
@@ -365,13 +393,14 @@ class ImapPoller {
       const toList = this._extractAddressList(parsed.to);
       const ccList = this._extractAddressList(parsed.cc);
 
+      // Solo los adjuntos propios del MTO: lo que va dentro del cuerpo (imágenes y
+      // dibujos de Outlook como image001.emz, logos de la firma) no es un adjunto.
+      const bodyParts = (parsed.attachments || []).filter(isBodyPart);
+      if (bodyParts.length) {
+        this.log(`uid=${uid}: ${bodyParts.length} parte(s) del cuerpo omitidas como adjunto: ${bodyParts.map((a) => a.filename || a.contentType).join(', ')}`);
+      }
       const attachments = (parsed.attachments || [])
-        .filter((att) => {
-          // Excluir imágenes inline (logos embebidos en el body via cid:)
-          const isImage = (att.contentType || '').startsWith('image/');
-          const isInline = att.contentDisposition === 'inline' || !!att.cid;
-          return !(isImage && isInline);
-        })
+        .filter((att) => !isBodyPart(att))
         .map((att) => ({
           filename: att.filename || 'attachment',
           contentType: att.contentType || 'application/octet-stream',

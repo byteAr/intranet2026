@@ -5,6 +5,7 @@ import { simpleParser, ParsedMail, AddressObject } from 'mailparser';
 
 import { Email } from './entities/email.entity';
 import { MailIngestService } from './mail-ingest.service';
+import { isBodyPart } from './outlook-drawing.util';
 
 export interface IMailGateway {
   notifyNewEmail(email: Email): void;
@@ -190,7 +191,8 @@ export class ImapPollerService implements OnModuleInit, OnModuleDestroy {
       const parsed: ParsedMail = await simpleParser(raw.source);
       const internetMessageId = parsed.messageId ?? `uid-${uid}-${Date.now()}`;
 
-      const attachments = (parsed.attachments ?? []).map((att) => ({
+      // Solo los adjuntos propios del MTO, no lo que va en el cuerpo (misma regla que el mail-bridge).
+      const attachments = (parsed.attachments ?? []).filter((att) => !isBodyPart(att)).map((att) => ({
         filename: att.filename ?? 'attachment',
         contentType: att.contentType ?? 'application/octet-stream',
         data: att.content,

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { LDAP_CONNECT_TIMEOUT_MS, LdapServersService } from '../common/ldap-servers.service';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ldap = require('ldapjs');
 
@@ -13,14 +14,15 @@ export interface LdapUserEntry {
 
 @Injectable()
 export class LdapSearchService {
-  private readonly url: string;
   private readonly bindDn: string;
   private readonly bindCredentials: string;
   private readonly searchBase: string;
   private readonly tlsRejectUnauthorized: boolean;
 
-  constructor(configService: ConfigService) {
-    this.url = configService.get<string>('ldap.url')!;
+  constructor(
+    configService: ConfigService,
+    private readonly ldapServers: LdapServersService,
+  ) {
     this.bindDn = configService.get<string>('ldap.bindDn')!;
     this.bindCredentials = configService.get<string>('ldap.bindCredentials')!;
     this.searchBase = configService.get<string>('ldap.searchBase')!;
@@ -34,11 +36,12 @@ export class LdapSearchService {
     const filter = `(|(cn=*${escaped}*)(givenName=*${escaped}*)(sn=*${escaped}*)(sAMAccountName=*${escaped}*)(displayName=*${escaped}*)(uid=*${escaped}*))`;
 
     return new Promise((resolve) => {
+      // Los controladores de dominio, primero el que responde (si uno se cae, el otro).
       const client = ldap.createClient({
-        url: this.url,
+        url: this.ldapServers.urls(),
         tlsOptions: { rejectUnauthorized: this.tlsRejectUnauthorized },
         timeout: 5000,
-        connectTimeout: 5000,
+        connectTimeout: LDAP_CONNECT_TIMEOUT_MS,
       });
 
       client.on('error', () => resolve([]));

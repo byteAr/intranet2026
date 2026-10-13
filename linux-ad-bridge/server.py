@@ -14,8 +14,11 @@ def _read_secret(path, env_var, default=''):
     except OSError:
         return os.environ.get(env_var, default)
 SECRET         = _read_secret('/run/secrets/bridge_secret', 'BRIDGE_SECRET', 'pac-bridge-secret-change-me')
-AD_HOST        = os.environ.get('AD_HOST', '10.98.40.1')
-AD_USER        = os.environ.get('AD_USER', 'svc-pac')
+# Controladores de dominio en orden de preferencia (13/10/2026: 10.98.40.1 y 10.98.40.10).
+# AD_HOSTS (o AD_HOST, compatible) admite varios separados por coma o espacio.
+AD_HOSTS       = [h for h in re.split(r'[\s,;]+', os.environ.get('AD_HOSTS') or os.environ.get('AD_HOST') or '10.98.40.1') if h]
+AD_CONNECT_TIMEOUT = 4  # segundos de espera a cada controlador antes de pasar al otro
+AD_USER       = os.environ.get('AD_USER', 'svc-pac')
 AD_PASS        = _read_secret('/run/secrets/ldap_bind_credentials', 'AD_PASS', '')
 AD_DOMAIN      = os.environ.get('AD_DOMAIN', 'IUGNAD')
 AD_BASE_DN     = os.environ.get('AD_BASE_DN', 'DC=iugnad,DC=lan')
@@ -26,34 +29,93 @@ AD_BIND_DN     = os.environ.get('AD_BIND_DN') or f'CN={AD_USER},CN=Users,{AD_BAS
 AD_GROUPS_OU   = os.environ.get('AD_GROUPS_OU') or AD_USERS_OU  # OU donde se crean grupos nuevos
 
 
+# Controlador que no respondió y cuándo: se deja para el final durante 30 s.
+_DOWN_SINCE: dict = {}
+_DOWN_RETRY_SECONDS = 30
+
+
+def _hosts_in_order() -> list:
+    """Los controladores en el orden configurado, con los que fallaron hace poco al final."""
+    now = datetime.datetime.utcnow()
+    def recently_down(h):
+        t = _DOWN_SINCE.get(h)
+        return t is not None and (now - t).total_seconds() < _DOWN_RETRY_SECONDS
+    return [h for h in AD_HOSTS if not recently_down(h)] + [h for h in AD_HOSTS if recently_down(h)]
+
+
+def _mark_down(host: str, err) -> None:
+    if host not in _DOWN_SINCE:
+        logger.warning('El controlador de dominio %s no responde (%s): se prueba el siguiente', host, err)
+    _DOWN_SINCE[host] = datetime.datetime.utcnow()
+
+
+def _mark_up(host: str) -> None:
+    if _DOWN_SINCE.pop(host, None) is not None:
+        logger.info('El controlador de dominio %s volvió a responder', host)
+
+
 def get_ldap_connection():
-    """LDAP simple bind en puerto 389. Evita NTLM/MD4 incompatible con OpenSSL 3.0."""
-    server = ldap3.Server(AD_HOST, port=389, use_ssl=False, get_info=ldap3.NONE)
-    conn = ldap3.Connection(
-        server,
-        user=AD_BIND_DN,
-        password=AD_PASS,
-        authentication=ldap3.SIMPLE,
-        auto_bind=True,
-    )
-    return conn
+    """LDAP simple bind en puerto 389. Evita NTLM/MD4 incompatible con OpenSSL 3.0.
+    Si el primer controlador de dominio no responde, usa el siguiente (y viceversa)."""
+    last_err = None
+    for host in _hosts_in_order():
+        server = ldap3.Server(host, port=389, use_ssl=False, get_info=ldap3.NONE,
+                              connect_timeout=AD_CONNECT_TIMEOUT)
+        try:
+            conn = ldap3.Connection(
+                server,
+                user=AD_BIND_DN,
+                password=AD_PASS,
+                authentication=ldap3.SIMPLE,
+                auto_bind=True,
+                receive_timeout=30,
+            )
+        except ldap3.core.exceptions.LDAPCommunicationError as e:
+            # No se pudo conectar: probar el otro. Un error de credenciales no se reintenta.
+            _mark_down(host, e)
+            last_err = e
+            continue
+        _mark_up(host)
+        return conn
+    raise RuntimeError(f'Ningún controlador de dominio responde ({", ".join(AD_HOSTS)}): {last_err}')
+
+
+# Errores de net rpc que indican que no se pudo llegar al controlador (se prueba el otro).
+_RPC_CONNECTION_ERRORS = re.compile(
+    r'Connection to .* failed|NT_STATUS_(IO_TIMEOUT|HOST_UNREACHABLE|CONNECTION_REFUSED|'
+    r'NETWORK_UNREACHABLE|CONNECTION_RESET|CONNECTION_DISCONNECTED)',
+    re.IGNORECASE,
+)
 
 
 def reset_ad_password(username: str, new_password: str) -> None:
-    result = subprocess.run(
-        [
-            'net', 'rpc', 'password', username, new_password,
-            '-U', f'{AD_DOMAIN}\\{AD_USER}%{AD_PASS}',
-            '-S', AD_HOST,
-        ],
-        capture_output=True,
-        timeout=15,
-    )
-    if result.returncode != 0:
+    last_err = 'net rpc password falló'
+    for host in _hosts_in_order():
+        try:
+            result = subprocess.run(
+                [
+                    'net', 'rpc', 'password', username, new_password,
+                    '-U', f'{AD_DOMAIN}\\{AD_USER}%{AD_PASS}',
+                    '-S', host,
+                ],
+                capture_output=True,
+                timeout=15,
+            )
+        except subprocess.TimeoutExpired as e:
+            _mark_down(host, 'sin respuesta en 15 s')
+            last_err = str(e)
+            continue
+        if result.returncode == 0:
+            _mark_up(host)
+            logger.info('Contraseña reseteada para: %s (en %s)', username, host)
+            return
         stderr = result.stderr.decode().strip()
         stdout = result.stdout.decode().strip()
-        raise RuntimeError(stderr or stdout or 'net rpc password falló')
-    logger.info('Contraseña reseteada para: %s', username)
+        last_err = stderr or stdout or 'net rpc password falló'
+        if not _RPC_CONNECTION_ERRORS.search(last_err):
+            break  # error del pedido (política de contraseñas, usuario inexistente): no reintentar
+        _mark_down(host, last_err)
+    raise RuntimeError(last_err)
 
 
 def list_ad_users() -> list:
@@ -734,5 +796,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     httpd = HTTPServer(('0.0.0.0', PORT), Handler)
-    logger.info('AD Bridge (Samba RPC + LDAP) en http://0.0.0.0:%d', PORT)
+    logger.info('AD Bridge (Samba RPC + LDAP) en http://0.0.0.0:%d — controladores: %s', PORT, ', '.join(AD_HOSTS))
     httpd.serve_forever()

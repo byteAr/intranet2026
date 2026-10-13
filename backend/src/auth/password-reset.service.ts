@@ -5,6 +5,7 @@ import * as ldap from 'ldapjs';
 import * as path from 'path';
 import * as fs from 'fs';
 import { UsersService } from '../users/users.service';
+import { LDAP_CONNECT_TIMEOUT_MS, LdapServersService } from '../common/ldap-servers.service';
 
 interface OtpEntry {
   otp: string;
@@ -20,6 +21,7 @@ export class PasswordResetService {
   constructor(
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
+    private readonly ldapServers: LdapServersService,
   ) {}
 
   async sendOtp(username: string): Promise<{ email: string }> {
@@ -103,8 +105,11 @@ export class PasswordResetService {
 
   private verifyLdapPassword(dn: string, password: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const url = this.configService.get<string>('ldap.url')!;
-      const client = ldap.createClient({ url, tlsOptions: { rejectUnauthorized: false } });
+      const client = ldap.createClient({
+        url: this.ldapServers.urls(),
+        connectTimeout: LDAP_CONNECT_TIMEOUT_MS,
+        tlsOptions: { rejectUnauthorized: false },
+      });
       client.on('error', () => resolve(false));
       client.bind(dn, password, (err) => {
         client.destroy();
@@ -135,13 +140,12 @@ export class PasswordResetService {
       throw new BadRequestException('No se encontró la cuenta de dominio del usuario');
     }
 
-    const ldapUrl = this.configService.get<string>('ldap.url') ?? 'ldap://10.98.40.1:389';
     const bindDn = this.configService.get<string>('ldap.bindDn')!;
     const bindCredentials = this.configService.get<string>('ldap.bindCredentials')!;
     const tlsOptions = { rejectUnauthorized: false };
 
     return new Promise((resolve, reject) => {
-      const client = ldap.createClient({ url: ldapUrl, tlsOptions });
+      const client = ldap.createClient({ url: this.ldapServers.urls(), connectTimeout: LDAP_CONNECT_TIMEOUT_MS, tlsOptions });
 
       client.on('error', (err: Error) => {
         reject(new BadRequestException(`Error de conexión con el directorio: ${err.message}`));
@@ -193,12 +197,15 @@ export class PasswordResetService {
 
   private lookupEmail(username: string): Promise<string | null> {
     return new Promise((resolve) => {
-      const url = this.configService.get<string>('ldap.url')!;
       const bindDn = this.configService.get<string>('ldap.bindDn')!;
       const bindCredentials = this.configService.get<string>('ldap.bindCredentials')!;
       const searchBase = this.configService.get<string>('ldap.searchBase')!;
 
-      const client = ldap.createClient({ url, tlsOptions: { rejectUnauthorized: false } });
+      const client = ldap.createClient({
+        url: this.ldapServers.urls(),
+        connectTimeout: LDAP_CONNECT_TIMEOUT_MS,
+        tlsOptions: { rejectUnauthorized: false },
+      });
       client.on('error', () => resolve(null));
 
       client.bind(bindDn, bindCredentials, (err) => {

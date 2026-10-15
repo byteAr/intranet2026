@@ -2,6 +2,9 @@ import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { AuthService } from '../../core/services/auth.service';
+import { BroadcastSendersComponent } from './broadcast-senders.component';
+import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
 
 interface AdminUser {
   id: string | null;
@@ -72,7 +75,7 @@ const RANK_GROUPS = [
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe],
+  imports: [CommonModule, FormsModule, DatePipe, BroadcastSendersComponent, NewBadgeComponent],
   template: `
     <div class="p-6 max-w-6xl mx-auto">
       <h1 class="text-2xl font-bold text-gray-800 dark:text-white mb-6">Panel de Administración</h1>
@@ -124,7 +127,23 @@ const RANK_GROUPS = [
           [class.text-gray-500]="activeTab() !== 'config'">
           Configuración
         </button>
+        @if (isMlopez()) {
+          <button (click)="activeTab.set('broadcast')"
+            class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
+            [class.border-teal-600]="activeTab() === 'broadcast'"
+            [class.text-teal-600]="activeTab() === 'broadcast'"
+            [class.dark:text-teal-400]="activeTab() === 'broadcast'"
+            [class.border-transparent]="activeTab() !== 'broadcast'"
+            [class.text-gray-500]="activeTab() !== 'broadcast'">
+            Anuncios <app-new-badge feature="permisos-anuncios" [compact]="true" />
+          </button>
+        }
       </div>
+
+      <!-- ── ANUNCIOS: quién puede enviar anuncios y mensajes a todos (solo mlopez) ── -->
+      @if (activeTab() === 'broadcast' && isMlopez()) {
+        <app-broadcast-senders />
+      }
 
       <!-- ── USUARIOS ── -->
       @if (activeTab() === 'users') {
@@ -973,7 +992,10 @@ const RANK_GROUPS = [
 export class AdminComponent implements OnInit {
   private readonly http = inject(HttpClient);
 
-  readonly activeTab = signal<'users' | 'groups' | 'permissions' | 'audit' | 'config'>('users');
+  readonly activeTab = signal<'users' | 'groups' | 'permissions' | 'audit' | 'config' | 'broadcast'>('users');
+  private readonly auth = inject(AuthService);
+  /** La pestaña Anuncios (quién puede enviar anuncios y mensajes a todos) es solo para mlopez. */
+  readonly isMlopez = computed(() => this.auth.currentUser()?.username === 'mlopez');
   readonly users = signal<AdminUser[]>([]);
   readonly loadingUsers = signal(true);
   readonly loadError = signal<string | null>(null);

@@ -21,6 +21,7 @@ export const NEW_FEATURES = {
   'no-leidos': '2026-10-09',
   'mover-archivos': '2026-10-13',
   'subir-desencriptados': '2026-10-13',
+  'permisos-anuncios': '2026-10-15',
 } as const;
 
 export type NewFeature = keyof typeof NEW_FEATURES;

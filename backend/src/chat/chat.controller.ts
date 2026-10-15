@@ -38,6 +38,7 @@ import { ChatService } from './chat.service';
 import { BroadcastDmService } from './broadcast-dm.service';
 import { ChatGateway } from './chat.gateway';
 import { UsersService } from '../users/users.service';
+import { BroadcastSendersService } from '../broadcast-senders/broadcast-senders.service';
 
 const UPLOAD_DIR = '/app/uploads/chat';
 
@@ -84,6 +85,7 @@ export class ChatController {
     private readonly broadcastDmService: BroadcastDmService,
     private readonly chatGateway: ChatGateway,
     private readonly usersService: UsersService,
+    private readonly broadcastSenders: BroadcastSendersService,
   ) {}
 
   @Post('broadcast-dm')
@@ -111,7 +113,9 @@ export class ChatController {
     @Body('content') content: string,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    if (req.user.username !== 'mlopez') throw new ForbiddenException('Sin permiso');
+    if (!(await this.broadcastSenders.canSend(req.user.username))) {
+      throw new ForbiddenException('No tenés permiso para enviar mensajes a todos');
+    }
     if (!content?.trim() && !file) throw new BadRequestException('Se requiere contenido o archivo');
 
     // 1. Guardar el broadcast en DB — garantiza entrega a futuros usuarios

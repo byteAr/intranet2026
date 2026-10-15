@@ -5,6 +5,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { CustomThrottlerGuard } from './common/custom-throttler.guard';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LdapServersModule } from './common/ldap-servers.service';
+import { BroadcastSendersModule } from './broadcast-senders/broadcast-senders.module';
 import { APP_GUARD } from '@nestjs/core';
 
 import appConfig from './config/app.config';
@@ -96,6 +97,7 @@ import { DraftMailSigner } from './draft-mail/entities/draft-mail-signer.entity'
     ]),
     ScheduleModule.forRoot(),
     LdapServersModule,
+    BroadcastSendersModule,
     AuthModule,
     UsersModule,
     ChatModule,

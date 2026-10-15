@@ -287,7 +287,7 @@ import { HttpClient } from '@angular/common/http';
               </div>
             </div>
           }
-          @if (isMlopez()) {
+          @if (canBroadcast()) {
             <button (click)="showBroadcastDmModal.set(true)"
               class="flex items-center w-full px-3 py-2 mb-1 text-sm rounded-md transition-colors text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20">
               <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -297,7 +297,7 @@ import { HttpClient } from '@angular/common/http';
               @if (!collapsed()) { <span class="ml-2 font-medium">Mensaje a todos</span> }
             </button>
           }
-          @if (isMlopez()) {
+          @if (canBroadcast()) {
             <button (click)="showAnnouncementModal.set(true)"
               class="flex items-center w-full px-3 py-2 mb-1 text-sm rounded-md transition-colors text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20">
               <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -614,7 +614,7 @@ import { HttpClient } from '@angular/common/http';
       </div>
     }
 
-    <!-- ── Broadcast DM modal (solo mlopez) ────────────── -->
+    <!-- ── Broadcast DM modal (mlopez y los habilitados) ── -->
     @if (showBroadcastDmModal()) {
       <div class="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
            (click)="showBroadcastDmModal.set(false)">
@@ -668,7 +668,7 @@ import { HttpClient } from '@angular/common/http';
       </div>
     }
 
-    <!-- ── Announcement send modal (solo mlopez) ─────── -->
+    <!-- ── Announcement send modal (mlopez y los habilitados) ── -->
     @if (showAnnouncementModal()) {
       <div class="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
            (click)="showAnnouncementModal.set(false)">
@@ -930,6 +930,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   readonly isTicom = computed(() => this.authService.currentUser()?.roles?.includes('TICOM') ?? false);
   readonly isMlopez = computed(() => this.authService.currentUser()?.username === 'mlopez');
+  /** Puede usar "Mensaje a todos" y "Enviar anuncio" (lo decide el servidor). */
+  readonly canBroadcast = signal(false);
 
   // Aviso de cierre por inactividad: perímetro del anillo (r = 52)
   readonly IDLE_RING = 2 * Math.PI * 52;
@@ -1029,6 +1031,12 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const u = this.authService.currentUser();
+
+    // "Mensaje a todos" y "Enviar anuncio": mlopez y a quienes él habilitó (Administración → Anuncios).
+    this.http.get<{ canSend: boolean }>('/api/broadcast-senders/me').subscribe({
+      next: (r) => this.canBroadcast.set(!!r.canSend),
+      error: () => this.canBroadcast.set(false),
+    });
 
     const needsEmail = !u?.recoveryEmail?.trim();
     const needsRank = !u?.rank?.trim();

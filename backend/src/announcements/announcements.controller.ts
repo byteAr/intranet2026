@@ -1,18 +1,20 @@
 import { Controller, Post, Body, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { AnnouncementsGateway } from './announcements.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BroadcastSendersService } from '../broadcast-senders/broadcast-senders.service';
 
 @Controller('announcements')
 export class AnnouncementsController {
   constructor(
     private readonly gateway: AnnouncementsGateway,
     private readonly notifications: NotificationsService,
+    private readonly senders: BroadcastSendersService,
   ) {}
 
   @Post('broadcast')
-  broadcast(@Body() body: { message: string }, @Req() req: any) {
-    if (req.user.username !== 'mlopez') {
-      throw new ForbiddenException('Solo el administrador puede enviar anuncios');
+  async broadcast(@Body() body: { message: string }, @Req() req: any) {
+    if (!(await this.senders.canSend(req.user.username))) {
+      throw new ForbiddenException('No tenés permiso para enviar anuncios');
     }
     if (!body.message?.trim()) {
       throw new BadRequestException('El mensaje no puede estar vacío');

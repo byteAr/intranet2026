@@ -62,12 +62,22 @@ export class UsersService {
   }
 
   async upsert(dto: UpsertUserDto): Promise<User> {
-    let user = await this.userRepo.findOne({
-      where: { username: dto.username },
-    });
+    // Sin distinguir mayúsculas: si en el AD cambian "asanabria" por "ASanabria"
+    // no se tiene que crear otro usuario (chocaría con el correo del existente).
+    let user =
+      (await this.userRepo.findOne({ where: { username: dto.username } })) ??
+      (await this.userRepo
+        .createQueryBuilder('u')
+        .where('lower(u.username) = lower(:username)', { username: dto.username })
+        .getOne());
+
+    // users.email es único. Si el correo que trae el AD ya lo tiene otro usuario
+    // (15/10/2026: a varios les pusieron el correo compartido de Ayudantía), se
+    // conserva el que tenía: si no, el guardado falla y no puede entrar (500).
+    const email = await this.freeEmail(dto.email, user?.id, dto.username);
 
     if (user) {
-      user.email = dto.email;
+      user.email = email ?? user.email;
       user.displayName = dto.displayName;
       user.firstName = dto.firstName ?? user.firstName;
       user.lastName = dto.lastName ?? user.lastName;
@@ -87,12 +97,28 @@ export class UsersService {
     } else {
       user = this.userRepo.create({
         ...dto,
+        email: email ?? `${dto.username.toLowerCase()}@unknown.local`,
         roles: dto.roles ?? [],
         lastLoginAt: new Date(),
       });
     }
 
     return this.userRepo.save(user);
+  }
+
+  /**
+   * El correo si nadie más lo tiene en la intranet (o ya es de este usuario);
+   * si lo tiene otro, null y queda en el log para corregirlo en el AD.
+   */
+  private async freeEmail(email: string | undefined, ownId: string | undefined, username: string): Promise<string | null> {
+    if (!email) return null;
+    const owner = await this.userRepo.findOne({ where: { email } });
+    if (!owner || owner.id === ownId) return email;
+    this.logger.warn(
+      `El correo ${email} que el AD tiene para ${username} ya es de ${owner.username} en la intranet: ` +
+        `se deja el anterior. Corregir el campo "Correo" de uno de los dos en el AD.`,
+    );
+    return null;
   }
 
   findById(id: string): Promise<User | null> {
@@ -121,7 +147,7 @@ export class UsersService {
   }): Promise<User> {
     const user = this.userRepo.create({
       username: data.username,
-      email: data.email ?? `${data.username}@ldap.local`,
+      email: (await this.freeEmail(data.email, undefined, data.username)) ?? `${data.username}@ldap.local`,
       displayName: data.displayName,
       firstName: data.firstName,
       lastName: data.lastName,

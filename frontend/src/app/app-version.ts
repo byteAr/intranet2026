@@ -54,5 +54,6 @@
  * 1.8.7 — El código del MTO se reconoce aunque Outlook ponga un espacio especial (EFA 3329/26 salía como HD 696/26).
  * 1.8.8 — Archivos compartidos: arrastrar archivos y carpetas dentro de otras carpetas para moverlos.
  * 1.8.9 — MTO: un solo botón "Subir desencriptados/SIENA" (o arrastrar); cada archivo va solo a su encriptado. Sin los "image001.emz" de Outlook como adjuntos.
+ * 1.8.10 — Inicio de sesión: dice el motivo real (contraseña incorrecta, usuario bloqueado, contraseña vencida, servidor sin respuesta).
  */
-export const APP_VERSION = '1.8.9';
+export const APP_VERSION = '1.8.10';

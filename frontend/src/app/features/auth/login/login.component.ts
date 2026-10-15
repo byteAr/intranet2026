@@ -582,13 +582,18 @@ export class LoginComponent {
 
     this.authService.login(username, password).subscribe({
       next: () => void this.router.navigate(['/cuenta']),
-      error: (err: { status?: number; error?: { retryAfter?: number } }) => {
+      error: (err: { status?: number; error?: { retryAfter?: number; message?: unknown } }) => {
         this.loading.set(false);
         if (err.status === 429) {
           const seconds = err.error?.retryAfter ?? 60;
           this.startThrottleCountdown(seconds);
+        } else if ((err.status === 401 || err.status === 503) && typeof err.error?.message === 'string') {
+          // El motivo real que da el AD: contraseña incorrecta, usuario bloqueado, contraseña vencida…
+          this.errorMessage.set(err.error.message);
+        } else if (!err.status || err.status >= 500) {
+          this.errorMessage.set('No se pudo conectar con la intranet. Probá de nuevo en unos minutos.');
         } else {
-          this.errorMessage.set('Credenciales incorrectas. Verifica tu usuario y contraseña de dominio.');
+          this.errorMessage.set('Usuario o contraseña incorrectos. Verificá tu usuario y contraseña de dominio (los mismos de tu PC).');
         }
       },
     });

@@ -709,16 +709,30 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
               }
             </div>
 
-            <!-- Archivos SIENA — solo para TICOM y ENCRIPTADO en emails con SOFTWARE SIENA -->
+            <!-- Archivos por MTO (TICOM y ENCRIPTADO): los SIENA, o los desencriptados de un MTO
+                 cifrado por PON cuyo archivo vino en un enlace de SaaS (sin ".~00" adjunto) -->
             @if (activeEmail()!.sienaFiles !== undefined) {
               <div class="mt-3 pt-3 border-t border-gray-100">
-                <p class="text-xs font-semibold text-gray-500 mb-2">Archivos SIENA desencriptados</p>
+                @if (isLinkEncrypted()) {
+                  <p class="text-xs font-semibold text-gray-500 mb-2">Archivos desencriptados <span class="font-normal text-gray-400">(el MTO los envió por enlace, cifrados por PON)</span></p>
+                } @else {
+                  <p class="text-xs font-semibold text-gray-500 mb-2">Archivos SIENA desencriptados</p>
+                }
 
                 <!-- Archivos subidos: candado abierto y quién los subió (los ven TICOM y ENCRIPTADO) -->
                 @if (activeEmail()!.sienaFiles!.length > 0) {
                   <div class="flex flex-wrap gap-2 mb-2">
                     @for (sf of activeEmail()!.sienaFiles!; track sf.id) {
                       <div class="relative flex flex-col items-center gap-1">
+                        @if (isLinkEncrypted()) {
+                          <button (click)="openSienaPreview(sf)"
+                            class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 hover:bg-emerald-50 transition-colors w-24"
+                            [title]="sf.filename + ' — archivo del enlace, desencriptado y subido por ' + sf.uploadedByName + ' (TICOM) el ' + formatUploadDate(sf.uploadedAt)">
+                            <app-file-icon [file]="{ name: sf.filename }" lock="open" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
+                            <span class="w-full text-center text-[11px] leading-tight text-gray-700 line-clamp-2 break-all">{{ sf.filename }}</span>
+                            <span class="text-[10px] font-semibold text-emerald-700">Desencriptado</span>
+                          </button>
+                        } @else {
                         <button (click)="openSienaPreview(sf)"
                           class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-sky-200 bg-sky-50/50 hover:border-sky-400 hover:bg-sky-50 transition-colors w-24"
                           [title]="'Archivo SIENA desencriptado y subido por ' + sf.uploadedByName + ' (TICOM) el ' + formatUploadDate(sf.uploadedAt)">
@@ -726,6 +740,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                           <span class="w-full text-center text-[11px] leading-tight text-gray-700 line-clamp-2 break-all">{{ sf.filename }}</span>
                           <span class="text-[10px] font-semibold text-sky-700">SIENA</span>
                         </button>
+                        }
                         <span class="w-24 text-center text-[10px] leading-tight text-gray-400">por {{ sf.uploadedByName }}<br>{{ formatUploadDate(sf.uploadedAt) }}</span>
                         @if (isTicom) {
                           <button (click)="onSienaFileDelete(sf.id)"
@@ -735,6 +750,8 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                       </div>
                     }
                   </div>
+                } @else if (isLinkEncrypted()) {
+                  <p class="text-xs text-amber-600 italic mb-2">Todavía no se cargó el desencriptado</p>
                 } @else {
                   <p class="text-xs text-gray-400 italic mb-2">Sin archivos desencriptados aún</p>
                 }
@@ -793,7 +810,7 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
               <p class="text-sm font-semibold">Soltá los archivos para subirlos a este MTO</p>
-              <p class="text-xs text-teal-700">{{ hasEncryptedAttachments() ? 'Como desencriptados' : 'Como archivos SIENA' }} — solo los ven TICOM y ENCRIPTADO</p>
+              <p class="text-xs text-teal-700">{{ hasEncryptedAttachments() || isLinkEncrypted() ? 'Como desencriptados' : 'Como archivos SIENA' }} — solo los ven TICOM y ENCRIPTADO</p>
             </div>
           }
 
@@ -1124,7 +1141,10 @@ export class MailComponent implements OnInit {
   readonly hasEncryptedAttachments = computed(() =>
     !!this.activeEmail()?.attachments?.some((a) => this.isEncryptedFile(a.filename)));
 
-  /** Solo TICOM, y solo en MTO con adjuntos encriptados o por SIENA. */
+  /** MTO cifrado por PON con el archivo en un enlace (SaaS), sin ".~00" adjunto: sus desencriptados van por MTO. */
+  readonly isLinkEncrypted = computed(() => this.activeEmail()?.externalFilesKind === 'enlace');
+
+  /** Solo TICOM, y solo en MTO con adjuntos encriptados, por SIENA o cifrados con el archivo en un enlace. */
   readonly canDropFiles = computed(() =>
     this.isTicom && !!this.activeEmail() && (this.hasEncryptedAttachments() || this.activeEmail()!.sienaFiles !== undefined));
 
@@ -1135,7 +1155,9 @@ export class MailComponent implements OnInit {
     const targets: DropTarget[] = (email.attachments ?? [])
       .filter((a) => this.isEncryptedFile(a.filename))
       .map((a) => ({ key: a.id, label: `Desencriptado de ${a.filename}`, attachmentId: a.id, base: baseName(a.filename) }));
-    if (email.sienaFiles !== undefined) targets.push({ key: 'siena', label: 'Archivos SIENA', base: null });
+    if (email.sienaFiles !== undefined) {
+      targets.push({ key: 'siena', label: this.isLinkEncrypted() ? 'Desencriptados del enlace' : 'Archivos SIENA', base: null });
+    }
     return targets;
   }
 

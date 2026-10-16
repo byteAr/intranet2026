@@ -56,5 +56,6 @@
  * 1.8.9 — MTO: un solo botón "Subir desencriptados/SIENA" (o arrastrar); cada archivo va solo a su encriptado. Sin los "image001.emz" de Outlook como adjuntos.
  * 1.8.10 — Inicio de sesión: dice el motivo real (contraseña incorrecta, usuario bloqueado, contraseña vencida, servidor sin respuesta).
  * 1.8.11 — Administración → Anuncios: mlopez elige quién más puede enviar anuncios y mensajes a todos.
+ * 1.8.12 — MTO cifrados por PON con el archivo en un enlace (SaaS): TICOM también puede subir el desencriptado.
  */
-export const APP_VERSION = '1.8.11';
+export const APP_VERSION = '1.8.12';

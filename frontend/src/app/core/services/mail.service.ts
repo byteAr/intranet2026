@@ -80,6 +80,8 @@ export interface Email {
   readStatuses?: MailReadStatus[];
   outgoingRefs?: MailOutgoingRef[];
   sienaFiles?: SienaFile[];
+  /** De qué son los archivos por MTO: SIENA, o desencriptados de un MTO por PON con el archivo en un enlace (SaaS). */
+  externalFilesKind?: 'siena' | 'enlace';
   /**
    * Solo en resultados de búsqueda: fragmento del cuerpo con las coincidencias
    * delimitadas por U+0002 (inicio) y U+0003 (fin).

@@ -6,6 +6,7 @@ import { constants as fsConstants, existsSync, promises as fsp } from 'fs';
 import { join } from 'path';
 import { expandTnef, isTnefAttachment } from './tnef.util';
 import { OUTLOOK_DRAWING_SQL } from './outlook-drawing.util';
+import { isEncryptedByLink } from './encrypted-link.util';
 import { Email } from './entities/email.entity';
 import { Attachment } from './entities/attachment.entity';
 import { EmailReadStatus } from './entities/email-read-status.entity';
@@ -1091,8 +1092,15 @@ export class MailService implements OnApplicationBootstrap {
       }
     }
 
-    // Incluir archivos SIENA para TICOM y ENCRIPTADO si el email es de tipo SIENA
-    if (canSeeDecrypted && SienaFileService.isSiena(email.subject, email.bodyText)) {
+    // Archivos por MTO (no por adjunto) para TICOM y ENCRIPTADO: los SIENA y los
+    // desencriptados de un MTO cifrado por PON con el archivo en un enlace (SaaS).
+    const externalKind = SienaFileService.isSiena(email.subject, email.bodyText)
+      ? 'siena'
+      : isEncryptedByLink(email.bodyText, !!email.attachments?.some((a) => /\.~\d{2}$/.test(a.filename)))
+        ? 'enlace'
+        : null;
+    if (canSeeDecrypted && externalKind) {
+      (email as any).externalFilesKind = externalKind;
       const siena = await this.sienaRepo.find({
         where: { emailId: id },
         order: { uploadedAt: 'ASC' },

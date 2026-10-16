@@ -61,6 +61,7 @@ export const FEATURE_TIPS: Record<string, FeatureTip> = {
     points: [
       'Se ubican por el nombre: MAR-01.PDF va a MAR-01.~00.',
       'Si alguno no coincide, se te pregunta a cuál va.',
+      'También en los MTO por PON que mandan el archivo por enlace (SaaS).',
       'Si te equivocaste, borralo con la ✕ y volvé a subirlo.',
     ],
   },

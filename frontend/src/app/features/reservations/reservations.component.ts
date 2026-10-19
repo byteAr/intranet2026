@@ -1035,9 +1035,12 @@ export class ReservationsComponent implements OnInit {
     return this.reservationsService.isAyudantia;
   }
 
-  /** Regular users can create; staff roles only view/approve/confirm */
+  /**
+   * Todos pueden pedir. Desde el 19/10/2026 también Ayudantía: lo que piden para
+   * su propio piso no espera su aprobación y pasa directo a TICOM.
+   */
   get canCreate(): boolean {
-    return !this.isAyudantia;
+    return true;
   }
 
   get sidebarTitle(): string {

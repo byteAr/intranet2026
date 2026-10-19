@@ -356,6 +356,8 @@ Reemplaza las carpetas de `\\serverad2`. Las impresoras escanean a una **bandeja
 - Margen de 30 min al cambiar de piso (equipo compartido).
 - Bloquear período → cancela automáticamente reservas activas solapadas.
 - `AYUDANTIADIREDTOS` → gestiona `piso_8`; `AYUDANTIARECTORADO` → `piso_6`.
+- **Ayudantía pide sin aprobarse a sí misma** (1.8.13, 19/10/2026): todos pueden crear reservas (antes Ayudantía no tenía "Nueva"). Si quien pide es del grupo que aprueba ese piso (`selfApprovingGroup()`), la reserva nace en `pendiente_ticom` con la aprobación a su nombre; los correos son "registrada y aprobada" al solicitante y el aviso a TICOM. Para el otro piso, aprobación normal. Ayudantía ve su piso y además sus propias reservas (`orCreatorId`).
+- **Avisos de videoconferencias** (`reservations-email.service.ts`): a las **20:00 del día anterior** y a las **6:30 del mismo día**, hora de Argentina (`@Cron(..., { timeZone: ZONA_ARGENTINA })`, todos los días; si no hay reservas no se envía nada). ⚠️ Hasta el 19/10/2026 era `@Cron('30 6 * * 1-5')` sin zona: el contenedor corre en UTC y llegaba a las 3:30. Destinatarios: la lista que carga TICOM en **Administración → Avisos de reservas** (`app_markers` `reservations.reminderEmails`, `GET/PUT /api/reservation-reminders`) recibe todas; si está vacía, como antes (TICOM todas, cada Ayudantía su piso). Quien pidió cada una recibe además las suyas.
 
 ---
 

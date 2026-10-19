@@ -1,10 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import * as nodemailer from 'nodemailer';
 import { ReservationsService } from './reservations.service';
 import { UsersService } from '../users/users.service';
 import { Reservation } from './entities/reservation.entity';
+import { argentinaParts, ZONA_ARGENTINA } from '../common/argentina-time';
+
+/** app_markers: lista (JSON) de correos que reciben el aviso de todas las videoconferencias. */
+const REMINDER_EMAILS_KEY = 'reservations.reminderEmails';
+
+/** La fecha de Argentina (AAAA-MM-DD) de hoy, o de dentro de N días. */
+function argentinaDate(daysAhead: number): string {
+  const { year, month, day } = argentinaParts();
+  return new Date(Date.UTC(year, month - 1, day + daysAhead)).toISOString().slice(0, 10);
+}
 
 @Injectable()
 export class ReservationsEmailService {
@@ -14,6 +25,7 @@ export class ReservationsEmailService {
     private readonly reservationsService: ReservationsService,
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
+    private readonly dataSource: DataSource,
   ) {}
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -192,13 +204,17 @@ export class ReservationsEmailService {
 
     const dateFormatted = this.formatDate(reservation.date);
     const group = reservation.ayudantiaApprovedByGroup ?? this.ayudantiaGroupLabel(reservation.location);
+    // Quien pidió es de la Ayudantía que aprueba ese piso: no esperó su propia aprobación.
+    const selfApproved = reservation.ayudantiaApprovedById === reservation.creatorId;
 
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
         <div style="background:#1d4ed8;color:white;padding:16px 24px;border-radius:8px 8px 0 0;">
-          <h2 style="margin:0;font-size:18px;">Solicitud aprobada por ${group}</h2>
+          <h2 style="margin:0;font-size:18px;">${selfApproved ? 'Solicitud registrada y aprobada' : `Solicitud aprobada por ${group}`}</h2>
           <p style="margin:6px 0 0;font-size:14px;opacity:0.9;">
-            Tu solicitud avanzó al siguiente paso — ahora está pendiente de confirmación por TICOM.
+            ${selfApproved
+              ? `Como sos de ${group}, no necesita aprobación: queda pendiente de confirmación por TICOM.`
+              : 'Tu solicitud avanzó al siguiente paso — ahora está pendiente de confirmación por TICOM.'}
           </p>
         </div>
         <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:24px;">
@@ -475,19 +491,81 @@ export class ReservationsEmailService {
     await this.send(email, `Videoconferencia cancelada por bloqueo — ${dateFormatted}`, html);
   }
 
-  // ── Daily digest (cron Mon-Fri 6:30 AM) ──────────────────────────────────────
+  // ── Recordatorios: 20:00 del día anterior y 6:30 del mismo día (hora de Argentina) ──
+  //
+  // Hasta el 19/10/2026 era un solo aviso con @Cron('30 6 * * 1-5') sin zona: el
+  // contenedor corre en UTC, así que llegaba a las 3:30 de Argentina.
 
-  @Cron('30 6 * * 1-5')
+  /** 20:00 de Argentina: las videoconferencias de mañana. */
+  @Cron('0 20 * * *', { timeZone: ZONA_ARGENTINA })
+  async sendEveningReminder(): Promise<void> {
+    await this.sendDigestFor(argentinaDate(1), 'mañana');
+  }
+
+  /** 6:30 de Argentina: las videoconferencias de hoy. */
+  @Cron('30 6 * * *', { timeZone: ZONA_ARGENTINA })
   async sendDailyDigest(): Promise<void> {
-    const today = new Date().toISOString().split('T')[0];
-    this.logger.log(`Sending daily reservation digest for ${today}`);
+    await this.sendDigestFor(argentinaDate(0), 'hoy');
+  }
 
-    const reservations = await this.reservationsService.findByDate(today);
+  /** Correos que reciben el aviso de todas las videoconferencias (Administración → Avisos de reservas). */
+  async getReminderEmails(): Promise<string[]> {
+    const [row] = await this.dataSource
+      .query(`SELECT "value" FROM "app_markers" WHERE "key" = $1`, [REMINDER_EMAILS_KEY])
+      .catch(() => []);
+    try {
+      const list = JSON.parse(row?.value ?? '[]');
+      return Array.isArray(list) ? list.filter((e): e is string => typeof e === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async setReminderEmails(emails: string[], by: string): Promise<string[]> {
+    const clean = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+    await this.dataSource.query(
+      `INSERT INTO "app_markers" ("key", "value") VALUES ($1, $2)
+       ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
+      [REMINDER_EMAILS_KEY, JSON.stringify(clean)],
+    );
+    this.logger.log(`${by} cambió los correos del aviso de videoconferencias: ${clean.join(', ') || '(ninguno)'}`);
+    return clean;
+  }
+
+  /**
+   * Aviso de las videoconferencias de un día. Si TICOM cargó la lista de correos,
+   * la reciben ellos (todas las salas); si no, como antes: TICOM todas, cada
+   * Ayudantía las de su piso. Quien pidió cada una recibe además las suyas.
+   */
+  private async sendDigestFor(date: string, when: 'hoy' | 'mañana'): Promise<void> {
+    this.logger.log(`Aviso de videoconferencias de ${when} (${date})`);
+
+    const reservations = await this.reservationsService.findByDate(date);
     const activeReservations = reservations.filter((r) => r.status !== 'rechazada' && r.status !== 'cancelada');
     if (activeReservations.length === 0) {
-      this.logger.log('No active reservations today, skipping email');
+      this.logger.log(`No hay videoconferencias ${when === 'hoy' ? 'hoy' : 'mañana'}: no se envía el aviso`);
       return;
     }
+
+    const configured = await this.getReminderEmails();
+    if (configured.length > 0) {
+      const transporter = this.createTransport();
+      await this.sendDigestEmail(transporter, configured, activeReservations, date, 'Todas las salas', when);
+      const creatorIds = [...new Set(activeReservations.map((r) => r.creatorId))];
+      const creators = await Promise.all(creatorIds.map((id) => this.usersService.findById(id)));
+      const listed = new Set(configured);
+      for (const creator of creators) {
+        if (!creator) continue;
+        const email = this.corporateEmail(creator);
+        if (!email || listed.has(email.toLowerCase())) continue;
+        const mine = activeReservations.filter((r) => r.creatorId === creator.id);
+        if (mine.length > 0) await this.sendDigestEmail(transporter, [email], mine, date, 'Tus videoconferencias', when);
+      }
+      this.logger.log(`Aviso de ${when} enviado a la lista de TICOM (${configured.length}) y a los solicitantes`);
+      return;
+    }
+
+    const today = date;
 
     const piso8 = activeReservations.filter((r) => r.location === 'piso_8');
     const piso6 = activeReservations.filter((r) => r.location === 'piso_6');
@@ -509,7 +587,7 @@ export class ReservationsEmailService {
     const ticomEmails = [...new Set(ticomUsers.map((u) => this.corporateEmail(u)).filter((e): e is string => e !== null))];
     ticomEmails.forEach((e) => staffEmailSet.add(e));
     if (ticomEmails.length > 0) {
-      await this.sendDigestEmail(transporter, ticomEmails, activeReservations, today, 'Todas las salas');
+      await this.sendDigestEmail(transporter, ticomEmails, activeReservations, today, 'Todas las salas', when);
     }
 
     // AYUDANTIADIREDTOS + legacy AYUDANTIA: piso_8
@@ -520,7 +598,7 @@ export class ReservationsEmailService {
     )];
     diredtosEmails.forEach((e) => staffEmailSet.add(e));
     if (diredtosEmails.length > 0 && piso8.length > 0) {
-      await this.sendDigestEmail(transporter, diredtosEmails, piso8, today, 'Piso 8');
+      await this.sendDigestEmail(transporter, diredtosEmails, piso8, today, 'Piso 8', when);
     }
 
     // AYUDANTIARECTORADO: piso_6
@@ -530,7 +608,7 @@ export class ReservationsEmailService {
     )];
     rectoradoEmails.forEach((e) => staffEmailSet.add(e));
     if (rectoradoEmails.length > 0 && piso6.length > 0) {
-      await this.sendDigestEmail(transporter, rectoradoEmails, piso6, today, 'Piso 6');
+      await this.sendDigestEmail(transporter, rectoradoEmails, piso6, today, 'Piso 6', when);
     }
 
     // Creators not in staff: their own reservations only
@@ -540,11 +618,11 @@ export class ReservationsEmailService {
       if (!email || staffEmailSet.has(email)) continue;
       const mine = activeReservations.filter((r) => r.creatorId === creator.id);
       if (mine.length > 0) {
-        await this.sendDigestEmail(transporter, [email], mine, today, 'Tus reservas del día');
+        await this.sendDigestEmail(transporter, [email], mine, today, 'Tus videoconferencias', when);
       }
     }
 
-    this.logger.log('Daily digest sent successfully');
+    this.logger.log(`Aviso de ${when} enviado`);
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────────
@@ -577,6 +655,7 @@ export class ReservationsEmailService {
     reservations: any[],
     date: string,
     scope: string,
+    when: 'hoy' | 'mañana' = 'hoy',
   ): Promise<void> {
     const d = new Date(date + 'T12:00:00');
     const dateFormatted = d.toLocaleDateString('es-CL', {
@@ -595,7 +674,7 @@ export class ReservationsEmailService {
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;">
         <div style="background:#0f766e;color:white;padding:16px 24px;border-radius:8px 8px 0 0;">
-          <h2 style="margin:0;font-size:18px;">Videoconferencias programadas para hoy</h2>
+          <h2 style="margin:0;font-size:18px;">Videoconferencias programadas para ${when}</h2>
           <p style="margin:4px 0 0;font-size:14px;opacity:0.85;">${dateFormatted} &mdash; ${scope}</p>
         </div>
         <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:16px 0;">
@@ -621,7 +700,7 @@ export class ReservationsEmailService {
       await transporter.sendMail({
         from: this.configService.get<string>('SMTP_FROM') ?? 'noreply@iugnad.lan',
         to: recipients.join(', '),
-        subject: `Videoconferencias del día — ${dateFormatted}`,
+        subject: `${when === 'mañana' ? 'Recordatorio: videoconferencias de mañana' : 'Videoconferencias de hoy'} — ${dateFormatted}`,
         html,
       });
       this.logger.log(`Digest sent to ${recipients.length} recipients (${scope})`);

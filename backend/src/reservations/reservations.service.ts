@@ -16,6 +16,18 @@ export interface CreateReservationDto {
   conferenceUrl?: string;
 }
 
+/**
+ * El grupo que aprueba las reservas de ese piso, si quien pide es de ese grupo
+ * (piso_8 → AYUDANTIADIREDTOS o el rol viejo AYUDANTIA; piso_6 → AYUDANTIARECTORADO).
+ * Desde el 19/10/2026 esas reservas no esperan su propia aprobación: pasan
+ * directo a TICOM, con la aprobación a nombre de quien pidió.
+ */
+export function selfApprovingGroup(location: 'piso_8' | 'piso_6', roles: string[] = []): string | null {
+  if (location === 'piso_8' && (roles.includes('AYUDANTIADIREDTOS') || roles.includes('AYUDANTIA'))) return 'AYUDANTIADIREDTOS';
+  if (location === 'piso_6' && roles.includes('AYUDANTIARECTORADO')) return 'AYUDANTIARECTORADO';
+  return null;
+}
+
 @Injectable()
 export class ReservationsService {
   constructor(
@@ -25,7 +37,7 @@ export class ReservationsService {
     private readonly blockedPeriodRepo: Repository<BlockedPeriod>,
   ) {}
 
-  async create(dto: CreateReservationDto): Promise<Reservation> {
+  async create(dto: CreateReservationDto, creatorRoles: string[] = []): Promise<Reservation> {
     const endTime = this.computeEndTime(dto.startTime, dto.durationHours);
 
     const available = await this.checkAvailability(
@@ -43,9 +55,22 @@ export class ReservationsService {
     const reservation = this.reservationRepo.create({
       ...dto,
       endTime,
-      status: 'pendiente_ayudantia',
+      ...this.initialApproval(dto.location, creatorRoles, dto.creatorId, dto.creatorName),
     });
     return this.reservationRepo.save(reservation);
+  }
+
+  /** Pendiente de Ayudantía, o ya aprobada si quien pide es del grupo que aprueba ese piso. */
+  private initialApproval(location: 'piso_8' | 'piso_6', roles: string[], creatorId: string, creatorName: string): Partial<Reservation> {
+    const group = selfApprovingGroup(location, roles);
+    if (!group) return { status: 'pendiente_ayudantia' };
+    return {
+      status: 'pendiente_ticom',
+      ayudantiaApprovedById: creatorId,
+      ayudantiaApprovedByName: creatorName,
+      ayudantiaApprovedByGroup: group,
+      ayudantiaApprovedAt: new Date(),
+    };
   }
 
   async findAll(filters?: {
@@ -53,6 +78,8 @@ export class ReservationsService {
     creatorId?: string;
     date?: string;
     location?: string;
+    /** Con location: también las propias de otro piso (Ayudantía que pide en el piso del otro grupo). */
+    orCreatorId?: string;
   }): Promise<Reservation[]> {
     const qb = this.reservationRepo.createQueryBuilder('r');
     if (filters?.status) {
@@ -64,7 +91,12 @@ export class ReservationsService {
     if (filters?.date) {
       qb.andWhere('r.date = :date', { date: filters.date });
     }
-    if (filters?.location) {
+    if (filters?.location && filters.orCreatorId) {
+      qb.andWhere('(r.location = :location OR r.creatorId = :orCreatorId)', {
+        location: filters.location,
+        orCreatorId: filters.orCreatorId,
+      });
+    } else if (filters?.location) {
       qb.andWhere('r.location = :location', { location: filters.location });
     }
     return qb.orderBy('r.date', 'DESC').addOrderBy('r.startTime', 'ASC').getMany();
@@ -246,6 +278,7 @@ export class ReservationsService {
     reservationId: string,
     creatorId: string,
     dto: Partial<CreateReservationDto>,
+    creatorRoles: string[] = [],
   ): Promise<Reservation> {
     const reservation = await this.reservationRepo.findOne({
       where: { id: reservationId, creatorId },
@@ -276,7 +309,7 @@ export class ReservationsService {
       equipmentType: dto.equipmentType ?? reservation.equipmentType,
       conferenceUrl: dto.conferenceUrl !== undefined ? (dto.conferenceUrl || undefined) : reservation.conferenceUrl,
       endTime,
-      status: 'pendiente_ayudantia',
+      ...this.initialApproval(newLocation, creatorRoles, reservation.creatorId, reservation.creatorName),
       // Clear rejection fields
       rejectionReason: undefined,
       rejectedById: undefined,

@@ -6,6 +6,7 @@ import { Reservation } from './entities/reservation.entity';
 import { BlockedPeriod } from './entities/blocked-period.entity';
 import { ReservationsService } from './reservations.service';
 import { ReservationsController } from './reservations.controller';
+import { ReservationRemindersController } from './reservation-reminders.controller';
 import { ReservationsGateway } from './reservations.gateway';
 import { ReservationsEmailService } from './reservations-email.service';
 import { BlockedPeriodsService } from './blocked-periods.service';
@@ -23,7 +24,7 @@ import { UsersModule } from '../users/users.module';
     }),
     UsersModule,
   ],
-  controllers: [ReservationsController],
+  controllers: [ReservationsController, ReservationRemindersController],
   providers: [ReservationsService, ReservationsGateway, ReservationsEmailService, BlockedPeriodsService],
   exports: [ReservationsService],
 })

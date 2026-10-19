@@ -18,6 +18,7 @@ import { ReservationsEmailService } from './reservations-email.service';
 import { BlockedPeriodsService } from './blocked-periods.service';
 import { UsersService } from '../users/users.service';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Reservation } from './entities/reservation.entity';
 
 @Controller('reservations')
 export class ReservationsController {
@@ -56,12 +57,31 @@ export class ReservationsController {
       location,
       equipmentType,
       conferenceUrl: conferenceUrl?.trim() || undefined,
-    });
+    }, await this.rolesOf(user));
 
     this.reservationsGateway.notifyNewReservation(reservation);
+    this.sendSubmittedEmails(reservation);
+    return reservation;
+  }
+
+  /** Roles frescos de la base (el JWT puede ser viejo si cambiaron los grupos). */
+  private async rolesOf(user: any): Promise<string[]> {
+    const dbUser = await this.usersService.findById(user.id);
+    return dbUser?.roles ?? user.roles ?? [];
+  }
+
+  /**
+   * Correos al pedir (o reenviar) una reserva. Si quien pide es de la Ayudantía que
+   * aprueba ese piso, ya quedó aprobada: avisa como aprobada y pasa a TICOM.
+   */
+  private sendSubmittedEmails(reservation: Reservation): void {
+    if (reservation.status === 'pendiente_ticom') {
+      this.reservationsEmailService.sendApprovalToCreator(reservation).catch(() => {});
+      this.reservationsEmailService.sendNewReservationToTicom(reservation).catch(() => {});
+      return;
+    }
     this.reservationsEmailService.sendConfirmationToCreator(reservation).catch(() => {});
     this.reservationsEmailService.sendNewReservationToAyudantia(reservation).catch(() => {});
-    return reservation;
   }
 
   @Get()
@@ -89,11 +109,12 @@ export class ReservationsController {
     if (isTicom) {
       return this.reservationsService.findAll({ status, date });
     }
+    // Su piso, y también las que pidió en el otro (las ve como cualquier solicitante).
     if (isAyudantiaRectorado && !isAyudantiaDiredtos) {
-      return this.reservationsService.findAll({ status, date, location: 'piso_6' });
+      return this.reservationsService.findAll({ status, date, location: 'piso_6', orCreatorId: user.id });
     }
     // AYUDANTIADIREDTOS (or legacy AYUDANTIA) → piso_8
-    return this.reservationsService.findAll({ status, date, location: 'piso_8' });
+    return this.reservationsService.findAll({ status, date, location: 'piso_8', orCreatorId: user.id });
   }
 
   @Get('availability')
@@ -259,11 +280,10 @@ export class ReservationsController {
       location,
       equipmentType,
       conferenceUrl: conferenceUrl?.trim() || undefined,
-    });
+    }, await this.rolesOf(user));
 
     this.reservationsGateway.notifyReservationUpdate(reservation);
-    this.reservationsEmailService.sendConfirmationToCreator(reservation).catch(() => {});
-    this.reservationsEmailService.sendNewReservationToAyudantia(reservation).catch(() => {});
+    this.sendSubmittedEmails(reservation);
     return reservation;
   }
 }

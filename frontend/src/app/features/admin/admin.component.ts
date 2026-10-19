@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../core/services/auth.service';
 import { BroadcastSendersComponent } from './broadcast-senders.component';
+import { ReservationRemindersComponent } from './reservation-reminders.component';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
 
 interface AdminUser {
@@ -75,7 +76,7 @@ const RANK_GROUPS = [
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, BroadcastSendersComponent, NewBadgeComponent],
+  imports: [CommonModule, FormsModule, DatePipe, BroadcastSendersComponent, ReservationRemindersComponent, NewBadgeComponent],
   template: `
     <div class="p-6 max-w-6xl mx-auto">
       <h1 class="text-2xl font-bold text-gray-800 dark:text-white mb-6">Panel de Administración</h1>
@@ -127,6 +128,15 @@ const RANK_GROUPS = [
           [class.text-gray-500]="activeTab() !== 'config'">
           Configuración
         </button>
+        <button (click)="activeTab.set('reminders')"
+          class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
+          [class.border-teal-600]="activeTab() === 'reminders'"
+          [class.text-teal-600]="activeTab() === 'reminders'"
+          [class.dark:text-teal-400]="activeTab() === 'reminders'"
+          [class.border-transparent]="activeTab() !== 'reminders'"
+          [class.text-gray-500]="activeTab() !== 'reminders'">
+          Avisos de reservas <app-new-badge feature="avisos-reservas" [compact]="true" />
+        </button>
         @if (isMlopez()) {
           <button (click)="activeTab.set('broadcast')"
             class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
@@ -139,6 +149,11 @@ const RANK_GROUPS = [
           </button>
         }
       </div>
+
+      <!-- ── AVISOS DE RESERVAS: correos que reciben el aviso de las videoconferencias (TICOM) ── -->
+      @if (activeTab() === 'reminders') {
+        <app-reservation-reminders />
+      }
 
       <!-- ── ANUNCIOS: quién puede enviar anuncios y mensajes a todos (solo mlopez) ── -->
       @if (activeTab() === 'broadcast' && isMlopez()) {
@@ -992,7 +1007,7 @@ const RANK_GROUPS = [
 export class AdminComponent implements OnInit {
   private readonly http = inject(HttpClient);
 
-  readonly activeTab = signal<'users' | 'groups' | 'permissions' | 'audit' | 'config' | 'broadcast'>('users');
+  readonly activeTab = signal<'users' | 'groups' | 'permissions' | 'audit' | 'config' | 'broadcast' | 'reminders'>('users');
   private readonly auth = inject(AuthService);
   /** La pestaña Anuncios (quién puede enviar anuncios y mensajes a todos) es solo para mlopez. */
   readonly isMlopez = computed(() => this.auth.currentUser()?.username === 'mlopez');

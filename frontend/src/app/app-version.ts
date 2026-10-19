@@ -57,5 +57,6 @@
  * 1.8.10 — Inicio de sesión: dice el motivo real (contraseña incorrecta, usuario bloqueado, contraseña vencida, servidor sin respuesta).
  * 1.8.11 — Administración → Anuncios: mlopez elige quién más puede enviar anuncios y mensajes a todos.
  * 1.8.12 — MTO cifrados por PON con el archivo en un enlace (SaaS): TICOM también puede subir el desencriptado.
+ * 1.8.13 — Reservas: Ayudantía pide sin aprobarse a sí misma; avisos a las 20:00 del día anterior y 6:30 (no 3:30); TICOM elige los correos.
  */
-export const APP_VERSION = '1.8.12';
+export const APP_VERSION = '1.8.13';

@@ -17,8 +17,6 @@ import { CometSpinnerComponent } from '../../shared/comet-spinner/comet-spinner.
       <p class="mt-1 text-sm text-gray-500 dark:text-zinc-400">
         Estos correos reciben el aviso de <strong>todas</strong> las videoconferencias reservadas:
         a las <strong>20:00 del día anterior</strong> y a las <strong>6:30 del mismo día</strong>.
-        Quien pidió cada videoconferencia recibe además el aviso de las suyas.
-        Si la lista queda vacía, el aviso va como antes: TICOM todas y cada Ayudantía las de su piso.
       </p>
 
       <div class="mt-5 flex gap-2">

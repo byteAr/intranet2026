@@ -180,18 +180,6 @@ import { HttpClient } from '@angular/common/http';
             </a>
           }
 
-          @if (isMlopez()) {
-            <a routerLink="/correo/autorizadores" routerLinkActive="active-nav"
-              class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
-              [title]="collapsed() ? 'Firmante MTO' : ''">
-              <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-              </svg>
-              @if (!collapsed()) { <span class="ml-3">Firmante MTO</span> }
-            </a>
-          }
-
           @if (permissionsService.isAllowed('carpetas') || sharedFoldersService.totalShares() > 0) {
           <a routerLink="/archivos" routerLinkActive="active-nav" appFeatureTip="archivos-compartidos"
             class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative"
@@ -233,18 +221,6 @@ import { HttpClient } from '@angular/common/http';
               </svg>
               @if (!collapsed()) { <span class="ml-3">Administración</span> }
             </a>
-          }
-
-          @if (permissionsService.isAllowed('parte-diario')) {
-          <a routerLink="/parte-diario" routerLinkActive="active-nav"
-            class="nav-item flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group"
-            [title]="collapsed() ? 'Parte Diario' : ''">
-            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-            </svg>
-            @if (!collapsed()) { <span class="ml-3">Parte Diario</span> }
-          </a>
           }
 
           @if (permissionsService.isAllowed('reservas')) {

@@ -60,5 +60,6 @@
  * 1.8.13 — Reservas: Ayudantía pide sin aprobarse a sí misma; avisos a las 20:00 del día anterior y 6:30 (no 3:30); TICOM elige los correos.
  * 1.8.14 — Fuera del menú "Firmante MTO" y "Parte Diario"; texto más corto en Avisos de reservas.
  * 1.8.15 — TICOM descarga el MTO como .msg de Outlook; se reconocen los encriptados "._00" (tilde cambiada por guion bajo).
+ * 1.8.16 — Conversaciones: arrastrar y soltar archivos sobre la conversación para adjuntarlos.
  */
-export const APP_VERSION = '1.8.15';
+export const APP_VERSION = '1.8.16';

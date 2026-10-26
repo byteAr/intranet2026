@@ -178,8 +178,19 @@ interface MtoShare {
         </div>
       </aside>
 
-      <!-- Chat thread -->
-      <div class="flex-1 flex flex-col">
+      <!-- Chat thread (se pueden soltar archivos encima para adjuntarlos) -->
+      <div class="relative flex-1 flex flex-col"
+           (dragover)="onThreadDragOver($event)"
+           (dragleave)="onThreadDragLeave($event)"
+           (drop)="onThreadDrop($event)">
+
+        @if (dropActive()) {
+          <div class="pointer-events-none absolute inset-2 z-20 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-teal-500 bg-teal-50/90 text-teal-800 dark:bg-zinc-900/90 dark:text-teal-300">
+            <svg class="h-10 w-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path [attr.d]="clipIconPath" /></svg>
+            <p class="text-sm font-semibold">Soltá los archivos para adjuntarlos</p>
+            <p class="text-xs opacity-80">Se envían con el próximo mensaje a {{ activeContactName() }} · hasta {{ maxFiles }} por mensaje</p>
+          </div>
+        }
 
         <!-- Thread header -->
         <div class="px-5 py-3 border-b border-gray-200 flex items-center space-x-2 flex-shrink-0">
@@ -330,9 +341,9 @@ interface MtoShare {
               (change)="onFileSelected($event)" />
             <!-- Paperclip button -->
             <button (click)="fileInput.click()" [disabled]="uploading() || selectedFiles().length >= maxFiles"
-              appFeatureTip="chat-varios-adjuntos" tipPlacement="top" aria-label="Adjuntar archivos"
+              appFeatureTip="chat-arrastrar" tipPlacement="top" aria-label="Adjuntar archivos"
               class="relative h-9 w-9 rounded-full flex items-center justify-center text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors flex-shrink-0 disabled:opacity-40">
-              <app-new-badge feature="chat-varios-adjuntos" [compact]="true" class="absolute -top-2 left-1/2 -translate-x-1/2 pointer-events-none" />
+              <app-new-badge feature="chat-arrastrar" [compact]="true" class="absolute -top-2 left-1/2 -translate-x-1/2 pointer-events-none" />
               <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path [attr.d]="clipIconPath" /></svg>
             </button>
             <input
@@ -543,6 +554,53 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     const input = event.target as HTMLInputElement;
     const picked = Array.from(input.files ?? []);
     input.value = '';
+    this.addFiles(picked);
+  }
+
+  // ── Arrastrar archivos sobre la conversación ─────────────────────────────
+
+  readonly dropActive = signal(false);
+
+  /** Solo archivos de la computadora (no texto ni imágenes arrastradas desde la página) y con una conversación abierta. */
+  private canDrop(event: DragEvent): boolean {
+    return this.chatService.activeRecipientId() !== null && !!event.dataTransfer?.types.includes('Files');
+  }
+
+  onThreadDragOver(event: DragEvent): void {
+    if (!this.canDrop(event)) return;
+    event.preventDefault();
+    event.dataTransfer!.dropEffect = this.uploading() ? 'none' : 'copy';
+    if (!this.uploading()) this.dropActive.set(true);
+  }
+
+  onThreadDragLeave(event: DragEvent): void {
+    // Pasar por encima de un hijo también dispara dragleave: solo vale si sale del panel.
+    const panel = event.currentTarget as HTMLElement;
+    if (!panel.contains(event.relatedTarget as Node | null)) this.dropActive.set(false);
+  }
+
+  onThreadDrop(event: DragEvent): void {
+    if (!this.canDrop(event)) return;
+    event.preventDefault();
+    this.dropActive.set(false);
+    if (this.uploading()) return;
+    // Las carpetas no se pueden adjuntar: solo los archivos sueltos.
+    const items = Array.from(event.dataTransfer!.items ?? []);
+    const files = items.length
+      ? items
+          .filter((it) => it.kind === 'file' && (it.webkitGetAsEntry?.()?.isFile ?? true))
+          .map((it) => it.getAsFile())
+          .filter((f): f is File => !!f)
+      : Array.from(event.dataTransfer!.files);
+    if (!files.length) {
+      alert('No se pueden adjuntar carpetas: arrastrá los archivos.');
+      return;
+    }
+    this.addFiles(files);
+  }
+
+  /** Suma archivos al próximo mensaje (clip o arrastre): mismos tipos, tamaño y cantidad. */
+  private addFiles(picked: File[]): void {
     if (!picked.length) return;
     const allowed = ['image/jpeg','image/png','image/gif','image/webp','application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

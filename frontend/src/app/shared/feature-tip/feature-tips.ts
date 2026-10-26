@@ -112,4 +112,12 @@ export const FEATURE_TIPS: Record<string, FeatureTip> = {
     text: 'Mandá hasta 10 archivos en un mismo mensaje.',
     points: ['Imágenes, PDF, Word, Excel, texto o RAR, de hasta 50 MB cada uno.'],
   },
+  'chat-arrastrar': {
+    title: 'Adjuntar archivos',
+    text: 'Tocá el clip o arrastrá los archivos desde tu computadora y soltalos sobre la conversación.',
+    points: [
+      'Hasta 10 archivos en un mismo mensaje.',
+      'Imágenes, PDF, Word, Excel, texto o RAR, de hasta 50 MB cada uno.',
+    ],
+  },
 };

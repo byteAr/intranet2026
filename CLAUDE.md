@@ -240,7 +240,11 @@ draft → pending_review → approved → sent
 - Hash: 8 chars alfanuméricos únicos, generado al aprobar, impreso en papel físico para verificación.
 - PROMOTOR siempre `DIREDTOS@MTO.GNA`.
 
+### Descargar un MTO como .msg (1.8.15, 26/10/2026, solo TICOM)
+Botón ".msg" junto a Imprimir: `GET /api/mail/emails/:id/msg` (`@Roles('TICOM')`) arma un .msg de Outlook para reenviar el MTO como adjunto a unidades que usan Outlook (solo abren el reenvío si es .msg). `msg-writer.util.ts` escribe MS-OXMSG a mano sobre un archivo compuesto con la librería `cfb` (SheetJS): `__properties_version1.0` + `__substg1.0_PPPPTTTT` por propiedad MAPI (asunto, remitente, `PR_DISPLAY_TO/CC`, fecha, `PR_BODY`, `PR_HTML` con `PR_INTERNET_CPID` 65001, Message-ID, encabezados), un `__recip_version1.0_#N` por destinatario (Para=1, CC=2), un `__attach_version1.0_#N` por adjunto original (los `.~NN` tal cual; **nunca** los desencriptados) y `__nameid_version1.0` vacío. No hay copia del correo original: se arma con lo que guarda la intranet. Verificado con `@kenjiuno/msgreader` (adjuntos idénticos byte a byte). Se baja por blob con JWT.
+
 ### Adjuntos encriptados recibidos (`.~NN`) — permisos
+- **También `._NN`** (26/10/2026, `encrypted-attachment.util.ts`): algún sistema del camino cambia la tilde por guion bajo (DEB 2671/26 trajo `LUNA25_1._00`) y no se reconocía como encriptado. La regla `/\.[~_]\d{2}$/` está en el backend y copiada en `mail.component.ts` (`isEncryptedFile`) y `file-icon.component.ts`: tocar las tres.
 - Original cifrado: lo ve y descarga cualquier usuario logueado (ilegible sin la clave).
 - Desencriptado (`decrypted_attachments`, se desencripta fuera y se sube): sube/borra solo **TICOM**; lo ven y descargan solo **ENCRIPTADO y TICOM** (TICOM para revisar si se equivocó, desde la 1.5.1). Los datos (`decryptedFiles`: id, nombre, quién lo subió, cuándo) solo los reciben ellos. SIENA (`siena_files`): igual.
 - **Qué es un MTO por SIENA** (`SienaFileService.isSiena(asunto, cuerpo)`): "SOFTWARE/SISTEMA/PLATAFORMA SIENA" o el enlace `siena.gna.gob.ar` en el cuerpo, o "SIENA" en el asunto. Hasta el 09/10/2026 solo "SOFTWARE SIENA" y se escapaban los "CIFRADO MEDIANTE SISTEMA SIENA" (IFM 839/26): sin eso no aparece la sección para subir los SIENA.

@@ -614,6 +614,18 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                       </svg>
                       Imprimir
                     </button>
+                    <!-- TICOM: el MTO como .msg de Outlook, para reenviarlo como adjunto a otras unidades -->
+                    @if (isTicom) {
+                      <button (click)="downloadMsg()" [disabled]="msgDownloading()"
+                        class="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-50"
+                        appFeatureTip="descargar-msg" tipPlacement="top">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        {{ msgDownloading() ? 'Armando…' : '.msg' }}
+                        <app-new-badge feature="descargar-msg" [compact]="true" />
+                      </button>
+                    }
                   </div>
                 </div>
               </div>
@@ -1067,8 +1079,9 @@ export class MailComponent implements OnInit {
     return this.mailService.isTicom;
   }
 
+  /** ".~00" o ".\_00" (algún sistema cambia la tilde por guion bajo). Copia de encrypted-attachment.util.ts del backend. */
   isEncryptedFile(filename: string): boolean {
-    return !!filename && /\.\~\d{2}$/.test(filename);
+    return !!filename && /\.[~_]\d{2}$/.test(filename);
   }
 
   // Computed para evitar re-render del innerHTML en cada CD (perdería la selección de texto)
@@ -1521,6 +1534,32 @@ export class MailComponent implements OnInit {
     } else {
       this.mailService.setFlag(email.id).subscribe({ next: (flag) => done(flag), error: () => this.flagBusy.set(false) });
     }
+  }
+
+  readonly msgDownloading = signal(false);
+
+  /** TICOM: baja el MTO abierto como .msg de Outlook (con sus adjuntos originales). */
+  downloadMsg(): void {
+    const email = this.activeEmail();
+    if (!email || this.msgDownloading()) return;
+    this.msgDownloading.set(true);
+    this.mailService.downloadMsg(email.id).subscribe({
+      next: (res) => {
+        this.msgDownloading.set(false);
+        const fromHeader = /filename\*=UTF-8''([^;]+)/i.exec(res.headers.get('Content-Disposition') ?? '')?.[1];
+        const name = fromHeader ? decodeURIComponent(fromHeader) : `${email.mailCode || 'MTO'}.msg`;
+        const url = URL.createObjectURL(res.body!);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      },
+      error: () => {
+        this.msgDownloading.set(false);
+        alert('No se pudo armar el .msg. Probá de nuevo.');
+      },
+    });
   }
 
   /** Ctrl+P con un MTO abierto: lo imprime con el formato de Outlook, como el botón Imprimir. */

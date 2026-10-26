@@ -23,6 +23,7 @@ export const NEW_FEATURES = {
   'subir-desencriptados': '2026-10-13',
   'permisos-anuncios': '2026-10-15',
   'avisos-reservas': '2026-10-19',
+  'descargar-msg': '2026-10-26',
 } as const;
 
 export type NewFeature = keyof typeof NEW_FEATURES;

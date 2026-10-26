@@ -176,6 +176,20 @@ export class MailController {
     createReadStream(att.storagePath).pipe(res);
   }
 
+  /** El MTO como .msg de Outlook, para reenviarlo como adjunto (solo TICOM). */
+  @Get('emails/:id/msg')
+  @Roles('TICOM')
+  async downloadMsg(@Param('id') id: string, @Res() res: Response) {
+    const { filename, data } = await this.mailService.exportMsg(id);
+    res.setHeader('Content-Type', 'application/vnd.ms-outlook');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${filename.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+    );
+    res.setHeader('Content-Length', String(data.length));
+    res.end(data);
+  }
+
   @Get('emails/:id/attachments/:aid')
   async downloadAttachment(
     @Param('id') id: string,

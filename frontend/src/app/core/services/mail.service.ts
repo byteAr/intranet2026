@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable, Subject, tap } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
@@ -485,6 +485,11 @@ export class MailService {
   }
 
   /** Sube uno o varios desencriptados de un adjunto .~NN (se suman a los que ya hay). */
+  /** El MTO como .msg de Outlook (solo TICOM). Blob con JWT: un <a href> directo daría 401. */
+  downloadMsg(emailId: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`/api/mail/emails/${emailId}/msg`, { responseType: 'blob', observe: 'response' });
+  }
+
   uploadDecrypted(emailId: string, attachmentId: string, files: File[]): Observable<DecryptedFile[]> {
     const fd = new FormData();
     for (const file of files) fd.append('files', file, file.name);

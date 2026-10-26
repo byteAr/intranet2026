@@ -55,6 +55,14 @@ export const FEATURE_TIPS: Record<string, FeatureTip> = {
     text: 'Quiénes abrieron este MTO.',
     points: ['Tocá para ver la lista con la fecha y hora en que cada uno lo vio por primera vez.'],
   },
+  'descargar-msg': {
+    title: 'Descargar como .msg',
+    text: 'Baja este MTO en el formato de Outlook, con sus adjuntos originales, para reenviarlo como adjunto a una unidad que use Outlook.',
+    points: [
+      'Se abre con doble clic en cualquier PC con Outlook.',
+      'Los adjuntos encriptados van tal cual llegaron; los desencriptados no se incluyen.',
+    ],
+  },
   'subir-desencriptados': {
     title: 'Subir desencriptados/SIENA',
     text: 'Elegí todos los desencriptados o archivos SIENA de una vez (o arrastralos sobre el MTO) y cada uno va solo a su encriptado.',

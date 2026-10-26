@@ -7,6 +7,8 @@ import { join } from 'path';
 import { expandTnef, isTnefAttachment } from './tnef.util';
 import { OUTLOOK_DRAWING_SQL } from './outlook-drawing.util';
 import { isEncryptedByLink } from './encrypted-link.util';
+import { isEncryptedAttachment } from './encrypted-attachment.util';
+import { buildMsg, msgFilename } from './msg-writer.util';
 import { Email } from './entities/email.entity';
 import { Attachment } from './entities/attachment.entity';
 import { EmailReadStatus } from './entities/email-read-status.entity';
@@ -1058,7 +1060,7 @@ export class MailService implements OnApplicationBootstrap {
     const canSeeDecrypted = userRoles?.some((r) => r === 'TICOM' || r === 'ENCRIPTADO') ?? false;
     if (canSeeDecrypted && email.attachments?.length) {
       const encryptedIds = email.attachments
-        .filter((a) => /\.\~\d{2}$/.test(a.filename))
+        .filter((a) => isEncryptedAttachment(a.filename))
         .map((a) => a.id);
       if (encryptedIds.length > 0) {
         const decryptedRows = await this.decryptedRepo.find({
@@ -1085,7 +1087,7 @@ export class MailService implements OnApplicationBootstrap {
         }
         // Puede haber varios por adjunto: un .rar encriptado trae varios documentos.
         (email as any).attachments = email.attachments.map((att) => {
-          if (!/\.~\d{2}$/.test(att.filename)) return att;
+          if (!isEncryptedAttachment(att.filename)) return att;
           const decryptedFiles = decryptedOf.get(att.id) ?? [];
           return { ...att, hasDecrypted: decryptedFiles.length > 0, decryptedFiles };
         });
@@ -1096,7 +1098,7 @@ export class MailService implements OnApplicationBootstrap {
     // desencriptados de un MTO cifrado por PON con el archivo en un enlace (SaaS).
     const externalKind = SienaFileService.isSiena(email.subject, email.bodyText)
       ? 'siena'
-      : isEncryptedByLink(email.bodyText, !!email.attachments?.some((a) => /\.~\d{2}$/.test(a.filename)))
+      : isEncryptedByLink(email.bodyText, !!email.attachments?.some((a) => isEncryptedAttachment(a.filename)))
         ? 'enlace'
         : null;
     if (canSeeDecrypted && externalKind) {
@@ -1244,5 +1246,34 @@ export class MailService implements OnApplicationBootstrap {
     });
     if (!att) throw new NotFoundException('Adjunto no encontrado');
     return att;
+  }
+
+  /**
+   * El MTO como .msg de Outlook (TICOM), para reenviarlo como adjunto a unidades
+   * que usan Outlook. Con los adjuntos originales que están en el disco.
+   */
+  async exportMsg(id: string): Promise<{ filename: string; data: Buffer }> {
+    const email = await this.emailRepo.findOne({ where: { id }, relations: { attachments: true } });
+    if (!email) throw new NotFoundException('Correo no encontrado');
+    const attachments: { filename: string; contentType: string; data: Buffer }[] = [];
+    for (const a of email.attachments ?? []) {
+      if (!existsSync(a.storagePath)) {
+        this.logger.warn(`.msg de ${email.mailCode ?? email.id}: falta en el disco el adjunto ${a.filename}`);
+        continue;
+      }
+      attachments.push({ filename: a.filename, contentType: a.contentType, data: await fsp.readFile(a.storagePath) });
+    }
+    const data = buildMsg({
+      subject: email.subject ?? '',
+      from: email.fromAddress ?? '',
+      to: email.toAddresses ?? [],
+      cc: email.ccAddresses ?? [],
+      date: email.date ?? new Date(),
+      bodyText: email.bodyText ?? '',
+      bodyHtml: email.bodyHtml,
+      messageId: email.internetMessageId,
+      attachments,
+    });
+    return { filename: msgFilename(email.mailCode, email.subject ?? ''), data };
   }
 }

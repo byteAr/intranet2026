@@ -124,8 +124,8 @@ export class FileIconComponent {
    * 'siena': desencriptado con SIENA (su tipo + "SIENA" celeste); sin indicar, se deduce del nombre.
    */
   readonly lock = input<'open' | 'closed' | 'siena' | null>(null);
-  /** Adjuntos encriptados de MTO: .~00 (y extensiones solo numéricas, .001). */
-  readonly encrypted = computed(() => /\.~?\d+$/.test(this.file().name));
+  /** Adjuntos encriptados de MTO: .~00 o ._00 (y extensiones solo numéricas, .001). */
+  readonly encrypted = computed(() => /\.[~_]?\d+$/.test(this.file().name));
   readonly padlock = computed(() => this.lock() ?? (this.encrypted() ? 'closed' : null));
   /** Las etiquetas largas (EXCEL, HOJAS) se ensanchan para no achicar tanto la letra. */
   readonly labelWidth = computed(() => ((this.badge()?.label.length ?? 0) >= 5 ? 32 : 26));

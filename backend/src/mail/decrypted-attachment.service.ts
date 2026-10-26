@@ -9,6 +9,7 @@ import { existsSync, unlinkSync } from 'fs';
 import { DecryptedAttachment } from './entities/decrypted-attachment.entity';
 import { Attachment } from './entities/attachment.entity';
 import { decryptedDisplayName } from './decrypted-name.util';
+import { isEncryptedAttachment } from './encrypted-attachment.util';
 
 @Injectable()
 export class DecryptedAttachmentService {
@@ -32,7 +33,7 @@ export class DecryptedAttachmentService {
     uploadedByName: string,
   ): Promise<DecryptedAttachment[]> {
     const att = await this.attachmentRepo.findOne({ where: { id: attachmentId, emailId } });
-    if (!att || !/\.\~\d{2}$/.test(att.filename)) {
+    if (!att || !isEncryptedAttachment(att.filename)) {
       // diskStorage ya escribió los archivos: no dejarlos huérfanos
       for (const f of files) { try { unlinkSync(f.path); } catch { /* ya borrado */ } }
       if (!att) throw new NotFoundException('Adjunto no encontrado');

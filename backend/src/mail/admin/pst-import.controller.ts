@@ -60,8 +60,11 @@ export class PstImportController {
     if (filename.includes('/') || filename.includes('..')) {
       throw new BadRequestException('Nombre de archivo inválido');
     }
-    await this.pstImportService.startImport(filename, user.displayName);
-    return { ok: true, message: 'Importación iniciada en segundo plano' };
+    const { alreadyImported } = await this.pstImportService.startImport(filename, user.displayName);
+    if (alreadyImported) {
+      return { ok: true, alreadyImported, message: `${filename} ya se importó completo: lo que trae ya está en la intranet.` };
+    }
+    return { ok: true, alreadyImported, message: 'Importación iniciada en segundo plano' };
   }
 
   @Get('history')

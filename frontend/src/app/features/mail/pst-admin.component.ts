@@ -107,7 +107,11 @@ interface PstComplete {
           <p class="mt-2 text-sm text-red-500">{{ uploadError() }}</p>
         }
         @if (uploadSuccess()) {
-          <p class="mt-2 text-sm text-teal-600">Archivo subido correctamente.</p>
+          <!-- Subir no es importar: hasta acá los MTO no entraron a la intranet -->
+          <div class="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+            <strong>{{ uploadedName() }}</strong> se subió al servidor, pero <strong>todavía no se importó</strong>:
+            tocá <strong>Importar</strong> en su fila de la lista de abajo (está marcada en amarillo).
+          </div>
         }
       </section>
 
@@ -123,7 +127,9 @@ interface PstComplete {
         } @else {
           <div class="space-y-2">
             @for (f of pstFiles(); track f.filename) {
-              <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-100 bg-gray-50">
+              @let log = lastLogOf().get(f.filename);
+              <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg border"
+                   [ngClass]="f.filename === uploadedName() && !log ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-gray-100 bg-gray-50'">
                 <svg class="h-5 w-5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -131,15 +137,29 @@ interface PstComplete {
                 <span class="flex-1 text-sm text-gray-700 truncate">{{ f.filename }}</span>
                 <span class="text-xs text-gray-400">{{ formatSize(f.size) }}</span>
 
-                @if (activeImport() === f.filename) {
+                <!-- Estado de cada archivo: subir no es importar -->
+                @if (f.size === 0) {
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700"
+                        title="El archivo quedó vacío: la subida falló. Hay que subirlo de nuevo.">Subida incompleta (0 B)</span>
+                } @else if (activeImport() === f.filename || log?.status === 'running') {
                   <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 animate-pulse">Importando...</span>
+                } @else if (log?.status === 'completed') {
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700"
+                        [title]="log!.inserted + ' MTO nuevos, ' + log!.skippedDuplicates + ' que ya estaban'">
+                    Importado el {{ formatDate(log!.finishedAt ?? log!.startedAt) }} · {{ log!.inserted | number }} nuevos
+                  </span>
                 } @else {
+                  @if (log?.status === 'failed') {
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700" [title]="log!.errorMessage ?? ''">Falló</span>
+                  } @else {
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">Sin importar</span>
+                  }
                   <button
                     (click)="startImport(f.filename)"
                     [disabled]="!!activeImport()"
                     class="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-white rounded-md disabled:opacity-40 transition-colors"
                     style="background:#0f766e">
-                    Importar
+                    {{ log?.status === 'failed' ? 'Reintentar' : 'Importar' }}
                   </button>
                 }
               </div>
@@ -160,7 +180,13 @@ interface PstComplete {
             <h2 class="text-sm font-semibold text-gray-700">Importando: <span class="font-mono text-amber-700">{{ activeImport() }}</span></h2>
           </div>
 
-          @if (currentProgress()) {
+          @if (!currentProgress() && runningLog(); as r) {
+            <!-- Al volver a la pantalla: lo último que guardó el servidor (cada 50 MTO) -->
+            <p class="text-sm text-gray-600">
+              {{ r.totalProcessed | number }} procesados · {{ r.inserted | number }} nuevos · {{ r.skippedDuplicates | number }} ya estaban
+            </p>
+            <p class="text-xs text-gray-400 mt-1">Se puede salir de esta pantalla: la importación sigue en el servidor.</p>
+          } @else if (currentProgress()) {
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
               <div class="bg-gray-50 rounded-lg p-3 text-center">
                 <p class="text-2xl font-bold text-gray-800">{{ currentProgress()!.current | number }}</p>
@@ -334,7 +360,19 @@ export class PstAdminComponent implements OnInit, OnDestroy {
   readonly uploadProgress = signal<number | null>(null);
   readonly uploadError = signal('');
   readonly uploadSuccess = signal(false);
+  /** Nombre con que quedó en el servidor lo último que se subió (se marca en la lista hasta importarlo). */
+  readonly uploadedName = signal<string | null>(null);
   readonly activeImport = signal<string | null>(null);
+  /** Última importación de cada archivo (el historial viene del más nuevo al más viejo). */
+  readonly lastLogOf = computed(() => {
+    const map = new Map<string, ImportLog>();
+    for (const log of this.history()) if (!map.has(log.filename)) map.set(log.filename, log);
+    return map;
+  });
+  /** La importación en curso según el servidor: sigue aunque se haya salido de la pantalla. */
+  readonly runningLog = computed(() =>
+    this.history().find((l) => l.status === 'running' && l.filename !== '__reprocess__') ?? null);
+  private historyPoll: ReturnType<typeof setInterval> | null = null;
   readonly currentProgress = signal<PstProgress | null>(null);
   readonly importError = signal('');
   readonly reprocessStatus = signal<ImportLog | null>(null);
@@ -363,6 +401,7 @@ export class PstAdminComponent implements OnInit, OnDestroy {
     this.socket = null;
     window.removeEventListener('beforeunload', this.beforeUnloadHandler);
     if (this.reprocessPollInterval) clearInterval(this.reprocessPollInterval);
+    if (this.historyPoll) clearInterval(this.historyPoll);
   }
 
   private connectWs(): void {
@@ -400,7 +439,19 @@ export class PstAdminComponent implements OnInit, OnDestroy {
 
   loadHistory(): void {
     this.http.get<ImportLog[]>('/api/mail/admin/pst/history').subscribe({
-      next: (list) => this.history.set(list),
+      next: (list) => {
+        this.history.set(list);
+        // Una importación en curso (también la que se lanzó antes de entrar a la
+        // pantalla) se sigue consultando cada 10 s hasta que termina o se corta.
+        const running = this.runningLog();
+        if (running) {
+          this.activeImport.set(running.filename);
+          if (!this.historyPoll) this.historyPoll = setInterval(() => this.loadHistory(), 10_000);
+        } else {
+          if (this.activeImport() && !this.currentProgress()) this.activeImport.set(null);
+          if (this.historyPoll) { clearInterval(this.historyPoll); this.historyPoll = null; }
+        }
+      },
     });
   }
 
@@ -432,6 +483,11 @@ export class PstAdminComponent implements OnInit, OnDestroy {
     xhr.onload = () => {
       this.uploading.set(false);
       if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          this.uploadedName.set(JSON.parse(xhr.responseText)?.filename ?? null);
+        } catch {
+          this.uploadedName.set(null);
+        }
         this.uploadSuccess.set(true);
         this.uploadFile = null;
         this.uploadProgress.set(null);
@@ -491,8 +547,17 @@ export class PstAdminComponent implements OnInit, OnDestroy {
     this.activeImport.set(filename);
     this.currentProgress.set(null);
 
-    this.http.post<{ ok: boolean }>(`/api/mail/admin/pst/import/${encodeURIComponent(filename)}`, {}).subscribe({
-      next: () => { /* background job started */ },
+    this.http.post<{ ok: boolean; alreadyImported?: boolean; message?: string }>(`/api/mail/admin/pst/import/${encodeURIComponent(filename)}`, {}).subscribe({
+      next: (res) => {
+        if (res.alreadyImported) {
+          // Antes quedaba "Importando..." para siempre: el servidor no hacía nada.
+          this.activeImport.set(null);
+          this.importError.set(res.message ?? `${filename} ya se importó.`);
+        } else {
+          this.uploadSuccess.set(false);
+        }
+        this.loadHistory();
+      },
       error: (err: any) => {
         this.activeImport.set(null);
         this.importError.set(err?.error?.message ?? 'Error al iniciar la importación.');

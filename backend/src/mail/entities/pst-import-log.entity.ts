@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 export enum PstImportStatus {
@@ -48,4 +49,12 @@ export class PstImportLog {
 
   @Column({ type: 'text', nullable: true })
   importedBy: string;
+
+  /**
+   * Latido mientras corre (cada minuto): si deja de moverse, el backend que la
+   * hacía se reinició o se cayó y la importación se marca como fallida en vez
+   * de quedar "en curso" para siempre (Año 2016.pst estuvo así desde abril).
+   */
+  @UpdateDateColumn({ type: 'timestamptz', nullable: true })
+  updatedAt: Date;
 }

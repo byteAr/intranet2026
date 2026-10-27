@@ -1,4 +1,4 @@
-import { Injectable, Logger, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -126,7 +126,7 @@ processFolder(pstFile.getRootFolder(), false)
 `;
 
 @Injectable()
-export class PstImportService {
+export class PstImportService implements OnModuleInit {
   private readonly logger = new Logger(PstImportService.name);
 
   constructor(
@@ -155,10 +155,47 @@ export class PstImportService {
     return this.logRepo.find({ order: { startedAt: 'DESC' } });
   }
 
-  /** Start import in background — returns immediately. */
-  async startImport(filename: string, importedBy: string): Promise<void> {
+  onModuleInit(): void {
+    // Importaciones y reprocesos que quedaron "en curso" porque el backend que los
+    // hacía se reinició (un pase) o se cayó: sin latido hace 5 min, fallidos. Lo
+    // revisa cualquier backend (staging comparte la base): el latido es lo que manda.
+    const revisar = () =>
+      this.logRepo
+        .query(
+          `UPDATE pst_import_logs
+              SET status = 'failed', "finishedAt" = now(),
+                  "errorMessage" = 'Se cortó: el backend se reinició (un pase o una caída). Volvé a tocar Importar: lo que ya entró se saltea.'
+            WHERE status = 'running' AND coalesce("updatedAt", "startedAt") < now() - interval '5 minutes'
+            RETURNING filename`,
+        )
+        .then(([filas]: [{ filename: string }[]]) => {
+          for (const f of filas ?? []) this.logger.warn(`PST: "${f.filename}" figuraba en curso sin avance; marcada como cortada`);
+        })
+        .catch(() => undefined);
+    setTimeout(revisar, 30_000).unref();
+    setInterval(revisar, 2 * 60_000).unref();
+  }
+
+  /** Mientras corre una importación o un reproceso: prueba de que el backend sigue vivo. */
+  private heartbeat(logId: string): () => void {
+    const timer = setInterval(() => {
+      void this.logRepo
+        .query(`UPDATE pst_import_logs SET "updatedAt" = now() WHERE id = $1`, [logId])
+        .catch(() => undefined);
+    }, 60_000);
+    return () => clearInterval(timer);
+  }
+
+  /**
+   * Start import in background — returns immediately. `alreadyImported` si ese
+   * archivo ya se importó completo (no se repite: lo de adentro ya está).
+   */
+  async startImport(filename: string, importedBy: string): Promise<{ alreadyImported: boolean }> {
     const filePath = path.join(this.uploadPath, filename);
-    if (!fs.existsSync(filePath)) throw new Error(`Archivo no encontrado: ${filename}`);
+    if (!fs.existsSync(filePath)) throw new NotFoundException(`No está el archivo ${filename} en el servidor`);
+    if (fs.statSync(filePath).size === 0) {
+      throw new BadRequestException(`${filename} está vacío (0 B): la subida falló. Subilo de nuevo.`);
+    }
 
     // Idempotency: skip if already completed
     const existing = await this.logRepo.findOne({
@@ -166,7 +203,7 @@ export class PstImportService {
     });
     if (existing) {
       this.logger.log(`PST ${filename} ya fue importado (completed), salteando.`);
-      return;
+      return { alreadyImported: true };
     }
 
     // Create or reset log entry
@@ -180,6 +217,7 @@ export class PstImportService {
     this.runImport(filePath, filename, log.id).catch((err) => {
       this.logger.error(`PST import background error: ${(err as Error).message}`);
     });
+    return { alreadyImported: false };
   }
 
   private async runImport(filePath: string, filename: string, logId: string): Promise<void> {
@@ -192,6 +230,7 @@ export class PstImportService {
       attachmentsSaved: 0,
     };
 
+    const stopHeartbeat = this.heartbeat(logId);
     try {
       await this.processWithWorker(filePath, filename, logId, stats, startedAt);
 
@@ -223,6 +262,8 @@ export class PstImportService {
       });
       this.mailGateway.server.emit('pst_error', { filename, errorMessage: msg });
       this.logger.error(`PST import failed: ${filename} — ${msg}`);
+    } finally {
+      stopHeartbeat();
     }
   }
 
@@ -264,12 +305,18 @@ export class PstImportService {
             .catch(reject);
         } else if (msg.type === 'done') {
           resolve();
+          // El lector queda escuchando 'next' para siempre: se cierra (y suelta el PST).
+          void worker.terminate();
         } else if (msg.type === 'error') {
           reject(new Error(msg.message));
+          void worker.terminate();
         }
       });
 
       worker.on('error', reject);
+      // Si el lector termina sin avisar (se quedó sin memoria, PST dañado), que no
+      // quede "en curso" para siempre. Después de un resolve/reject no tiene efecto.
+      worker.on('exit', (code) => reject(new Error(`El lector del PST terminó inesperadamente (código ${code})`)));
     });
   }
 
@@ -404,6 +451,7 @@ export class PstImportService {
     let mailCodesUpdated = 0;
     let referencesCreated = 0;
 
+    const stopHeartbeat = this.heartbeat(logId);
     try {
       // === PASO 1: Actualizar mailCodes en batches ===
       let offset = 0;
@@ -515,6 +563,8 @@ export class PstImportService {
         totalProcessed,
       });
       this.logger.error(`Reprocess fallido: ${(err as Error).message}`);
+    } finally {
+      stopHeartbeat();
     }
   }
 }

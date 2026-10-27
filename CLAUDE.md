@@ -147,6 +147,10 @@ Lo que va dentro del cuerpo **no** es un adjunto y no se guarda: `isBodyPart()` 
 ### Dibujos de Outlook (`image001.emz`)
 Outlook manda dentro del correo metarchivos comprimidos (`image001.emz`, `.wmz`) para dibujar el cuerpo (líneas, logos). No son adjuntos, pero llegan con un tipo que no es `image/` y el filtro de incrustadas del mail-bridge los dejaba pasar: la intranet los mostraba en MTO sin adjuntos (FGI 2757/26). `isOutlookDrawing()` (`outlook-drawing.util.ts`, solo el nombre exacto `imageNNN.emz/wmz`) los descarta al ingresar (bridge/IMAP y PST). Limpieza de lo guardado en cada arranque (`removeOutlookDrawings`, una consulta; sin marca para que también limpie lo que guardó un backend viejo mientras se probaba en staging): borra las filas de `attachments`; el archivo queda en el disco.
 
+### Importar PST (TICOM, `pst-import.service.ts`, `pst-admin.component.ts`)
+- **Subir no es importar**: la barra al 100 % y "subido" solo dejan el archivo en `/app/storage/pst`; los MTO entran recién al tocar **Importar** en su fila (27/10/2026: `backup2018.pst` estaba subido y nunca se importó; el "Completado" que se veía era el del reproceso). Desde la 1.8.20 cada archivo muestra su estado (Sin importar / Importando / Importado el … · N nuevos / Falló → Reintentar / Subida incompleta si pesa 0 B) y el recién subido queda marcado en amarillo.
+- La importación y el reproceso corren **dentro del backend**: un pase los corta. Latido cada minuto en `pst_import_logs."updatedAt"`; sin latido hace 5 min se marcan `failed` ("Se cortó…") y se puede reintentar (lo ya importado se saltea por Message-ID). Un archivo ya importado completo no se vuelve a importar (`alreadyImported`).
+
 ### No leídos
 `MAIL_UNREAD_SINCE` (ISO 8601): lo ingresado antes cuenta como leído para todos. Lo importado desde PST nunca cuenta como no leído.
 

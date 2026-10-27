@@ -64,5 +64,6 @@
  * 1.8.17 — Respaldo nocturno de los MTO en Google Drive (Administración → Respaldo MTO).
  * 1.8.18 — Sin la prueba manual del respaldo; restauración de MTO desde Drive y plan de contingencia.
  * 1.8.19 — Un .rar/.zip que trae archivos encriptados (.~00) adentro cuenta como encriptado: TICOM le sube los desencriptados.
+ * 1.8.20 — Importar PST: cada archivo dice si está sin importar, importándose, importado o falló; subir ya no parece importar.
  */
-export const APP_VERSION = '1.8.19';
+export const APP_VERSION = '1.8.20';

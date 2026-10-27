@@ -13,6 +13,7 @@ import { MailParserService } from '../mail-parser.service';
 import { MailGateway } from '../mail.gateway';
 import { normalizeMailText } from '../mail-text.util';
 import { isOutlookDrawing } from '../outlook-drawing.util';
+import { archiveHasEncrypted } from '../archive-names.util';
 
 /** Data shape sent from the worker thread for each PST message */
 interface WorkerMessageData {
@@ -336,6 +337,7 @@ export class PstImportService {
             contentType: att.mimeTag,
             size: att.data.length,
             storagePath,
+            encryptedInside: archiveHasEncrypted(att.filename, att.data),
           }),
         );
         stats.attachmentsSaved++;

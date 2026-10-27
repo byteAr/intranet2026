@@ -208,8 +208,8 @@ async function restoreMto(d: drive_v3.Drive, db: any, folder: drive_v3.Schema$Fi
     const extras = files.filter((f) => f !== msg);
     if (!extras.length) return;
     const atts: { id: string; filename: string }[] = (
-      await db.query(`SELECT id::text AS id, filename FROM attachments WHERE "emailId"::text = $1`, [emailId])
-    ).rows.filter((a: { filename: string }) => ENCRYPTED.test(a.filename));
+      await db.query(`SELECT id::text AS id, filename, "encryptedInside" FROM attachments WHERE "emailId"::text = $1`, [emailId])
+    ).rows.filter((a: { filename: string; encryptedInside: boolean }) => ENCRYPTED.test(a.filename) || a.encryptedInside);
     for (const f of extras) {
       const { rows: done } = await db.query(`SELECT 1 FROM mto_backup_files WHERE "fileId" = $1`, [f.id]);
       if (done.length) continue;

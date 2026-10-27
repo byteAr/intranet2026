@@ -7,7 +7,8 @@ import { join } from 'path';
 import { expandTnef, isTnefAttachment } from './tnef.util';
 import { OUTLOOK_DRAWING_SQL } from './outlook-drawing.util';
 import { isEncryptedByLink } from './encrypted-link.util';
-import { isEncryptedAttachment } from './encrypted-attachment.util';
+import { isEncrypted } from './encrypted-attachment.util';
+import { ARCHIVE_NAME_SQL, archiveHasEncrypted } from './archive-names.util';
 import { buildMsg, msgFilename } from './msg-writer.util';
 import { Email } from './entities/email.entity';
 import { Attachment } from './entities/attachment.entity';
@@ -112,6 +113,63 @@ export class MailService implements OnApplicationBootstrap {
     void this.addInferredReferences();
     void this.repairMailCodeSpaces();
     void this.removeOutlookDrawings();
+    void this.markEncryptedArchives();
+  }
+
+  /**
+   * Una sola vez (27/10/2026): revisa los .rar/.zip ya guardados y marca
+   * `encryptedInside` en los que traen adjuntos encriptados por PON adentro
+   * (ES 4167/26: "LIBRA.part2.rar" con los .~00 y el texto mal escrito). Solo
+   * lee los encabezados. Lo hace producción (staging tiene los adjuntos de solo
+   * lectura). Marca en app_markers 'attachments.encryptedInside'.
+   */
+  private async markEncryptedArchives(): Promise<void> {
+    const MARK = 'archives:v1';
+    const runner = this.dataSource.createQueryRunner();
+    let locked = false;
+    try {
+      await runner.connect();
+      const [fila] = await runner.query(`SELECT "value" FROM "app_markers" WHERE "key" = 'attachments.encryptedInside'`).catch(() => []);
+      if (fila?.value === MARK) return;
+      const base = process.env.MAIL_ATTACHMENTS_PATH ?? '/app/storage/attachments';
+      try {
+        await fsp.access(base, fsConstants.W_OK);
+      } catch {
+        return;
+      }
+      const [{ ok }] = await runner.query(`SELECT pg_try_advisory_lock(720261028) AS ok`);
+      if (!ok) return;
+      locked = true;
+
+      await runner.query(`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS "encryptedInside" boolean NOT NULL DEFAULT false`);
+      const filas: { id: string; filename: string; storagePath: string }[] = await runner.query(
+        `SELECT id, filename, "storagePath" FROM attachments WHERE filename ~* $1 AND NOT "encryptedInside"`,
+        [ARCHIVE_NAME_SQL],
+      );
+      this.logger.log(`Comprimidos con encriptados adentro: revisando ${filas.length} .rar/.zip guardados...`);
+      let marcados = 0;
+      for (const f of filas) {
+        try {
+          if (!existsSync(f.storagePath)) continue;
+          if (!archiveHasEncrypted(f.filename, await fsp.readFile(f.storagePath))) continue;
+          await runner.query(`UPDATE attachments SET "encryptedInside" = true WHERE id = $1`, [f.id]);
+          marcados++;
+        } catch (err) {
+          this.logger.warn(`Comprimido ${f.id}: ${(err as Error).message}`);
+        }
+      }
+      await runner.query(
+        `INSERT INTO "app_markers" ("key", "value") VALUES ('attachments.encryptedInside', $1)
+         ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
+        [MARK],
+      );
+      this.logger.log(`Comprimidos con encriptados adentro: ${marcados} de ${filas.length} (ahora se les pueden subir los desencriptados)`);
+    } catch (err) {
+      this.logger.error('Comprimidos con encriptados: la revisión falló; se reintenta en el próximo arranque', (err as Error).message);
+    } finally {
+      if (locked) await runner.query(`SELECT pg_advisory_unlock(720261028)`).catch(() => undefined);
+      await runner.release().catch(() => undefined);
+    }
   }
 
   /**
@@ -1060,7 +1118,7 @@ export class MailService implements OnApplicationBootstrap {
     const canSeeDecrypted = userRoles?.some((r) => r === 'TICOM' || r === 'ENCRIPTADO') ?? false;
     if (canSeeDecrypted && email.attachments?.length) {
       const encryptedIds = email.attachments
-        .filter((a) => isEncryptedAttachment(a.filename))
+        .filter((a) => isEncrypted(a))
         .map((a) => a.id);
       if (encryptedIds.length > 0) {
         const decryptedRows = await this.decryptedRepo.find({
@@ -1087,7 +1145,7 @@ export class MailService implements OnApplicationBootstrap {
         }
         // Puede haber varios por adjunto: un .rar encriptado trae varios documentos.
         (email as any).attachments = email.attachments.map((att) => {
-          if (!isEncryptedAttachment(att.filename)) return att;
+          if (!isEncrypted(att)) return att;
           const decryptedFiles = decryptedOf.get(att.id) ?? [];
           return { ...att, hasDecrypted: decryptedFiles.length > 0, decryptedFiles };
         });
@@ -1098,7 +1156,7 @@ export class MailService implements OnApplicationBootstrap {
     // desencriptados de un MTO cifrado por PON con el archivo en un enlace (SaaS).
     const externalKind = SienaFileService.isSiena(email.subject, email.bodyText)
       ? 'siena'
-      : isEncryptedByLink(email.bodyText, !!email.attachments?.some((a) => isEncryptedAttachment(a.filename)))
+      : isEncryptedByLink(email.bodyText, !!email.attachments?.some((a) => isEncrypted(a)))
         ? 'enlace'
         : null;
     if (canSeeDecrypted && externalKind) {

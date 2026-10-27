@@ -22,6 +22,8 @@ export interface MailAttachment {
   filename: string;
   contentType: string;
   size: number;
+  /** .rar/.zip con adjuntos encriptados por PON adentro: se trata como encriptado. */
+  encryptedInside?: boolean;
   hasDecrypted?: boolean;
   /**
    * Solo para TICOM y ENCRIPTADO, en adjuntos .~NN: lo que subió TICOM ya

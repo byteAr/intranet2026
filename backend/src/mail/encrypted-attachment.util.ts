@@ -10,3 +10,8 @@ export const ENCRYPTED_ATTACHMENT = /\.[~_]\d{2}$/;
 export function isEncryptedAttachment(filename: string | null | undefined): boolean {
   return !!filename && ENCRYPTED_ATTACHMENT.test(filename);
 }
+
+/** Adjunto encriptado: por su nombre o, si es un .rar/.zip, por lo que trae adentro (`encryptedInside`). */
+export function isEncrypted(att: { filename: string; encryptedInside?: boolean | null }): boolean {
+  return isEncryptedAttachment(att.filename) || !!att.encryptedInside;
+}

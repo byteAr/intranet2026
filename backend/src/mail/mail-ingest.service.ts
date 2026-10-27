@@ -13,6 +13,7 @@ import { IMailGateway } from './imap-poller.service';
 import { htmlToPlainText, normalizeMailText } from './mail-text.util';
 import { expandTnef } from './tnef.util';
 import { isOutlookDrawing } from './outlook-drawing.util';
+import { archiveHasEncrypted } from './archive-names.util';
 import { MailAlertsService } from './mail-alerts.service';
 
 export interface IngestData {
@@ -184,6 +185,7 @@ export class MailIngestService {
             contentType: att.contentType,
             size: att.data.length,
             storagePath,
+            encryptedInside: archiveHasEncrypted(att.filename, att.data),
           }),
         );
       } catch (err) {

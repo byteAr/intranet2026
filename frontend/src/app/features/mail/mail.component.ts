@@ -662,14 +662,14 @@ const FOLDER_LABELS: Record<MailFolder, string> = {
                           <button
                             (click)="openPreview(activeEmail()!.id, att.id, att.filename)"
                             class="group flex flex-col items-center gap-1 px-2 pt-2.5 pb-2 rounded-xl border border-gray-200 dark:border-zinc-700 hover:border-teal-300 hover:bg-teal-50/50 dark:hover:bg-zinc-800 transition-colors w-24"
-                            [title]="att.filename + ' — ' + formatSize(att.size) + (isEncryptedFile(att.filename) ? ' — encriptado' : '')">
-                            <app-file-icon [file]="{ name: att.filename }" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
+                            [title]="att.filename + ' — ' + formatSize(att.size) + (isEncrypted(att) ? (att.encryptedInside ? ' — trae archivos encriptados adentro' : ' — encriptado') : '')">
+                            <app-file-icon [file]="{ name: att.filename }" [lock]="att.encryptedInside ? 'closed' : null" [size]="40" class="transition-transform group-hover:-translate-y-0.5" />
                             <span class="w-full text-center text-[11px] leading-tight text-gray-700 dark:text-zinc-300 line-clamp-2 break-all" [innerHTML]="highlightText(att.filename)"></span>
                             <span class="text-[10px] text-gray-400 dark:text-zinc-500">{{ formatSize(att.size) }}</span>
                           </button>
 
                           <!-- Encriptado (.~NN) sin desencriptados: se suben con el botón de abajo o arrastrando -->
-                          @if (isEncryptedFile(att.filename) && (isTicom || isEncriptado) && !att.decryptedFiles?.length) {
+                          @if (isEncrypted(att) && (isTicom || isEncriptado) && !att.decryptedFiles?.length) {
                             <span class="w-24 text-center text-[10px] leading-tight text-amber-600 italic">Todavía no se cargó el desencriptado</span>
                           }
                         </div>
@@ -1084,6 +1084,11 @@ export class MailComponent implements OnInit {
     return !!filename && /\.[~_]\d{2}$/.test(filename);
   }
 
+  /** Encriptado por su nombre, o un .rar/.zip que trae encriptados adentro (lo detecta el backend). */
+  isEncrypted(att: MailAttachment): boolean {
+    return this.isEncryptedFile(att.filename) || !!att.encryptedInside;
+  }
+
   // Computed para evitar re-render del innerHTML en cada CD (perdería la selección de texto)
   readonly highlightedBodyHtml = computed(() => {
     const email = this.activeEmail();
@@ -1116,7 +1121,7 @@ export class MailComponent implements OnInit {
    * ya están los desencriptados: ahí ve solo esos.
    */
   showOriginalAttachment(att: MailAttachment): boolean {
-    if (!this.isEncryptedFile(att.filename) || this.isTicom || !this.isEncriptado) return true;
+    if (!this.isEncrypted(att) || this.isTicom || !this.isEncriptado) return true;
     return !att.decryptedFiles?.length;
   }
 
@@ -1152,7 +1157,7 @@ export class MailComponent implements OnInit {
   private readonly sinRecarga = inject(AppVersionService).holdWhile('desencriptados', () => !!this.dropUploading() || !!this.dropAssign());
 
   readonly hasEncryptedAttachments = computed(() =>
-    !!this.activeEmail()?.attachments?.some((a) => this.isEncryptedFile(a.filename)));
+    !!this.activeEmail()?.attachments?.some((a) => this.isEncrypted(a)));
 
   /** MTO cifrado por PON con el archivo en un enlace (SaaS), sin ".~00" adjunto: sus desencriptados van por MTO. */
   readonly isLinkEncrypted = computed(() => this.activeEmail()?.externalFilesKind === 'enlace');
@@ -1166,7 +1171,7 @@ export class MailComponent implements OnInit {
     const email = this.activeEmail();
     if (!email) return [];
     const targets: DropTarget[] = (email.attachments ?? [])
-      .filter((a) => this.isEncryptedFile(a.filename))
+      .filter((a) => this.isEncrypted(a))
       .map((a) => ({ key: a.id, label: `Desencriptado de ${a.filename}`, attachmentId: a.id, base: baseName(a.filename) }));
     if (email.sienaFiles !== undefined) {
       targets.push({ key: 'siena', label: this.isLinkEncrypted() ? 'Desencriptados del enlace' : 'Archivos SIENA', base: null });

@@ -63,5 +63,6 @@
  * 1.8.16 — Conversaciones: arrastrar y soltar archivos sobre la conversación para adjuntarlos.
  * 1.8.17 — Respaldo nocturno de los MTO en Google Drive (Administración → Respaldo MTO).
  * 1.8.18 — Sin la prueba manual del respaldo; restauración de MTO desde Drive y plan de contingencia.
+ * 1.8.19 — Un .rar/.zip que trae archivos encriptados (.~00) adentro cuenta como encriptado: TICOM le sube los desencriptados.
  */
-export const APP_VERSION = '1.8.18';
+export const APP_VERSION = '1.8.19';

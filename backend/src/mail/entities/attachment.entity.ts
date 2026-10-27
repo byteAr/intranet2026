@@ -34,6 +34,13 @@ export class Attachment {
   @Column()
   storagePath: string;
 
+  /**
+   * Un .rar/.zip que trae adentro adjuntos encriptados por PON (".~00"): se trata
+   * como encriptado (TICOM sube los desencriptados). Ver archive-names.util.ts.
+   */
+  @Column({ default: false })
+  encryptedInside: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 }

@@ -7,7 +7,7 @@ import { Readable } from 'stream';
 import { GoogleDriveService } from '../shared-folders/google-drive.service';
 import { MailService } from '../mail/mail.service';
 import { SienaFileService } from '../mail/siena-file.service';
-import { isEncryptedAttachment } from '../mail/encrypted-attachment.util';
+import { isEncrypted } from '../mail/encrypted-attachment.util';
 import { isEncryptedByLink } from '../mail/encrypted-link.util';
 import { decryptedDisplayName } from '../mail/decrypted-name.util';
 import { argentinaParts, ZONA_ARGENTINA } from '../common/argentina-time';
@@ -221,8 +221,8 @@ export class MtoBackupService implements OnModuleInit {
       [emailId],
     );
     if (!email) return 0;
-    const attachments: { filename: string }[] = await this.dataSource.query(
-      `SELECT filename FROM attachments WHERE "emailId" = $1`,
+    const attachments: { filename: string; encryptedInside: boolean }[] = await this.dataSource.query(
+      `SELECT filename, "encryptedInside" FROM attachments WHERE "emailId" = $1`,
       [emailId],
     );
 
@@ -262,9 +262,9 @@ export class MtoBackupService implements OnModuleInit {
   }
 
   /** Año / mes / día (hora de Argentina) / carpeta del MTO; los encriptados aparte. */
-  private pathFor(email: { subject: string; bodyText: string; folder: string; date: Date }, attachments: { filename: string }[]): string[] {
+  private pathFor(email: { subject: string; bodyText: string; folder: string; date: Date }, attachments: { filename: string; encryptedInside?: boolean }[]): string[] {
     const { year, month, day } = argentinaParts(new Date(email.date ?? Date.now()));
-    const hasEncrypted = attachments.some((a) => isEncryptedAttachment(a.filename));
+    const hasEncrypted = attachments.some((a) => isEncrypted(a));
     let category: string[];
     if (SienaFileService.isSiena(email.subject, email.bodyText)) category = ['Encriptados', 'SIENA'];
     else if (hasEncrypted || isEncryptedByLink(email.bodyText, hasEncrypted)) category = ['Encriptados', 'PON'];

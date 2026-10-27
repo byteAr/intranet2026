@@ -29,6 +29,10 @@ export class PstImportLog {
   @Column({ type: 'enum', enum: PstImportStatus, default: PstImportStatus.RUNNING })
   status: PstImportStatus;
 
+  /** Elementos que trae el PST (suma de las carpetas), para mostrar "N de M". 0 = no se sabe. */
+  @Column({ default: 0 })
+  totalItems: number;
+
   @Column({ default: 0 })
   totalProcessed: number;
 

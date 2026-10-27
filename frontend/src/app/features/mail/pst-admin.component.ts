@@ -17,6 +17,8 @@ interface ImportLog {
   status: 'running' | 'completed' | 'failed';
   startedAt: string;
   finishedAt?: string;
+  /** Elementos que trae el PST (0 = no se sabe: importaciones anteriores a la 1.8.21). */
+  totalItems?: number;
   totalProcessed: number;
   inserted: number;
   skippedDuplicates: number;
@@ -29,6 +31,15 @@ interface ImportLog {
 interface PstProgress {
   filename: string;
   current: number;
+  total?: number;
+  inserted: number;
+  skipped: number;
+  elapsedMs: number;
+}
+
+interface ProgressView {
+  current: number;
+  total: number;
   inserted: number;
   skipped: number;
   elapsedMs: number;
@@ -180,33 +191,36 @@ interface PstComplete {
             <h2 class="text-sm font-semibold text-gray-700">Importando: <span class="font-mono text-amber-700">{{ activeImport() }}</span></h2>
           </div>
 
-          @if (!currentProgress() && runningLog(); as r) {
-            <!-- Al volver a la pantalla: lo último que guardó el servidor (cada 50 MTO) -->
-            <p class="text-sm text-gray-600">
-              {{ r.totalProcessed | number }} procesados · {{ r.inserted | number }} nuevos · {{ r.skippedDuplicates | number }} ya estaban
-            </p>
-            <p class="text-xs text-gray-400 mt-1">Se puede salir de esta pantalla: la importación sigue en el servidor.</p>
-          } @else if (currentProgress()) {
+          @if (progress(); as p) {
+            @if (p.total) {
+              <div class="flex items-baseline justify-between text-sm mb-1.5">
+                <span class="text-gray-600"><b class="text-gray-800">{{ p.current | number }}</b> de {{ p.total | number }}</span>
+                <span class="font-semibold text-amber-700">{{ percent(p) }} %</span>
+              </div>
+              <div class="h-2 rounded-full bg-gray-100 overflow-hidden mb-4">
+                <div class="h-full bg-amber-400 transition-all duration-700" [style.width.%]="percent(p)"></div>
+              </div>
+            }
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
               <div class="bg-gray-50 rounded-lg p-3 text-center">
-                <p class="text-2xl font-bold text-gray-800">{{ currentProgress()!.current | number }}</p>
+                <p class="text-2xl font-bold text-gray-800">{{ p.current | number }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">Procesados</p>
               </div>
               <div class="bg-teal-50 rounded-lg p-3 text-center">
-                <p class="text-2xl font-bold text-teal-700">{{ currentProgress()!.inserted | number }}</p>
-                <p class="text-xs text-gray-400 mt-0.5">Insertos</p>
+                <p class="text-2xl font-bold text-teal-700">{{ p.inserted | number }}</p>
+                <p class="text-xs text-gray-400 mt-0.5">Nuevos</p>
               </div>
               <div class="bg-gray-50 rounded-lg p-3 text-center">
-                <p class="text-2xl font-bold text-gray-500">{{ currentProgress()!.skipped | number }}</p>
-                <p class="text-xs text-gray-400 mt-0.5">Duplicados</p>
+                <p class="text-2xl font-bold text-gray-500">{{ p.skipped | number }}</p>
+                <p class="text-xs text-gray-400 mt-0.5">Ya estaban</p>
               </div>
               <div class="bg-gray-50 rounded-lg p-3 text-center">
-                <p class="text-2xl font-bold text-gray-600">{{ formatElapsed(currentProgress()!.elapsedMs) }}</p>
+                <p class="text-2xl font-bold text-gray-600">{{ formatElapsed(p.elapsedMs) }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">Tiempo</p>
               </div>
             </div>
             <p class="text-xs text-gray-400">
-              Velocidad aprox.: {{ speed() }} emails/seg · Actualiza cada 50 emails
+              {{ perMinute(p) }} por minuto{{ remaining(p) }} · Se puede salir de esta pantalla: la importación sigue en el servidor.
             </p>
           } @else {
             <p class="text-sm text-gray-400 animate-pulse">Iniciando lectura del archivo PST...</p>
@@ -374,6 +388,23 @@ export class PstAdminComponent implements OnInit, OnDestroy {
     this.history().find((l) => l.status === 'running' && l.filename !== '__reprocess__') ?? null);
   private historyPoll: ReturnType<typeof setInterval> | null = null;
   readonly currentProgress = signal<PstProgress | null>(null);
+  /**
+   * El avance a mostrar: el que llega en vivo o, si se entró con la importación
+   * ya en marcha (o se perdió la conexión), lo que guardó el servidor (cada 50 MTO).
+   */
+  readonly progress = computed<ProgressView | null>(() => {
+    const p = this.currentProgress();
+    if (p) return { current: p.current, total: p.total ?? 0, inserted: p.inserted, skipped: p.skipped, elapsedMs: p.elapsedMs };
+    const r = this.runningLog();
+    if (!r) return null;
+    return {
+      current: r.totalProcessed,
+      total: r.totalItems ?? 0,
+      inserted: r.inserted,
+      skipped: r.skippedDuplicates,
+      elapsedMs: Math.max(0, Date.now() - new Date(r.startedAt).getTime()),
+    };
+  });
   readonly importError = signal('');
   readonly reprocessStatus = signal<ImportLog | null>(null);
   readonly reprocessError = signal('');
@@ -600,9 +631,19 @@ export class PstAdminComponent implements OnInit, OnDestroy {
     return `${s}s`;
   }
 
-  speed(): string {
-    const p = this.currentProgress();
-    if (!p || p.elapsedMs < 1000) return '—';
-    return (p.current / (p.elapsedMs / 1000)).toFixed(1);
+  percent(p: ProgressView): number {
+    return p.total ? Math.min(100, Math.floor((p.current / p.total) * 100)) : 0;
+  }
+
+  perMinute(p: ProgressView): string {
+    if (p.elapsedMs < 60_000) return '—';
+    return Math.round(p.current / (p.elapsedMs / 60_000)).toLocaleString('es-AR');
+  }
+
+  /** " · faltan unos N min" según el ritmo hasta ahora (vacío si no se sabe el total). */
+  remaining(p: ProgressView): string {
+    if (!p.total || p.elapsedMs < 60_000 || !p.current || p.current >= p.total) return '';
+    const ms = ((p.total - p.current) / p.current) * p.elapsedMs;
+    return ` · faltan unos ${this.formatElapsed(Math.max(60_000, ms)).replace(/ \d+s$/, '')}`;
   }
 }

@@ -119,8 +119,20 @@ async function processFolder(folder, isSentParent) {
   }
 }
 
+// Cuántos elementos trae (para mostrar "N de M"): solo lee los encabezados de
+// las carpetas, menos de un segundo aun en un PST de 12 GB.
+function countItems(folder) {
+  var n = folder.contentCount || 0;
+  if (folder.hasSubfolders) {
+    for (var child of folder.getSubFolders()) n += countItems(child);
+  }
+  return n;
+}
+
 var pstFile = new PSTFile(workerData.filePath);
-processFolder(pstFile.getRootFolder(), false)
+var rootFolder = pstFile.getRootFolder();
+try { parentPort.postMessage({ type: 'total', total: countItems(rootFolder) }); } catch (e) {}
+processFolder(rootFolder, false)
   .then(function() { parentPort.postMessage({ type: 'done' }); })
   .catch(function(err) { parentPort.postMessage({ type: 'error', message: err.message }); });
 `;
@@ -223,6 +235,7 @@ export class PstImportService implements OnModuleInit {
   private async runImport(filePath: string, filename: string, logId: string): Promise<void> {
     const startedAt = Date.now();
     const stats = {
+      totalItems: 0,
       totalProcessed: 0,
       inserted: 0,
       skippedDuplicates: 0,
@@ -285,8 +298,11 @@ export class PstImportService implements OnModuleInit {
         workerData: { filePath },
       });
 
-      worker.on('message', (msg: { type: string; data?: WorkerMessageData; message?: string }) => {
-        if (msg.type === 'message' && msg.data) {
+      worker.on('message', (msg: { type: string; data?: WorkerMessageData; message?: string; total?: number }) => {
+        if (msg.type === 'total') {
+          stats.totalItems = msg.total ?? 0;
+          void this.logRepo.update(logId, { totalItems: stats.totalItems }).catch(() => undefined);
+        } else if (msg.type === 'message' && msg.data) {
           this.processMessageFromWorker(msg.data, stats)
             .then(async () => {
               stats.totalProcessed++;
@@ -295,6 +311,7 @@ export class PstImportService implements OnModuleInit {
                 this.mailGateway.server.emit('pst_progress', {
                   filename,
                   current: stats.totalProcessed,
+                  total: stats.totalItems,
                   inserted: stats.inserted,
                   skipped: stats.skippedDuplicates,
                   elapsedMs: Date.now() - startedAt,

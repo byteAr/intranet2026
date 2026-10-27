@@ -10,7 +10,7 @@ import { Email, MailFolder } from './entities/email.entity';
 import { Attachment } from './entities/attachment.entity';
 import { EmailReference } from './entities/email-reference.entity';
 import { IMailGateway } from './imap-poller.service';
-import { normalizeMailText } from './mail-text.util';
+import { htmlToPlainText, normalizeMailText } from './mail-text.util';
 import { expandTnef } from './tnef.util';
 import { isOutlookDrawing } from './outlook-drawing.util';
 import { MailAlertsService } from './mail-alerts.service';
@@ -63,10 +63,12 @@ export class MailIngestService {
   async ingest(raw: IngestData): Promise<IngestResult> {
     // Antes que nada: la deduplicación y la detección del mailCode tienen que
     // ver el texto ya corregido, no los caracteres de control.
+    // Un MTO puede llegar sin parte de texto (solo HTML, o solo adjuntos): se
+    // saca el texto del HTML y, si tampoco hay, queda vacío pero se guarda.
     const data: IngestData = {
       ...raw,
       subject: normalizeMailText(raw.subject),
-      bodyText: normalizeMailText(raw.bodyText),
+      bodyText: normalizeMailText(raw.bodyText?.trim() ? raw.bodyText : htmlToPlainText(raw.bodyHtml)),
       bodyHtml: normalizeMailText(raw.bodyHtml),
     };
 

@@ -45,9 +45,10 @@ export class IngestEmailDto {
   @IsOptional()
   ccAddresses?: string[];
 
+  // Puede venir vacío: MTO sin parte de texto (solo HTML o solo adjuntos).
   @IsString()
-  @IsNotEmpty()
-  bodyText: string;
+  @IsOptional()
+  bodyText?: string;
 
   @IsString()
   @IsOptional()

@@ -119,3 +119,32 @@ export function cp1252SqlRepair(): {
     dirtyPattern: '[\u0001-\u0008\u000B\u000C\u000E-\u001F\u0080-\u009F]',
   };
 }
+
+const HTML_ENTITIES: Record<string, string> = {
+  nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'",
+  aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú', uuml: 'ü', ntilde: 'ñ',
+  Aacute: 'Á', Eacute: 'É', Iacute: 'Í', Oacute: 'Ó', Uacute: 'Ú', Uuml: 'Ü', Ntilde: 'Ñ',
+  ordm: 'º', ordf: 'ª', deg: '°', laquo: '«', raquo: '»', iexcl: '¡', iquest: '¿',
+};
+
+/**
+ * Texto plano a partir del HTML, para los MTO que llegan sin parte de texto
+ * (uid 267228 y 270571 se perdieron así: el backend exigía `bodyText`).
+ * Solo para guardar y buscar: la pantalla sigue mostrando el HTML.
+ */
+export function htmlToPlainText(html: string | null | undefined): string {
+  if (!html) return '';
+  return html
+    .replace(/<(style|script|head)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, e: string) => {
+      if (e[0] !== '#') return HTML_ENTITIES[e] ?? HTML_ENTITIES[e.toLowerCase()] ?? m;
+      const code = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : m;
+    })
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}

@@ -204,6 +204,8 @@ Puente entre servidor de correo (`10.201.2.37`) e intranet. VLANs separadas por 
 - Idempotency: `internetMessageId` unique constraint en DB.
 - TLS: `rejectUnauthorized: false` (cert del servidor no incluye IP en SAN).
 - `fetchOne` requiere `{ uid: true }` como tercer argumento para usar UIDs reales.
+- **Volver a leer UID ya pasados** (27/10/2026): crear `C:\intranet2026\mail-bridge\reingest.json` con `{"INBOX":[267228,270571]}` (también por `\\172.21.36.104\c$`); en el ciclo siguiente los reingresa sin mover `lastUid`, anota "Releer uid=… : listo" y borra el archivo. Lo que ya está en la base se saltea (Message-ID).
+- Un MTO **sin parte de texto** (solo HTML o solo adjuntos) se rechazaba con 400 "bodyText should not be empty" y se perdía (uid 267228 del 02/09 y 270571 del 28/09/2026). Desde el 27/10/2026 `bodyText` es opcional y `MailIngestService` lo saca del HTML (`htmlToPlainText`).
 
 ### LDAP del bridge (LIBRETALDAP.GNA)
 - Host: `10.201.0.7:389` ⚠️ (NO `10.201.2.37` — ese es IMAP/correo).

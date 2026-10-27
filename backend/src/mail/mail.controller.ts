@@ -357,6 +357,7 @@ export class MailController {
     }));
     const result = await this.mailIngestService.ingest({
       ...dto,
+      bodyText: dto.bodyText ?? '',
       ccAddresses: dto.ccAddresses ?? [],
       date: new Date(dto.date),
       attachments,

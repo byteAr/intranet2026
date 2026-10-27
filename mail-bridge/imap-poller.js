@@ -330,9 +330,10 @@ class ImapPoller {
       try {
         for (const uid of uids.map(Number)) {
           // El INBOX se archiva en pocos días: si el mensaje ya no está, no se
-          // puede releer desde acá (habría que buscarlo en la carpeta del archivo).
-          const existe = await client.search({ uid: String(uid) }, { uid: true });
-          if (!existe || !existe.includes(uid)) {
+          // puede releer desde acá (habría que buscarlo con "sinTexto").
+          // Con FETCH y no con SEARCH: este servidor no responde los SEARCH.
+          const existe = await client.fetchOne(String(uid), { uid: true }, { uid: true });
+          if (!existe) {
             this.log(`Releer uid=${uid} de ${mailbox}: ya no está en esa carpeta (¿archivado?) — se descarta`);
             if (this.state.__retries) delete this.state.__retries[`${mailbox}:${uid}`];
             continue;
@@ -380,8 +381,9 @@ class ImapPoller {
     }
 
     for (const fecha of fechas) {
-      const desde = new Date(`${fecha}T00:00:00Z`);
-      if (Number.isNaN(desde.getTime())) {
+      // El día en hora de Argentina (fecha de llegada, INTERNALDATE).
+      const desde = new Date(`${fecha}T00:00:00-03:00`);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number.isNaN(desde.getTime())) {
         this.log(`Buscar sin texto: fecha inválida "${fecha}" (usar AAAA-MM-DD) — se descarta`);
         continue;
       }
@@ -400,7 +402,14 @@ class ImapPoller {
           continue;
         }
         try {
-          const uids = (await client.search({ since: desde, before: hasta }, { uid: true })) || [];
+          // Este servidor no responde los SEARCH (imapflow lo devuelve como
+          // "ningún resultado"): se recorre la fecha de llegada de cada mensaje.
+          const uids = [];
+          if (client.mailbox && client.mailbox.exists > 0) {
+            for await (const m of client.fetch('1:*', { uid: true, internalDate: true })) {
+              if (m.internalDate >= desde && m.internalDate < hasta) uids.push(m.uid);
+            }
+          }
           for (const uid of uids) {
             revisados++;
             const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
@@ -420,7 +429,7 @@ class ImapPoller {
         }
       }
 
-      this.log(`Buscar sin texto ${fecha}: ${revisados} mensaje(s) revisados en ${carpetas.length} carpeta(s), ${encontrados} sin texto${falla ? ' — hubo fallas (ver arriba): volver a pedirlo' : ''}`);
+      this.log(`Buscar sin texto ${fecha}: ${revisados} mensaje(s) de ese día revisados en ${carpetas.length} carpeta(s), ${encontrados} sin texto${falla ? ' — hubo fallas (ver arriba): volver a pedirlo' : ''}`);
     }
   }
 

@@ -326,6 +326,14 @@ class ImapPoller {
       }
       try {
         for (const uid of uids.map(Number)) {
+          // El INBOX se archiva en pocos días: si el mensaje ya no está, no se
+          // puede releer desde acá (habría que buscarlo en la carpeta del archivo).
+          const existe = await client.search({ uid: String(uid) }, { uid: true });
+          if (!existe || !existe.includes(uid)) {
+            this.log(`Releer uid=${uid} de ${mailbox}: ya no está en esa carpeta (¿archivado?) — se descarta`);
+            if (this.state.__retries) delete this.state.__retries[`${mailbox}:${uid}`];
+            continue;
+          }
           const resultado = await this._processMessage(client, uid, mailbox !== 'INBOX');
           if (resultado === 'infra') {
             (quedan[mailbox] = quedan[mailbox] || []).push(uid);

@@ -73,17 +73,13 @@ interface BackupStatus {
           </ul>
         </div>
 
-        <div class="mt-4 flex flex-wrap items-center gap-3">
-          <button (click)="runNow()" [disabled]="!s.enabled || s.running || starting()"
-            class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50">
-            Probar ahora (20 MTO)
-          </button>
-          @if (s.rootUrl) {
+        @if (s.rootUrl) {
+          <div class="mt-4 flex flex-wrap items-center gap-3">
             <a [href]="s.rootUrl" target="_blank" rel="noopener"
               class="text-sm text-teal-700 underline underline-offset-2 dark:text-teal-400">Abrir la carpeta en Drive</a>
             <span class="text-xs text-gray-400">(con la cuenta {{ s.account }})</span>
-          }
-        </div>
+          </div>
+        }
       }
       @if (error()) {
         <p class="mt-3 text-sm text-red-600">{{ error() }}</p>
@@ -97,7 +93,6 @@ export class MtoBackupComponent implements OnInit {
 
   readonly status = signal<BackupStatus | null>(null);
   readonly loading = signal(true);
-  readonly starting = signal(false);
   readonly error = signal<string | null>(null);
   readonly percent = computed(() => {
     const s = this.status();
@@ -113,21 +108,6 @@ export class MtoBackupComponent implements OnInit {
       .subscribe(() => {
         if (this.status()?.running) this.load();
       });
-  }
-
-  runNow(): void {
-    this.starting.set(true);
-    this.error.set(null);
-    this.http.post('/api/mto-backup/run', { limit: 20 }).subscribe({
-      next: () => {
-        this.starting.set(false);
-        setTimeout(() => this.load(), 1500);
-      },
-      error: (err) => {
-        this.starting.set(false);
-        this.error.set(err?.error?.message ?? 'No se pudo iniciar.');
-      },
-    });
   }
 
   private load(): void {

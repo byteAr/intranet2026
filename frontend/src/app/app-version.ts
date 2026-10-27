@@ -62,5 +62,6 @@
  * 1.8.15 — TICOM descarga el MTO como .msg de Outlook; se reconocen los encriptados "._00" (tilde cambiada por guion bajo).
  * 1.8.16 — Conversaciones: arrastrar y soltar archivos sobre la conversación para adjuntarlos.
  * 1.8.17 — Respaldo nocturno de los MTO en Google Drive (Administración → Respaldo MTO).
+ * 1.8.18 — Sin la prueba manual del respaldo; restauración de MTO desde Drive y plan de contingencia.
  */
-export const APP_VERSION = '1.8.17';
+export const APP_VERSION = '1.8.18';

@@ -59,6 +59,11 @@ export class IngestEmailDto {
   @IsBoolean()
   isSentFolder: boolean;
 
+  /** Restauración desde el respaldo de Drive: sin avisos y con la fecha original como ingreso. */
+  @IsBoolean()
+  @IsOptional()
+  restore?: boolean;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => IngestAttachmentDto)

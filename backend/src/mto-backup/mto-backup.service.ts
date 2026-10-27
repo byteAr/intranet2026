@@ -115,13 +115,6 @@ export class MtoBackupService implements OnModuleInit {
     await this.run({ until: Date.now() + NIGHT_WINDOW_MS, reason: 'madrugada' });
   }
 
-  /** Prueba a mano (TICOM): unos pocos MTO, a cualquier hora. */
-  startManual(limit: number): boolean {
-    if (!this.enabled || this.running) return false;
-    void this.run({ until: Date.now() + 15 * 60_000, limit, reason: 'a mano' });
-    return true;
-  }
-
   // ── Estado (Administración → Respaldo MTO) ────────────────────────────────
 
   async status(): Promise<BackupStatus> {

@@ -26,6 +26,12 @@ export interface IngestData {
   date: Date;
   isSentFolder: boolean;
   attachments: Array<{ filename: string; contentType: string; data: Buffer }>;
+  /**
+   * Restauración desde el respaldo de Drive (mto-backup/restore.ts): no avisa a
+   * nadie (ni campanita, ni "Mis alertas", ni la lista en vivo) y toma la fecha
+   * del MTO como fecha de ingreso, así lo viejo no aparece como "no leído".
+   */
+  restore?: boolean;
 }
 
 export interface IngestResult {
@@ -134,6 +140,12 @@ export class MailIngestService {
 
     if (mailCode) {
       await this.mailParserService.resolvePendingReferences(saved.id, mailCode);
+    }
+
+    if (data.restore) {
+      // Restaurado: la fecha de ingreso es la del MTO (los "no leídos" se cuentan desde ahí).
+      await this.emailRepo.update(saved.id, { createdAt: data.date } as Partial<Email>);
+      return { saved, skipped: false };
     }
 
     // Avisos en la campanita: MTO seguidos y "Mis alertas" (no frena el ingreso).

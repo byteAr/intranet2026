@@ -17,6 +17,12 @@ const SENT_FOLDER_NAMES = [
 
 const STATE_FILE = path.join(__dirname, 'state.json');
 
+// Pedido de volver a leer mensajes ya pasados (que el backend rechazó o que se
+// saltearon), sin mover lastUid: { "INBOX": [267228, 270571] }. Se crea a mano
+// (también por \\172.21.36.104\c$) y el puente lo atiende en el ciclo siguiente;
+// lo que se ingresa o el backend rechaza sale de la lista, y al vaciarse se borra.
+const REINGEST_FILE = path.join(__dirname, 'reingest.json');
+
 // Tope de mensajes por ciclo. Evita mantener una conexión IMAP abierta durante
 // horas al recuperar un atraso grande — el servidor la corta (ECONNRESET) y se
 // pierde el lote entero. El resto continúa en el ciclo siguiente.
@@ -195,6 +201,7 @@ class ImapPoller {
 
     try {
       await client.connect();
+      await this._reingestRequested(client);
       await this._fetchFromMailbox(client, 'INBOX', false);
       await this._fetchFromSent(client);
       await client.logout();
@@ -295,6 +302,50 @@ class ImapPoller {
       await this._fetchFromMailbox(client, sentBox.path || sentBox.name, true);
     } catch (err) {
       this.log(`Sent folder error: ${err.message}`);
+    }
+  }
+
+  async _reingestRequested(client) {
+    let pedido;
+    try {
+      pedido = JSON.parse(fs.readFileSync(REINGEST_FILE, 'utf8').replace(/^﻿/, ''));
+    } catch (err) {
+      if (err.code !== 'ENOENT') this.log(`reingest.json ilegible (${err.message}) — se ignora`);
+      return;
+    }
+
+    const quedan = {};
+    for (const [mailbox, uids] of Object.entries(pedido || {})) {
+      if (!Array.isArray(uids) || !uids.length) continue;
+      let lock;
+      try {
+        lock = await client.getMailboxLock(mailbox);
+      } catch (err) {
+        this.log(`Releer: no se pudo abrir ${mailbox} (${err.message}) — se descarta el pedido`);
+        continue;
+      }
+      try {
+        for (const uid of uids.map(Number)) {
+          const resultado = await this._processMessage(client, uid, mailbox !== 'INBOX');
+          if (resultado === 'infra') {
+            (quedan[mailbox] = quedan[mailbox] || []).push(uid);
+            this.log(`Releer uid=${uid} de ${mailbox}: falla de infraestructura, se reintenta en el próximo ciclo`);
+            continue;
+          }
+          this.log(`Releer uid=${uid} de ${mailbox}: ${resultado === 'ok' ? 'listo' : 'el backend lo rechazó de nuevo (ver el error de arriba)'}`);
+          if (this.state.__retries) delete this.state.__retries[`${mailbox}:${uid}`];
+        }
+      } finally {
+        lock.release();
+      }
+    }
+
+    saveState(this.state);
+    try {
+      if (Object.keys(quedan).length) fs.writeFileSync(REINGEST_FILE, JSON.stringify(quedan), 'utf8');
+      else fs.unlinkSync(REINGEST_FILE);
+    } catch (err) {
+      this.log(`No se pudo actualizar reingest.json: ${err.message}`);
     }
   }
 

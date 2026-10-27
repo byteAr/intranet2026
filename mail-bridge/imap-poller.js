@@ -308,15 +308,18 @@ class ImapPoller {
   async _reingestRequested(client) {
     let pedido;
     try {
-      pedido = JSON.parse(fs.readFileSync(REINGEST_FILE, 'utf8').replace(/^﻿/, ''));
+      pedido = JSON.parse(fs.readFileSync(REINGEST_FILE, 'utf8').replace(/^\uFEFF/, ''));
     } catch (err) {
       if (err.code !== 'ENOENT') this.log(`reingest.json ilegible (${err.message}) — se ignora`);
       return;
     }
 
     const quedan = {};
+    if (Array.isArray(pedido?.sinTexto) && pedido.sinTexto.length) {
+      await this._reingestWithoutText(client, pedido.sinTexto);
+    }
     for (const [mailbox, uids] of Object.entries(pedido || {})) {
-      if (!Array.isArray(uids) || !uids.length) continue;
+      if (mailbox === 'sinTexto' || !Array.isArray(uids) || !uids.length) continue;
       let lock;
       try {
         lock = await client.getMailboxLock(mailbox);
@@ -354,6 +357,70 @@ class ImapPoller {
       else fs.unlinkSync(REINGEST_FILE);
     } catch (err) {
       this.log(`No se pudo actualizar reingest.json: ${err.message}`);
+    }
+  }
+
+  /**
+   * { "sinTexto": ["2026-09-02"] }: busca en TODAS las carpetas (salvo
+   * borradores y correo no deseado) los mensajes de ese día que no tienen parte
+   * de texto —los que el backend rechazaba antes del 27/10/2026— y los ingresa.
+   * Sirve aunque ya se hayan archivado (el UID del INBOX ya no existe). Lo que
+   * ya está en la base se saltea solo (Message-ID). Se hace una sola vez: si algo
+   * falla queda en el log y se vuelve a pedir.
+   */
+  async _reingestWithoutText(client, fechas) {
+    let carpetas;
+    try {
+      carpetas = (await client.list()).filter((m) =>
+        !(m.flags && m.flags.has && m.flags.has('\\Noselect')) &&
+        !['\\Drafts', '\\Junk'].includes(m.specialUse));
+    } catch (err) {
+      this.log(`Buscar sin texto: no se pudieron listar las carpetas (${err.message})`);
+      return;
+    }
+
+    for (const fecha of fechas) {
+      const desde = new Date(`${fecha}T00:00:00Z`);
+      if (Number.isNaN(desde.getTime())) {
+        this.log(`Buscar sin texto: fecha inválida "${fecha}" (usar AAAA-MM-DD) — se descarta`);
+        continue;
+      }
+      const hasta = new Date(desde.getTime() + 24 * 3600 * 1000);
+      let revisados = 0;
+      let encontrados = 0;
+      let falla = false;
+
+      for (const carpeta of carpetas) {
+        const nombre = carpeta.path;
+        const esEnviados = SENT_FOLDER_NAMES.some((s) => nombre.toLowerCase().includes(s));
+        let lock;
+        try {
+          lock = await client.getMailboxLock(nombre);
+        } catch {
+          continue;
+        }
+        try {
+          const uids = (await client.search({ since: desde, before: hasta }, { uid: true })) || [];
+          for (const uid of uids) {
+            revisados++;
+            const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
+            if (!msg?.source) { falla = true; continue; }
+            const parsed = await simpleParser(msg.source);
+            if ((parsed.text || '').trim()) continue;
+            encontrados++;
+            this.log(`Buscar sin texto ${fecha}: ${nombre} uid=${uid} "${parsed.subject || '(sin asunto)'}" ${parsed.messageId || '(sin Message-ID)'}`);
+            const resultado = await this._processMessage(client, uid, esEnviados);
+            if (resultado === 'infra') falla = true;
+          }
+        } catch (err) {
+          this.log(`Buscar sin texto ${fecha}: error en ${nombre} (${err.message})`);
+          falla = true;
+        } finally {
+          lock.release();
+        }
+      }
+
+      this.log(`Buscar sin texto ${fecha}: ${revisados} mensaje(s) revisados en ${carpetas.length} carpeta(s), ${encontrados} sin texto${falla ? ' — hubo fallas (ver arriba): volver a pedirlo' : ''}`);
     }
   }
 

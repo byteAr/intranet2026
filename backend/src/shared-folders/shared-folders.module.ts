@@ -24,6 +24,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
   controllers: [SharedFoldersController],
   providers: [SharedFoldersService, SharesService, GoogleDriveService, FolderDownloadService],
   // Escaneos: "Guardar en Archivos" sube a la unidad de la oficina o a Mis archivos.
-  exports: [SharedFoldersService],
+  exports: [SharedFoldersService, GoogleDriveService],
 })
 export class SharedFoldersModule {}

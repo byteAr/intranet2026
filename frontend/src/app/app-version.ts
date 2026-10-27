@@ -61,5 +61,6 @@
  * 1.8.14 — Fuera del menú "Firmante MTO" y "Parte Diario"; texto más corto en Avisos de reservas.
  * 1.8.15 — TICOM descarga el MTO como .msg de Outlook; se reconocen los encriptados "._00" (tilde cambiada por guion bajo).
  * 1.8.16 — Conversaciones: arrastrar y soltar archivos sobre la conversación para adjuntarlos.
+ * 1.8.17 — Respaldo nocturno de los MTO en Google Drive (Administración → Respaldo MTO).
  */
-export const APP_VERSION = '1.8.16';
+export const APP_VERSION = '1.8.17';

@@ -25,6 +25,7 @@ export const NEW_FEATURES = {
   'avisos-reservas': '2026-10-19',
   'descargar-msg': '2026-10-26',
   'chat-arrastrar': '2026-10-26',
+  'respaldo-mto': '2026-10-27',
 } as const;
 
 export type NewFeature = keyof typeof NEW_FEATURES;

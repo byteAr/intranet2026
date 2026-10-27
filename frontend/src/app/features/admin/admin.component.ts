@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../core/services/auth.service';
 import { BroadcastSendersComponent } from './broadcast-senders.component';
 import { ReservationRemindersComponent } from './reservation-reminders.component';
+import { MtoBackupComponent } from './mto-backup.component';
 import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
 
 interface AdminUser {
@@ -76,7 +77,7 @@ const RANK_GROUPS = [
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, BroadcastSendersComponent, ReservationRemindersComponent, NewBadgeComponent],
+  imports: [CommonModule, FormsModule, DatePipe, BroadcastSendersComponent, ReservationRemindersComponent, MtoBackupComponent, NewBadgeComponent],
   template: `
     <div class="p-6 max-w-6xl mx-auto">
       <div class="flex items-center flex-wrap gap-4 mb-6">
@@ -160,6 +161,15 @@ const RANK_GROUPS = [
           [class.text-gray-500]="activeTab() !== 'reminders'">
           Avisos de reservas <app-new-badge feature="avisos-reservas" [compact]="true" />
         </button>
+        <button (click)="activeTab.set('backup')"
+          class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
+          [class.border-teal-600]="activeTab() === 'backup'"
+          [class.text-teal-600]="activeTab() === 'backup'"
+          [class.dark:text-teal-400]="activeTab() === 'backup'"
+          [class.border-transparent]="activeTab() !== 'backup'"
+          [class.text-gray-500]="activeTab() !== 'backup'">
+          Respaldo MTO <app-new-badge feature="respaldo-mto" [compact]="true" />
+        </button>
         @if (isMlopez()) {
           <button (click)="activeTab.set('broadcast')"
             class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
@@ -176,6 +186,11 @@ const RANK_GROUPS = [
       <!-- ── AVISOS DE RESERVAS: correos que reciben el aviso de las videoconferencias (TICOM) ── -->
       @if (activeTab() === 'reminders') {
         <app-reservation-reminders />
+      }
+
+      <!-- ── RESPALDO MTO: respaldo nocturno en Google Drive (TICOM) ── -->
+      @if (activeTab() === 'backup') {
+        <app-mto-backup />
       }
 
       <!-- ── ANUNCIOS: quién puede enviar anuncios y mensajes a todos (solo mlopez) ── -->
@@ -1043,7 +1058,7 @@ const RANK_GROUPS = [
 export class AdminComponent implements OnInit {
   private readonly http = inject(HttpClient);
 
-  readonly activeTab = signal<'users' | 'groups' | 'permissions' | 'audit' | 'config' | 'broadcast' | 'reminders'>('users');
+  readonly activeTab = signal<'users' | 'groups' | 'permissions' | 'audit' | 'config' | 'broadcast' | 'reminders' | 'backup'>('users');
   private readonly auth = inject(AuthService);
   /** La pestaña Anuncios (quién puede enviar anuncios y mensajes a todos) es solo para mlopez. */
   readonly isMlopez = computed(() => this.auth.currentUser()?.username === 'mlopez');

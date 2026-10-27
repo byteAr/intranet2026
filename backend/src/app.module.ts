@@ -30,6 +30,7 @@ import { SharedItem } from './shared-folders/entities/shared-item.entity';
 import { NotificationsModule } from './notifications/notifications.module';
 import { Notification } from './notifications/entities/notification.entity';
 import { ScansModule } from './scans/scans.module';
+import { MtoBackupModule } from './mto-backup/mto-backup.module';
 import { Scan } from './scans/entities/scan.entity';
 import { ScanAccount } from './scans/entities/scan-account.entity';
 import { DailyReport } from './daily-report/entities/daily-report.entity';
@@ -112,6 +113,7 @@ import { DraftMailSigner } from './draft-mail/entities/draft-mail-signer.entity'
     SharedFoldersModule,
     NotificationsModule,
     ScansModule,
+    MtoBackupModule,
   ],
   controllers: [HealthController],
   providers: [

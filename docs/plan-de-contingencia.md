@@ -378,6 +378,13 @@ git -c safe.directory=* -C \\172.21.36.104\c$\intranet2026 pull --ff-only origin
 schtasks /End /S 172.21.36.104 /TN "mail-bridge"; schtasks /Run /S 172.21.36.104 /TN "mail-bridge"
 ```
 
+> Solo la primera vez después del 27/10/2026: `start.bat` pasó a estar en el repositorio y en esa PC ya existía suelto, así que el `pull` se niega a pisarlo. Antes del `pull`, una única vez:
+> ```powershell
+> git -c safe.directory=* -C \\172.21.36.104\c$\intranet2026 fetch origin
+> git -c safe.directory=* -C \\172.21.36.104\c$\intranet2026 checkout origin/feature/mail-bridge -- mail-bridge/start.bat
+> ```
+> (Es el mismo contenido: no cambia nada del funcionamiento.)
+
 ### 6.4 Cambió la contraseña de DIREDTOS@MTO.GNA
 
 En la intranet: **Administración → Configuración → Contraseña cuenta de correo DIREDTOS**. Actualiza el `.env` del puente (que se reinicia solo) y la libreta. Si el puente no responde, editar a mano `BRIDGE_IMAP_PASSWORD`, `BRIDGE_SMTP_PASSWORD` y `BRIDGE_LDAP_BIND_PASSWORD` en su `.env` y reiniciar la tarea.

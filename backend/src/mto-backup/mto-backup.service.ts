@@ -21,10 +21,19 @@ const CATEGORY: Record<string, string[]> = {
   redgen: ['Redgen'],
   tx: ['Enviados'],
 };
-/** Pausa entre escrituras en Drive: ~3 por segundo, debajo del límite por usuario. */
+/** Pausa entre escrituras en Drive (por cada MTO en paralelo), debajo del límite por usuario. */
 const WRITE_PAUSE_MS = 350;
 /** Cuánto trabaja cada madrugada: de 1:00 a 6:30 (hora de Argentina). */
 const NIGHT_WINDOW_MS = 5.5 * 3600_000;
+/**
+ * MTO a la vez. De a uno salían ~6.200 por madrugada (~3 s cada uno, casi todo
+ * esperando a Drive): con 3 son ~2 escrituras por segundo, todavía debajo de las
+ * ~3 que Google admite por cuenta. De día, 2, para no cargar el servidor.
+ */
+const NIGHT_PARALLEL = 3;
+const DAY_PARALLEL = 2;
+/** Con más de esto pendiente también trabaja de día (7:00 a 0:45) hasta ponerse al día. */
+const CATCH_UP_THRESHOLD = 10_000;
 const BATCH = 100;
 const LOCK_ID = 720261027;
 
@@ -40,6 +49,15 @@ export interface BackupStatus {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** El próximo HH:MM en hora de Argentina (UTC-3, sin horario de verano), en ms. */
+function nextArgentinaTime(hour: number, minute: number): number {
+  const now = Date.now();
+  const ar = new Date(now - 3 * 3600_000);
+  let t = Date.UTC(ar.getUTCFullYear(), ar.getUTCMonth(), ar.getUTCDate(), hour, minute) + 3 * 3600_000;
+  if (t <= now) t += 24 * 3600_000;
+  return t;
+}
 
 /**
  * Respaldo de los MTO en Google Drive (27/10/2026), en la cuenta
@@ -112,7 +130,23 @@ export class MtoBackupService implements OnModuleInit {
   @Cron('0 1 * * *', { timeZone: ZONA_ARGENTINA })
   async nightly(): Promise<void> {
     if (!this.enabled) return;
-    await this.run({ until: Date.now() + NIGHT_WINDOW_MS, reason: 'madrugada' });
+    await this.run({ until: Date.now() + NIGHT_WINDOW_MS, parallel: NIGHT_PARALLEL, reason: 'madrugada' });
+  }
+
+  /**
+   * Mientras haya mucho atrasado (la primera vez, o después de importar un PST
+   * de un año entero) sigue de día, más despacio, hasta las 0:45. Cada media hora
+   * se fija: retoma solo después de un pase o de una racha de errores.
+   */
+  @Cron('*/30 7-23 * * *', { timeZone: ZONA_ARGENTINA })
+  async catchUp(): Promise<void> {
+    if (!this.enabled || this.running) return;
+    const [{ n }] = await this.dataSource.query(
+      `SELECT count(*)::int AS n FROM emails e
+        WHERE NOT EXISTS (SELECT 1 FROM mto_backups b WHERE b."emailId" = e.id::text AND b."msgFileId" IS NOT NULL)`,
+    );
+    if (n <= CATCH_UP_THRESHOLD) return;
+    await this.run({ until: nextArgentinaTime(0, 45), parallel: DAY_PARALLEL, reason: `de día, faltan ${n}` });
   }
 
   // ── Estado (Administración → Respaldo MTO) ────────────────────────────────
@@ -145,7 +179,7 @@ export class MtoBackupService implements OnModuleInit {
 
   // ── El trabajo ────────────────────────────────────────────────────────────
 
-  private async run(opts: { until: number; limit?: number; reason: string }): Promise<void> {
+  private async run(opts: { until: number; parallel: number; limit?: number; reason: string }): Promise<void> {
     if (this.running) return;
     const runner = this.dataSource.createQueryRunner();
     await runner.connect();
@@ -170,20 +204,28 @@ export class MtoBackupService implements OnModuleInit {
           [Math.min(BATCH, limit - stats.mto)],
         );
         if (!ids.length) break;
-        for (const { id } of ids) {
-          if (Date.now() > opts.until || stats.mto >= limit) break;
-          try {
-            stats.files += await this.backupEmail(id);
-            stats.mto++;
-            consecutiveErrors = 0;
-          } catch (err) {
-            stats.errors++;
-            consecutiveErrors++;
-            this.logger.warn(`MTO ${id}: no se pudo respaldar: ${(err as Error).message}`);
-            // Muchos errores seguidos = algo general (cuota, permisos, red): se para hasta mañana.
-            if (consecutiveErrors >= 20) { stats.stoppedBy = 'demasiados errores seguidos'; break; }
-          }
-        }
+        // Varios a la vez: casi todo el tiempo de cada uno es esperar a Drive.
+        let next = 0;
+        await Promise.all(
+          Array.from({ length: Math.min(opts.parallel, ids.length) }, async () => {
+            while (next < ids.length && stats.stoppedBy === 'terminó') {
+              if (Date.now() > opts.until) { stats.stoppedBy = 'fin del horario'; break; }
+              if (stats.mto >= limit) break;
+              const { id } = ids[next++];
+              try {
+                stats.files += await this.backupEmail(id);
+                stats.mto++;
+                consecutiveErrors = 0;
+              } catch (err) {
+                stats.errors++;
+                consecutiveErrors++;
+                this.logger.warn(`MTO ${id}: no se pudo respaldar: ${(err as Error).message}`);
+                // Muchos errores seguidos = algo general (cuota, permisos, red): se para.
+                if (consecutiveErrors >= 20) stats.stoppedBy = 'demasiados errores seguidos';
+              }
+            }
+          }),
+        );
         if (stats.stoppedBy !== 'terminó') break;
       }
 
@@ -238,16 +280,20 @@ export class MtoBackupService implements OnModuleInit {
     let name: string = row?.folderName;
     if (!folderId) {
       // Mismo código el mismo día en la misma carpeta (una SVC, un reenvío): "DBE 123/26 (2)".
-      const [{ n }] = await this.dataSource.query(
-        `SELECT count(*)::int AS n FROM mto_backups WHERE "parentId" = $1 AND "baseName" = $2`,
-        [parentId, baseName],
-      );
-      name = n ? `${baseName} (${n + 1})` : baseName;
-      folderId = (await this.createFolder(parentId, name)).id!;
-      await this.dataSource.query(
-        `INSERT INTO mto_backups ("emailId", "folderId", "parentId", "baseName", "folderName") VALUES ($1, $2, $3, $4, $5)`,
-        [emailId, folderId, parentId, baseName, name],
-      );
+      // De a uno por nombre: dos en paralelo contarían lo mismo y quedarían iguales.
+      ({ folderId, name } = await this.withKeyLock(`name:${parentId}/${baseName}`, async () => {
+        const [{ n }] = await this.dataSource.query(
+          `SELECT count(*)::int AS n FROM mto_backups WHERE "parentId" = $1 AND "baseName" = $2`,
+          [parentId, baseName],
+        );
+        const folderName = n ? `${baseName} (${n + 1})` : baseName;
+        const id = (await this.createFolder(parentId, folderName)).id!;
+        await this.dataSource.query(
+          `INSERT INTO mto_backups ("emailId", "folderId", "parentId", "baseName", "folderName") VALUES ($1, $2, $3, $4, $5)`,
+          [emailId, id, parentId, baseName, folderName],
+        );
+        return { folderId: id, name: folderName };
+      }));
     }
 
     const msg = await this.mail.exportMsg(emailId);
@@ -353,24 +399,55 @@ export class MtoBackupService implements OnModuleInit {
     let path = '';
     for (const seg of segments) {
       path = path ? `${path}/${seg}` : seg;
-      const [cached] = await this.dataSource.query(`SELECT "folderId" FROM mto_backup_folders WHERE "path" = $1`, [path]);
-      if (cached) { parent = cached.folderId; continue; }
-      const id = (await this.findFolder(parent, seg)) ?? (await this.createFolder(parent, seg)).id!;
-      await this.dataSource.query(
-        `INSERT INTO mto_backup_folders ("path", "folderId") VALUES ($1, $2) ON CONFLICT ("path") DO NOTHING`,
-        [path, id],
-      );
-      parent = id;
+      const cached = await this.cachedFolder(path);
+      if (cached) { parent = cached; continue; }
+      // De a uno por ruta: dos MTO del mismo día crearían dos carpetas "DD" iguales.
+      const p = parent;
+      const key = path;
+      parent = await this.withKeyLock(`path:${key}`, async () => {
+        const again = await this.cachedFolder(key);
+        if (again) return again;
+        const id = (await this.findFolder(p, seg)) ?? (await this.createFolder(p, seg)).id!;
+        await this.dataSource.query(
+          `INSERT INTO mto_backup_folders ("path", "folderId") VALUES ($1, $2) ON CONFLICT ("path") DO NOTHING`,
+          [key, id],
+        );
+        return id;
+      });
     }
     return parent;
   }
 
-  private async rootFolder(): Promise<string> {
-    const [cached] = await this.dataSource.query(`SELECT "folderId" FROM mto_backup_folders WHERE "path" = ''`);
-    if (cached) return cached.folderId;
-    const id = (await this.findFolder('root', ROOT_NAME)) ?? (await this.createFolder('root', ROOT_NAME)).id!;
-    await this.dataSource.query(`INSERT INTO mto_backup_folders ("path", "folderId") VALUES ('', $1) ON CONFLICT ("path") DO NOTHING`, [id]);
-    return id;
+  private async cachedFolder(path: string): Promise<string | null> {
+    const [row] = await this.dataSource.query(`SELECT "folderId" FROM mto_backup_folders WHERE "path" = $1`, [path]);
+    return row?.folderId ?? null;
+  }
+
+  private rootFolder(): Promise<string> {
+    return this.withKeyLock('path:', async () => {
+      const cached = await this.cachedFolder('');
+      if (cached) return cached;
+      const id = (await this.findFolder('root', ROOT_NAME)) ?? (await this.createFolder('root', ROOT_NAME)).id!;
+      await this.dataSource.query(`INSERT INTO mto_backup_folders ("path", "folderId") VALUES ('', $1) ON CONFLICT ("path") DO NOTHING`, [id]);
+      return id;
+    });
+  }
+
+  /** Lo que se haga con la misma clave va de a uno (los MTO en paralelo no se pisan). */
+  private readonly keyLocks = new Map<string, Promise<void>>();
+  private async withKeyLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const prev = this.keyLocks.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const mine = prev.then(() => gate);
+    this.keyLocks.set(key, mine);
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      release();
+      if (this.keyLocks.get(key) === mine) this.keyLocks.delete(key);
+    }
   }
 
   private async findFolder(parentId: string, name: string): Promise<string | null> {

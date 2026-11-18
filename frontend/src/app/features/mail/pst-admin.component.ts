@@ -9,6 +9,8 @@ interface PstFile {
   filename: string;
   size: number;
   modifiedAt: string;
+  /** Lo que el servidor vio en la cabecera (p. ej. "Subida incompleta: faltan 661 MB"); null si está bien. */
+  problem?: string | null;
 }
 
 interface ImportLog {
@@ -149,9 +151,10 @@ interface PstComplete {
                 <span class="text-xs text-gray-400">{{ formatSize(f.size) }}</span>
 
                 <!-- Estado de cada archivo: subir no es importar -->
-                @if (f.size === 0) {
+                @if (f.problem || f.size === 0) {
+                  <!-- Cortado o dañado: no se ofrece importarlo (antes solo se miraba si pesaba 0 B) -->
                   <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700"
-                        title="El archivo quedó vacío: la subida falló. Hay que subirlo de nuevo.">Subida incompleta (0 B)</span>
+                        title="Lo que llegó al servidor no sirve para importar. Hay que subirlo de nuevo (con Outlook cerrado y sin cerrar la pestaña hasta que diga «subido»).">{{ f.problem || 'Subida incompleta (0 B)' }}</span>
                 } @else if (activeImport() === f.filename || log?.status === 'running') {
                   <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 animate-pulse">Importando...</span>
                 } @else if (log?.status === 'completed') {

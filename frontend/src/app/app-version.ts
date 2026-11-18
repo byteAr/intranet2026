@@ -66,5 +66,6 @@
  * 1.8.19 — Un .rar/.zip que trae archivos encriptados (.~00) adentro cuenta como encriptado: TICOM le sube los desencriptados.
  * 1.8.20 — Importar PST: cada archivo dice si está sin importar, importándose, importado o falló; subir ya no parece importar.
  * 1.8.21 — Importar PST: barra con «N de M», porcentaje y tiempo que falta.
+ * 1.8.22 — Importar PST: un archivo cortado o dañado se marca y no se deja importar; la subida cortada no queda en la lista.
  */
-export const APP_VERSION = '1.8.21';
+export const APP_VERSION = '1.8.22';

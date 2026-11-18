@@ -14,6 +14,7 @@ import { MailGateway } from '../mail.gateway';
 import { normalizeMailText } from '../mail-text.util';
 import { isOutlookDrawing } from '../outlook-drawing.util';
 import { archiveHasEncrypted } from '../archive-names.util';
+import { checkPstFile, explainPstError } from './pst-file-check.util';
 
 /** Data shape sent from the worker thread for each PST message */
 interface WorkerMessageData {
@@ -205,8 +206,9 @@ export class PstImportService implements OnModuleInit {
   async startImport(filename: string, importedBy: string): Promise<{ alreadyImported: boolean }> {
     const filePath = path.join(this.uploadPath, filename);
     if (!fs.existsSync(filePath)) throw new NotFoundException(`No está el archivo ${filename} en el servidor`);
-    if (fs.statSync(filePath).size === 0) {
-      throw new BadRequestException(`${filename} está vacío (0 B): la subida falló. Subilo de nuevo.`);
+    const check = checkPstFile(filePath);
+    if (check.problem) {
+      throw new BadRequestException(`${filename}: ${check.problem}. No se puede importar: hay que subirlo de nuevo.`);
     }
 
     // Idempotency: skip if already completed
@@ -266,7 +268,7 @@ export class PstImportService implements OnModuleInit {
         `PST import completed: ${filename} — inserted=${stats.inserted} skipped=${stats.skippedDuplicates}`,
       );
     } catch (err) {
-      const msg = (err as Error).message;
+      const msg = explainPstError((err as Error).message);
       await this.logRepo.update(logId, {
         status: PstImportStatus.FAILED,
         finishedAt: new Date(),

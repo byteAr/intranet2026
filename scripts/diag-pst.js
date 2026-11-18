@@ -21,8 +21,36 @@ console.log(`${archivo}: ${(st.size / 1024 ** 3).toFixed(2)} GB, modificado ${st
 console.log(`Firma: ${cab.subarray(0, 4).toString('latin1')} (tiene que ser !BDN)`);
 if (cab.subarray(0, 4).toString('latin1') !== '!BDN') { console.log('NO ES UN PST VÁLIDO (o la subida lo dañó)'); process.exit(1); }
 
+// Cabecera (MS-PST 2.2.2.6): el tamaño que el propio PST dice tener y dónde
+// empiezan sus dos índices. Si el archivo es más corto que eso, la copia está
+// incompleta; si los índices están bien pero no se abre, el PST está dañado.
+{
+  const h = Buffer.alloc(512);
+  const fd2 = fs.openSync(archivo, 'r');
+  fs.readSync(fd2, h, 0, 512, 0);
+  fs.closeSync(fd2);
+  const ver = h.readUInt16LE(10);
+  const ansi = ver === 14 || ver === 15;
+  const r = ansi ? 168 : 180;
+  const leer = (o) => (ansi ? h.readUInt32LE(o) : Number(h.readBigUInt64LE(o)));
+  const eof = leer(r + 4);
+  const nbt = ansi ? h.readUInt32LE(r + 24) : Number(h.readBigUInt64LE(r + 44));
+  const bbt = ansi ? h.readUInt32LE(r + 32) : Number(h.readBigUInt64LE(r + 60));
+  const amap = h[ansi ? r + 36 : r + 68];
+  console.log(`Versión ${ver}${ansi ? ' (ANSI)' : ''}; tamaño según el PST ${eof} bytes, en el disco ${st.size}` +
+    (eof === st.size ? ' (coinciden)' : eof > st.size ? ` ⚠ FALTAN ${eof - st.size} bytes: la copia está incompleta` : ' (el disco tiene más: no es grave)'));
+  console.log(`Índice de carpetas en ${nbt}, de bloques en ${bbt}${nbt >= st.size || bbt >= st.size ? ' ⚠ fuera del archivo' : ''}; mapa de espacio ${amap ? 'válido' : '⚠ marcado inválido (Outlook lo cerró mal)'}`);
+}
+
 console.log(`${seg()} Abriendo…`);
-const pst = new PSTFile(archivo);
+let pst;
+try {
+  pst = new PSTFile(archivo);
+} catch (e) {
+  console.log(`${seg()} NO SE PUEDE ABRIR: ${e.message}`);
+  console.log('El índice interno del PST está roto: repararlo con SCANPST.EXE (Outlook cerrado) o exportarlo a un PST nuevo desde Outlook, y volver a subirlo.');
+  process.exit(1);
+}
 const tipos = { 14: 'ANSI (Outlook 97-2002, máx. 2 GB)', 23: 'Unicode', 36: 'Unicode 2013' };
 console.log(`${seg()} Abierto. Tipo ${tipos[pst.pstFileType] || pst.pstFileType}, cifrado ${pst.encryptionType}`);
 if (pst.pstFileType === 14 && st.size > 2 * 1024 ** 3) console.log('⚠ Un PST ANSI no puede pasar de 2 GB: el archivo está dañado');

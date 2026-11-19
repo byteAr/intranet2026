@@ -4,6 +4,15 @@ import { CommonModule, DecimalPipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from '../../core/services/auth.service';
+import { NewBadgeComponent } from '../../shared/new-badge/new-badge.component';
+import { FeatureTipDirective } from '../../shared/feature-tip/feature-tip.directive';
+
+interface DiskSpace {
+  freeBytes?: number;
+  usedPercent?: number;
+  uploadMaxBytes?: number;
+  low?: boolean;
+}
 
 interface PstFile {
   filename: string;
@@ -59,7 +68,7 @@ interface PstComplete {
 @Component({
   selector: 'app-pst-admin',
   standalone: true,
-  imports: [CommonModule, DecimalPipe],
+  imports: [CommonModule, DecimalPipe, NewBadgeComponent, FeatureTipDirective],
   template: `
     <div class="max-w-4xl space-y-6">
 
@@ -93,6 +102,14 @@ interface PstComplete {
             </button>
           }
         </div>
+
+        <!-- Lugar en el servidor: con el disco lleno la subida se cortaba sin decir por qué -->
+        @if (space(); as d) {
+          <p class="mt-2 text-xs" [ngClass]="d.low ? 'text-red-600 font-medium' : 'text-gray-400'">
+            Espacio libre en el servidor: {{ formatSize(d.freeBytes ?? 0) }} ({{ d.usedPercent }} % usado)
+            @if (d.low) { · Se está llenando: borrá abajo los PST ya importados. }
+          </p>
+        }
 
         @if (uploading()) {
           <div class="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
@@ -140,7 +157,7 @@ interface PstComplete {
         } @else {
           <div class="space-y-2">
             @for (f of pstFiles(); track f.filename) {
-              @let log = lastLogOf().get(f.filename);
+              @let log = logFor(f);
               <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg border"
                    [ngClass]="f.filename === uploadedName() && !log ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200' : 'border-gray-100 bg-gray-50'">
                 <svg class="h-5 w-5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -174,6 +191,21 @@ interface PstComplete {
                     class="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-white rounded-md disabled:opacity-40 transition-colors"
                     style="background:#0f766e">
                     {{ log?.status === 'failed' ? 'Reintentar' : 'Importar' }}
+                  </button>
+                }
+
+                <!-- Borrar del servidor: lo importado queda en la intranet (los PST ocupaban 84 GB, 19/11/2026) -->
+                @if (activeImport() !== f.filename && log?.status !== 'running') {
+                  <button
+                    (click)="deleteFile(f, log?.status === 'completed')"
+                    [disabled]="deleting() === f.filename"
+                    appFeatureTip="borrar-pst"
+                    class="relative flex-shrink-0 p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <app-new-badge feature="borrar-pst" [dot]="true" class="absolute -top-1 -right-1" />
                   </button>
                 }
               </div>
@@ -372,6 +404,9 @@ export class PstAdminComponent implements OnInit, OnDestroy {
   private socket: Socket | null = null;
 
   readonly pstFiles = signal<PstFile[]>([]);
+  /** Espacio del disco del servidor (null = no se sabe). */
+  readonly space = signal<DiskSpace | null>(null);
+  readonly deleting = signal<string | null>(null);
   readonly history = signal<ImportLog[]>([]);
   readonly uploading = signal(false);
   readonly uploadProgress = signal<number | null>(null);
@@ -469,6 +504,48 @@ export class PstAdminComponent implements OnInit, OnDestroy {
     this.http.get<{ files: PstFile[] }>('/api/mail/admin/pst/files').subscribe({
       next: (res) => this.pstFiles.set(res.files),
     });
+    this.loadSpace();
+  }
+
+  loadSpace(): void {
+    this.http.get<DiskSpace>('/api/mail/admin/pst/space').subscribe({
+      next: (d) => this.space.set(d.freeBytes != null ? d : null),
+      error: () => this.space.set(null),
+    });
+  }
+
+  /**
+   * El último intento de importar ese archivo. Si falló y después se volvió a
+   * subir (2019.pst: cortado, se subió entero), ese fallo era del archivo
+   * anterior: se muestra "Sin importar", no "Falló".
+   */
+  logFor(f: PstFile): ImportLog | undefined {
+    const log = this.lastLogOf().get(f.filename);
+    if (log?.status === 'failed' && new Date(f.modifiedAt).getTime() > new Date(log.finishedAt ?? log.startedAt).getTime()) {
+      return undefined;
+    }
+    return log;
+  }
+
+  /** Borra el PST del servidor (lo importado queda en la intranet). */
+  deleteFile(f: PstFile, imported: boolean): void {
+    const msg = imported
+      ? `¿Borrar ${f.filename} del servidor?\n\nLo que trajo ya está en la intranet y queda. Se liberan ${this.formatSize(f.size)}. No se puede deshacer: para volver a importarlo habría que subirlo de nuevo.`
+      : `¿Borrar ${f.filename} del servidor?\n\nTodavía NO se importó: lo que trae no está en la intranet. Para importarlo habría que subirlo de nuevo. No se puede deshacer.`;
+    if (!confirm(msg)) return;
+    this.deleting.set(f.filename);
+    this.importError.set('');
+    this.http.delete(`/api/mail/admin/pst/files/${encodeURIComponent(f.filename)}`).subscribe({
+      next: () => {
+        this.deleting.set(null);
+        if (this.uploadedName() === f.filename) this.uploadSuccess.set(false);
+        this.loadFiles();
+      },
+      error: (err) => {
+        this.deleting.set(null);
+        this.importError.set(err?.error?.message ?? `No se pudo borrar ${f.filename}.`);
+      },
+    });
   }
 
   loadHistory(): void {
@@ -497,11 +574,37 @@ export class PstAdminComponent implements OnInit, OnDestroy {
     this.uploadProgress.set(null);
   }
 
+  /**
+   * Antes de mandar un byte se pregunta cuánto lugar hay: con el disco lleno la
+   * subida se cortaba a mitad con "Error al subir el archivo" (19/11/2026).
+   */
   uploadPst(): void {
-    if (!this.uploadFile) return;
+    const file = this.uploadFile;
+    if (!file) return;
     this.uploading.set(true);
     this.uploadError.set('');
     this.uploadSuccess.set(false);
+    this.http.get<DiskSpace>('/api/mail/admin/pst/space').subscribe({
+      next: (disk) => {
+        this.space.set(disk);
+        if (disk.uploadMaxBytes != null && file.size > disk.uploadMaxBytes) {
+          this.uploading.set(false);
+          this.uploadError.set(
+            `No hay lugar en el servidor: el archivo pesa ${this.formatSize(file.size)} y quedan ` +
+            `${this.formatSize(disk.freeBytes ?? 0)} libres (siempre se dejan 5 GB para la base). ` +
+            'Borrá de la lista de abajo los PST ya importados para liberar espacio.');
+          return;
+        }
+        this.sendPst();
+      },
+      // Si no se pudo consultar, se intenta igual: el servidor también lo controla.
+      error: () => this.sendPst(),
+    });
+  }
+
+  private sendPst(): void {
+    if (!this.uploadFile) return;
+    this.uploading.set(true);
     this.uploadProgress.set(0);
 
     const form = new FormData();
@@ -528,18 +631,24 @@ export class PstAdminComponent implements OnInit, OnDestroy {
         this.loadFiles();
       } else {
         this.uploadProgress.set(null);
+        // Sin mensaje propio (página de error de nginx/IIS): al menos el código y las causas posibles.
+        const generic = `Se cortó la subida (código ${xhr.status}). Puede ser falta de lugar en el servidor, ` +
+          'un pase del servidor o la red: fijate el espacio libre de arriba y volvé a intentar.';
         try {
           const body = JSON.parse(xhr.responseText);
-          this.uploadError.set(body?.message ?? 'Error al subir el archivo.');
+          this.uploadError.set(body?.message ?? generic);
         } catch {
-          this.uploadError.set('Error al subir el archivo.');
+          this.uploadError.set(generic);
         }
+        this.loadSpace();
       }
     };
     xhr.onerror = () => {
       this.uploading.set(false);
       this.uploadProgress.set(null);
-      this.uploadError.set('Error de red al subir el archivo.');
+      this.uploadError.set('Se cortó la subida: la red, un pase del servidor o falta de lugar. ' +
+        'Si tenías el PST abierto en Outlook, cerralo. Fijate el espacio libre de arriba y volvé a intentar.');
+      this.loadSpace();
     };
 
     const token = this.authService.getToken();

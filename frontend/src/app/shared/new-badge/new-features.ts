@@ -26,6 +26,7 @@ export const NEW_FEATURES = {
   'descargar-msg': '2026-10-26',
   'chat-arrastrar': '2026-10-26',
   'respaldo-mto': '2026-10-27',
+  'borrar-pst': '2026-11-19',
 } as const;
 
 export type NewFeature = keyof typeof NEW_FEATURES;

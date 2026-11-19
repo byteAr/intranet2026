@@ -120,4 +120,13 @@ export const FEATURE_TIPS: Record<string, FeatureTip> = {
       'Imágenes, PDF, Word, Excel, texto o RAR, de hasta 50 MB cada uno.',
     ],
   },
+  'borrar-pst': {
+    title: 'Borrar del servidor',
+    text: 'Libera el lugar que ocupa el PST en el disco del servidor.',
+    points: [
+      'Si ya se importó, los MTO que trajo quedan en la intranet.',
+      'No se puede deshacer: para importarlo de nuevo hay que volver a subirlo.',
+      'No se puede borrar mientras se está importando.',
+    ],
+  },
 };

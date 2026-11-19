@@ -78,3 +78,5 @@ docker stop -t "$STOP_TIMEOUT" $OLD_IDS >/dev/null
 # shellcheck disable=SC2086
 docker rm $OLD_IDS >/dev/null
 log "Listo: ${SERVICE} actualizado sin corte."
+# Imágenes viejas y caché de compilación: llenaron el disco el 19/11/2026.
+bash "$(dirname "$0")/docker-cleanup.sh" || true

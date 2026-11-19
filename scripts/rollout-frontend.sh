@@ -74,3 +74,5 @@ if ! docker exec -i "$CID" cmp -s "$CONF" - < "$WORK/default.conf"; then
 fi
 
 log "Listo: frontend actualizado sin corte. Los navegadores se actualizan solos."
+# Imágenes viejas y caché de compilación: llenaron el disco el 19/11/2026.
+bash "$(dirname "$0")/docker-cleanup.sh" || true

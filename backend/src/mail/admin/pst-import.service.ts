@@ -234,6 +234,17 @@ export class PstImportService implements OnModuleInit {
     return { alreadyImported: false };
   }
 
+  /** Borra un PST subido (no su historial). No mientras se está importando. */
+  async deleteFile(filename: string): Promise<void> {
+    const filePath = path.join(this.uploadPath, filename);
+    if (!fs.existsSync(filePath)) throw new NotFoundException(`No está el archivo ${filename} en el servidor`);
+    const running = await this.logRepo.findOne({ where: { filename, status: PstImportStatus.RUNNING } });
+    if (running) throw new ConflictException(`${filename} se está importando: esperá a que termine para borrarlo.`);
+    const size = fs.statSync(filePath).size;
+    fs.rmSync(filePath, { force: true });
+    this.logger.log(`PST borrado del servidor: ${filename} (${Math.round(size / 1024 ** 2)} MB)`);
+  }
+
   private async runImport(filePath: string, filename: string, logId: string): Promise<void> {
     const startedAt = Date.now();
     const stats = {

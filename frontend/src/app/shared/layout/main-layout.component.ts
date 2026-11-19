@@ -330,6 +330,21 @@ import { HttpClient } from '@angular/common/http';
 
         <!-- Page content -->
         <main class="flex-1 overflow-y-auto px-4 py-6 pb-8">
+          <!-- Solo TICOM: el disco del servidor se está llenando (19/11/2026 llegó al 100 % sin que nadie lo viera) -->
+          @if (diskWarning(); as d) {
+            <div class="mb-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              <svg class="h-5 w-5 flex-shrink-0 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <p class="flex-1">
+                <strong>El disco del servidor está al {{ d.usedPercent }} %</strong> (quedan {{ formatGb(d.freeBytes) }} libres).
+                Si se llena, la intranet deja de guardar MTO y archivos.
+                Se libera lugar borrando los PST ya importados en
+                <a routerLink="/correo/admin" class="font-medium underline">Importar PST</a>.
+              </p>
+            </div>
+          }
           <router-outlet />
         </main>
       </div>
@@ -905,6 +920,20 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   modalIsCivil = false;
 
   readonly isTicom = computed(() => this.authService.currentUser()?.roles?.includes('TICOM') ?? false);
+  /** Disco del servidor casi lleno (solo se consulta para TICOM, cada 15 min). */
+  readonly diskWarning = signal<{ usedPercent: number; freeBytes: number } | null>(null);
+  private diskTimer: ReturnType<typeof setInterval> | null = null;
+
+  private checkDisk(): void {
+    this.http.get<{ low?: boolean; usedPercent?: number; freeBytes?: number }>('/api/health/disk').subscribe({
+      next: (d) => this.diskWarning.set(d.low ? { usedPercent: d.usedPercent ?? 0, freeBytes: d.freeBytes ?? 0 } : null),
+      error: () => undefined,
+    });
+  }
+
+  formatGb(bytes: number): string {
+    return `${(bytes / 1024 ** 3).toFixed(1).replace('.', ',')} GB`;
+  }
   readonly isMlopez = computed(() => this.authService.currentUser()?.username === 'mlopez');
   /** Puede usar "Mensaje a todos" y "Enviar anuncio" (lo decide el servidor). */
   readonly canBroadcast = signal(false);
@@ -1039,6 +1068,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     void this.idleTimeoutService.start();
     this.sharedFoldersService.refreshCounts();
     this.sharesTimer = setInterval(() => this.sharedFoldersService.refreshCounts(), 60_000);
+    if (this.isTicom()) {
+      this.checkDisk();
+      this.diskTimer = setInterval(() => this.checkDisk(), 15 * 60_000);
+    }
     this.notificationsService.connect();
     this.openNotificationFromUrl(this.router.url);
     this.isOnChatPage.set(this.router.url.startsWith('/chat'));
@@ -1070,6 +1103,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.routerSub?.unsubscribe();
     if (this.sharesTimer) clearInterval(this.sharesTimer);
+    if (this.diskTimer) clearInterval(this.diskTimer);
   }
 
   toggleChatPopup(): void { this.chatPopupOpen.update((v) => !v); }

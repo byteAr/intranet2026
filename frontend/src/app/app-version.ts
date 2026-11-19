@@ -67,5 +67,6 @@
  * 1.8.20 — Importar PST: cada archivo dice si está sin importar, importándose, importado o falló; subir ya no parece importar.
  * 1.8.21 — Importar PST: barra con «N de M», porcentaje y tiempo que falta.
  * 1.8.22 — Importar PST: un archivo cortado o dañado se marca y no se deja importar; la subida cortada no queda en la lista.
+ * 1.8.23 — Importar PST: espacio libre del servidor, aviso si no entra antes de subir y botón para borrar los PST; aviso a TICOM si el disco se llena.
  */
-export const APP_VERSION = '1.8.22';
+export const APP_VERSION = '1.8.23';
